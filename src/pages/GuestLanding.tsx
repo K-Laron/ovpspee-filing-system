@@ -121,7 +121,10 @@ export const GuestLanding = () => {
             <tbody>
               {documents.map((doc) => (
                 <tr className="cursor-pointer border-b border-border hover:bg-background" key={doc.document_id} onClick={() => void openDocument(doc.document_id).catch((err) => setMessage(String(err)))}>
-                  <td className="p-3"><p className="font-semibold text-secondary">{doc.document_name}</p><p className="text-xs text-muted">{doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</p></td>
+                  <td className="p-3">
+                    <p className="font-semibold text-secondary">{doc.document_name}</p>
+                    <p className="text-xs text-muted"><span className="rounded bg-background px-2 py-0.5 text-[11px] font-semibold text-secondary">{doc.status}</span> · {doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</p>
+                  </td>
                   <td className="p-3 text-muted">{doc.date_received}</td>
                 </tr>
               ))}
@@ -137,6 +140,7 @@ export const GuestLanding = () => {
                 <div>
                   <h2 className="text-xl font-bold text-secondary">{detail.document.document_name}</h2>
                   <p className="text-sm text-muted">{detail.document.category_name}{detail.document.folder_name ? ` / ${detail.document.folder_name}` : ''}</p>
+                  <p className="mt-2 inline-flex rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{detail.document.status}</p>
                 </div>
               </div>
               <dl className="grid gap-3 text-sm md:grid-cols-2">

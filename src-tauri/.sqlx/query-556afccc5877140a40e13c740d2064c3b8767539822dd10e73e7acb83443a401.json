@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE document\n         SET status = ?, is_hidden = CASE WHEN ? = 'Confidential' THEN 1 ELSE is_hidden END, updated_at = ?\n         WHERE document_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "556afccc5877140a40e13c740d2064c3b8767539822dd10e73e7acb83443a401"
+}

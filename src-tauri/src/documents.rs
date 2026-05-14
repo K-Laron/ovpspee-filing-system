@@ -12,8 +12,8 @@ use crate::{
     auth::{require_admin_role, require_session, write_audit_log},
     db::DbPool,
     error::{AppError, AppResult},
-    master_data::{CategoryItem, FolderItem},
     master_data::OfficeItem,
+    master_data::{CategoryItem, FolderItem},
 };
 
 const MAX_ATTACHMENT_BYTES: u64 = 1_073_741_824;
@@ -39,7 +39,8 @@ impl StorageRoot {
     }
 
     pub fn resolve_relative(&self, relative: &str) -> PathBuf {
-        self.base.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR))
+        self.base
+            .join(relative.replace('/', std::path::MAIN_SEPARATOR_STR))
     }
 
     pub fn resolve_checked(&self, relative: &str) -> AppResult<PathBuf> {
@@ -198,7 +199,11 @@ pub async fn set_document_hidden(
         "UPDATE",
         Some("document"),
         Some(document_id),
-        if is_hidden { "Hid document" } else { "Unhid document" },
+        if is_hidden {
+            "Hid document"
+        } else {
+            "Unhid document"
+        },
         Some(session.user_id),
     )
     .await?;
@@ -272,7 +277,9 @@ pub async fn restore_document(pool: &DbPool, session_id: &str, document_id: i64)
     .await?
     .ok_or_else(|| AppError::Conflict("Original category no longer exists.".into()))?;
     if category.is_active != 1 || category.is_system == 1 {
-        return Err(AppError::Conflict("Original category is inactive or unavailable.".into()));
+        return Err(AppError::Conflict(
+            "Original category is inactive or unavailable.".into(),
+        ));
     }
     let folder_id = if let Some(folder_id) = current.original_folder_id {
         let folder = sqlx::query!(
@@ -283,7 +290,9 @@ pub async fn restore_document(pool: &DbPool, session_id: &str, document_id: i64)
         .fetch_optional(pool)
         .await?;
         match folder {
-            Some(folder) if folder.category_id == category_id && folder.is_active == 1 => Some(folder_id),
+            Some(folder) if folder.category_id == category_id && folder.is_active == 1 => {
+                Some(folder_id)
+            }
             _ => None,
         }
     } else {
@@ -394,6 +403,102 @@ pub async fn update_document(
     Ok(())
 }
 
+pub async fn move_document(
+    pool: &DbPool,
+    session_id: &str,
+    document_id: i64,
+    category_id: i64,
+    folder_id: Option<i64>,
+) -> AppResult<()> {
+    let session = require_document_editor(pool, session_id).await?;
+    let current = sqlx::query!(
+        "SELECT category_id AS \"category_id!: i64\", folder_id, is_trashed AS \"is_trashed!: i64\"
+         FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
+    if current.is_trashed == 1 {
+        return Err(AppError::Validation(
+            "Restore document before moving.".into(),
+        ));
+    }
+    validate_document_location(pool, category_id, folder_id).await?;
+    let now = now_text();
+    sqlx::query!(
+        "UPDATE document SET category_id = ?, folder_id = ?, updated_at = ? WHERE document_id = ?",
+        category_id,
+        folder_id,
+        now,
+        document_id
+    )
+    .execute(pool)
+    .await?;
+    refresh_document_fts(pool, document_id).await?;
+    write_audit_log(
+        pool,
+        "MOVE",
+        Some("document"),
+        Some(document_id),
+        &format!(
+            "Moved document from category {} folder {:?} to category {} folder {:?}",
+            current.category_id, current.folder_id, category_id, folder_id
+        ),
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn set_document_status(
+    pool: &DbPool,
+    session_id: &str,
+    document_id: i64,
+    status: String,
+) -> AppResult<()> {
+    let session = require_document_editor(pool, session_id).await?;
+    validate_status(&status)?;
+    let current = sqlx::query!(
+        "SELECT status, is_trashed AS \"is_trashed!: i64\" FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
+    if current.is_trashed == 1 {
+        return Err(AppError::Validation(
+            "Restore document before changing status.".into(),
+        ));
+    }
+    let now = now_text();
+    sqlx::query!(
+        "UPDATE document
+         SET status = ?, is_hidden = CASE WHEN ? = 'Confidential' THEN 1 ELSE is_hidden END, updated_at = ?
+         WHERE document_id = ?",
+        status,
+        status,
+        now,
+        document_id
+    )
+    .execute(pool)
+    .await?;
+    refresh_document_fts(pool, document_id).await?;
+    write_audit_log(
+        pool,
+        "UPDATE",
+        Some("document"),
+        Some(document_id),
+        &format!(
+            "Changed document status from {} to {}",
+            current.status, status
+        ),
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
 pub async fn list_documents(
     pool: &DbPool,
     session_id: &str,
@@ -445,7 +550,9 @@ pub async fn add_attachment(
         .to_ascii_lowercase();
     let file_size = fs::metadata(&source)?.len();
     if file_size > MAX_ATTACHMENT_BYTES {
-        return Err(AppError::Validation("Attachment exceeds 1 GB maximum.".into()));
+        return Err(AppError::Validation(
+            "Attachment exceeds 1 GB maximum.".into(),
+        ));
     }
     validate_extension(&ext)?;
     validate_magic(&source, &ext)?;
@@ -497,9 +604,12 @@ pub async fn remove_attachment(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Attachment not found.".into()))?;
-    sqlx::query!("DELETE FROM attachment WHERE attachment_id = ?", attachment_id)
-        .execute(pool)
-        .await?;
+    sqlx::query!(
+        "DELETE FROM attachment WHERE attachment_id = ?",
+        attachment_id
+    )
+    .execute(pool)
+    .await?;
     let path = storage.resolve_checked(&row.stored_relative_path)?;
     if path.exists() {
         fs::remove_file(path)?;
@@ -657,7 +767,10 @@ pub async fn list_document_offices(pool: &DbPool, session_id: &str) -> AppResult
         .collect())
 }
 
-async fn require_document_editor(pool: &DbPool, session_id: &str) -> AppResult<crate::auth::ValidSession> {
+async fn require_document_editor(
+    pool: &DbPool,
+    session_id: &str,
+) -> AppResult<crate::auth::ValidSession> {
     let session = require_session(pool, session_id).await?;
     if session.role == "Secretary" {
         Ok(session)
@@ -672,7 +785,10 @@ async fn require_admin(pool: &DbPool, session_id: &str) -> AppResult<crate::auth
     Ok(session)
 }
 
-async fn require_trash_viewer(pool: &DbPool, session_id: &str) -> AppResult<crate::auth::ValidSession> {
+async fn require_trash_viewer(
+    pool: &DbPool,
+    session_id: &str,
+) -> AppResult<crate::auth::ValidSession> {
     let session = require_session(pool, session_id).await?;
     if session.role == "Secretary" || session.role == "Admin" {
         Ok(session)
@@ -685,28 +801,7 @@ async fn validate_document_input(pool: &DbPool, input: DocumentInput) -> AppResu
     let name = require_len(&input.document_name, "Document name", 255)?;
     validate_status(&input.status)?;
     validate_date(&input.date_received)?;
-    let category = sqlx::query!(
-        "SELECT is_active AS \"is_active!: i64\", is_system AS \"is_system!: i64\" FROM category WHERE category_id = ?",
-        input.category_id
-    )
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Category not found.".into()))?;
-    if category.is_active != 1 || category.is_system == 1 {
-        return Err(AppError::Validation("Category cannot accept documents.".into()));
-    }
-    if let Some(folder_id) = input.folder_id {
-        let folder = sqlx::query!(
-            "SELECT category_id AS \"category_id!: i64\", is_active AS \"is_active!: i64\" FROM folder WHERE folder_id = ?",
-            folder_id
-        )
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Folder not found.".into()))?;
-        if folder.category_id != input.category_id || folder.is_active != 1 {
-            return Err(AppError::Validation("Folder must belong to selected category.".into()));
-        }
-    }
+    validate_document_location(pool, input.category_id, input.folder_id).await?;
     if let Some(office_id) = input.office_id {
         let office = sqlx::query!(
             "SELECT is_active AS \"is_active!: i64\" FROM office WHERE office_id = ?",
@@ -724,6 +819,40 @@ async fn validate_document_input(pool: &DbPool, input: DocumentInput) -> AppResu
         remarks: trim_optional(input.remarks, 2000)?,
         ..input
     })
+}
+
+async fn validate_document_location(
+    pool: &DbPool,
+    category_id: i64,
+    folder_id: Option<i64>,
+) -> AppResult<()> {
+    let category = sqlx::query!(
+        "SELECT is_active AS \"is_active!: i64\", is_system AS \"is_system!: i64\" FROM category WHERE category_id = ?",
+        category_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Category not found.".into()))?;
+    if category.is_active != 1 || category.is_system == 1 {
+        return Err(AppError::Validation(
+            "Category cannot accept documents.".into(),
+        ));
+    }
+    if let Some(folder_id) = folder_id {
+        let folder = sqlx::query!(
+            "SELECT category_id AS \"category_id!: i64\", is_active AS \"is_active!: i64\" FROM folder WHERE folder_id = ?",
+            folder_id
+        )
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Folder not found.".into()))?;
+        if folder.category_id != category_id || folder.is_active != 1 {
+            return Err(AppError::Validation(
+                "Folder must belong to selected category.".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 async fn fetch_documents(
@@ -881,9 +1010,12 @@ async fn get_document_internal(
 }
 
 async fn ensure_document_exists(pool: &DbPool, document_id: i64) -> AppResult<()> {
-    let row = sqlx::query!("SELECT document_id FROM document WHERE document_id = ?", document_id)
-        .fetch_optional(pool)
-        .await?;
+    let row = sqlx::query!(
+        "SELECT document_id FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?;
     if row.is_some() {
         Ok(())
     } else {
@@ -916,7 +1048,9 @@ async fn purge_document_internal(
     .await?
     .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
     if document.is_trashed != 1 {
-        return Err(AppError::Validation("Only trashed documents can be purged.".into()));
+        return Err(AppError::Validation(
+            "Only trashed documents can be purged.".into(),
+        ));
     }
     let attachments = sqlx::query!(
         "SELECT attachment_id AS \"attachment_id!: i64\", stored_relative_path
@@ -979,7 +1113,9 @@ async fn refresh_document_fts(pool: &DbPool, document_id: i64) -> AppResult<()> 
 fn validate_source_file(source_path: &str) -> AppResult<PathBuf> {
     let path = PathBuf::from(source_path);
     if !path.is_absolute() || !path.is_file() {
-        return Err(AppError::Validation("Attachment source file is invalid.".into()));
+        return Err(AppError::Validation(
+            "Attachment source file is invalid.".into(),
+        ));
     }
     Ok(path.canonicalize()?)
 }
@@ -988,7 +1124,9 @@ fn validate_extension(ext: &str) -> AppResult<()> {
     if ALLOWED_EXTENSIONS.contains(&ext) {
         Ok(())
     } else {
-        Err(AppError::Validation("Attachment file type is not allowed.".into()))
+        Err(AppError::Validation(
+            "Attachment file type is not allowed.".into(),
+        ))
     }
 }
 
@@ -1006,7 +1144,9 @@ fn validate_magic(path: &Path, ext: &str) -> AppResult<()> {
     if ok {
         Ok(())
     } else {
-        Err(AppError::Validation("Attachment file signature is invalid.".into()))
+        Err(AppError::Validation(
+            "Attachment file signature is invalid.".into(),
+        ))
     }
 }
 
@@ -1028,7 +1168,9 @@ fn mime_for_extension(ext: &str) -> &'static str {
 fn require_len(value: &str, label: &str, max: usize) -> AppResult<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.chars().count() > max {
-        return Err(AppError::Validation(format!("{label} must be 1 to {max} characters.")));
+        return Err(AppError::Validation(format!(
+            "{label} must be 1 to {max} characters."
+        )));
     }
     Ok(trimmed.to_owned())
 }
@@ -1040,7 +1182,9 @@ fn trim_optional(value: Option<String>, max: usize) -> AppResult<Option<String>>
             if trimmed.is_empty() {
                 Ok(None)
             } else if trimmed.chars().count() > max {
-                Err(AppError::Validation(format!("Text must be at most {max} characters.")))
+                Err(AppError::Validation(format!(
+                    "Text must be at most {max} characters."
+                )))
             } else {
                 Ok(Some(trimmed.to_owned()))
             }
@@ -1054,7 +1198,9 @@ fn validate_date(value: &str) -> AppResult<()> {
         .map_err(|_| AppError::Validation("Date must be YYYY-MM-DD.".into()))?;
     let today = Utc::now().date_naive();
     if date > today {
-        return Err(AppError::Validation("Date received cannot be in the future.".into()));
+        return Err(AppError::Validation(
+            "Date received cannot be in the future.".into(),
+        ));
     }
     Ok(())
 }

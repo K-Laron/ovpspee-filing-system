@@ -1,5 +1,5 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { Edit3, ExternalLink, Eye, EyeOff, Paperclip, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
+import { Edit3, ExternalLink, Eye, EyeOff, MoveRight, Paperclip, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import {
@@ -11,8 +11,10 @@ import {
   listPublicCategories,
   listPublicFolders,
   listTrashDocuments,
+  moveDocument,
   removeAttachment,
   restoreDocument,
+  setDocumentStatus,
   setDocumentHidden,
   trashDocument,
   updateDocument
@@ -45,7 +47,13 @@ export const Documents = () => {
   const [categoryId, setCategoryId] = useState('');
   const [folderId, setFolderId] = useState('');
   const [officeId, setOfficeId] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [editing, setEditing] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [moveCategoryId, setMoveCategoryId] = useState('');
+  const [moveFolderId, setMoveFolderId] = useState('');
+  const [moveFolders, setMoveFolders] = useState<FolderItem[]>([]);
+  const [statusDraft, setStatusDraft] = useState<DocumentStatus>('Filed');
   const [pendingAttachmentPaths, setPendingAttachmentPaths] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [view, setView] = useState<'active' | 'trash'>('active');
@@ -68,7 +76,7 @@ export const Documents = () => {
 
   const loadDocuments = async () => {
     if (!sessionId) return;
-    const rows = view === 'trash'
+    let rows = view === 'trash'
       ? await listTrashDocuments(sessionId)
       : await listDocuments({
           sessionId,
@@ -77,6 +85,9 @@ export const Documents = () => {
           folderId: folderId ? Number(folderId) : null,
           officeId: officeId ? Number(officeId) : null
         });
+    if (view === 'active' && statusFilter) {
+      rows = rows.filter((row) => row.status === statusFilter);
+    }
     setDocuments(rows);
     if (detail && !rows.some((row) => row.document_id === detail.document.document_id)) {
       setDetail(null);
@@ -88,8 +99,14 @@ export const Documents = () => {
 
   const openDetail = async (documentId: number) => {
     if (!sessionId) return;
-    setDetail(await getDocument(sessionId, documentId));
+    const nextDetail = await getDocument(sessionId, documentId);
+    setDetail(nextDetail);
+    setStatusDraft(nextDetail.document.status);
+    setMoveCategoryId(String(nextDetail.document.category_id));
+    setMoveFolderId(nextDetail.document.folder_id ? String(nextDetail.document.folder_id) : '');
+    setMoveFolders(await listPublicFolders(nextDetail.document.category_id));
     setEditing(false);
+    setMoving(false);
   };
 
   useEffect(() => {
@@ -192,6 +209,37 @@ export const Documents = () => {
     await loadDocuments();
   };
 
+  const loadMoveFolders = async (nextCategoryId: string) => {
+    setMoveCategoryId(nextCategoryId);
+    setMoveFolderId('');
+    setMoveFolders(nextCategoryId ? await listPublicFolders(Number(nextCategoryId)) : []);
+  };
+
+  const saveMove = async () => {
+    if (!sessionId || !detail || !moveCategoryId) return;
+    await moveDocument({
+      sessionId,
+      documentId: detail.document.document_id,
+      categoryId: Number(moveCategoryId),
+      folderId: moveFolderId ? Number(moveFolderId) : null
+    });
+    setMessage('Document moved.');
+    await openDetail(detail.document.document_id);
+    await loadDocuments();
+  };
+
+  const saveStatus = async () => {
+    if (!sessionId || !detail) return;
+    await setDocumentStatus({
+      sessionId,
+      documentId: detail.document.document_id,
+      status: statusDraft
+    });
+    setMessage(statusDraft === 'Confidential' ? 'Status changed. Document is now hidden.' : 'Status changed.');
+    await openDetail(detail.document.document_id);
+    await loadDocuments();
+  };
+
   const isTrashView = view === 'trash';
 
   return (
@@ -209,7 +257,7 @@ export const Documents = () => {
         <button className={view === 'trash' ? 'btn btn-primary' : 'btn'} onClick={() => { setView('trash'); setDetail(null); }} type="button">Trash</button>
       </div>
 
-      {!isTrashView && <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_180px_180px_180px_auto]" onSubmit={submitSearch}>
+      {!isTrashView && <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_160px_160px_160px_150px_auto]" onSubmit={submitSearch}>
         <label>
           <span className="form-label">Search</span>
           <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -235,6 +283,16 @@ export const Documents = () => {
             {offices.map((office) => <option key={office.office_id} value={office.office_id}>{office.office_name}</option>)}
           </select>
         </label>
+        <label>
+          <span className="form-label">Status</span>
+          <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All</option>
+            <option>Filed</option>
+            <option>Archived</option>
+            <option>Confidential</option>
+            <option>Other</option>
+          </select>
+        </label>
         <button className="btn btn-primary self-end" type="submit"><Search size={16} />Apply</button>
       </form>}
 
@@ -252,7 +310,7 @@ export const Documents = () => {
                   <td className="p-3">
                     <p className="font-semibold text-secondary">{doc.document_name}</p>
                     <p className="text-xs text-muted">
-                      {doc.status} · {doc.attachment_count} file(s){doc.is_hidden ? ' · Hidden' : ''}{doc.is_trashed ? ' · Trashed' : ''}
+                      <span className="rounded bg-background px-2 py-0.5 text-[11px] font-semibold text-secondary">{doc.status}</span> · {doc.attachment_count} file(s){doc.is_hidden ? ' · Hidden' : ''}{doc.is_trashed ? ' · Trashed' : ''}
                     </p>
                   </td>
                   <td className="p-3 text-muted">{doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</td>
@@ -274,9 +332,11 @@ export const Documents = () => {
                     <h2 className="text-xl font-bold text-secondary">{detail.document.document_name}</h2>
                   )}
                   <p className="mt-1 text-sm text-muted">{detail.document.category_name}{detail.document.folder_name ? ` / ${detail.document.folder_name}` : ''}</p>
+                  <p className="mt-2 inline-flex rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{detail.document.status}{detail.document.is_hidden ? ' · Hidden' : ''}</p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   {!isTrashView && <button className="btn" onClick={() => setEditing(!editing)} type="button"><Edit3 size={16} />Edit</button>}
+                  {!isTrashView && <button className="btn" onClick={() => setMoving(!moving)} type="button"><MoveRight size={16} />Move</button>}
                   {!isTrashView && (
                     <button className="btn" onClick={() => void toggleHidden().catch((err) => setMessage(String(err)))} type="button">
                       {detail.document.is_hidden ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -295,9 +355,7 @@ export const Documents = () => {
                 </label>
                 <label>
                   <span className="form-label">Status</span>
-                  <select className="input" disabled={!editing || isTrashView} value={detail.document.status} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, status: e.target.value as DocumentStatus } })}>
-                    <option>Filed</option><option>Archived</option><option>Confidential</option><option>Other</option>
-                  </select>
+                  <input className="input" disabled value={detail.document.status} />
                 </label>
                 <label className="md:col-span-2">
                   <span className="form-label">Remarks</span>
@@ -305,6 +363,34 @@ export const Documents = () => {
                 </label>
               </div>
               {editing && !isTrashView && <button className="btn btn-primary" onClick={() => void saveEdit().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Changes</button>}
+
+              {!isTrashView && moving && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_1fr_auto]">
+                <label>
+                  <span className="form-label">Move to category</span>
+                  <select className="input" value={moveCategoryId} onChange={(e) => void loadMoveFolders(e.target.value).catch((err) => setMessage(String(err)))}>
+                    <option value="">Select category</option>
+                    {categories.map((category) => <option key={category.category_id} value={category.category_id}>{category.category_name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="form-label">Move to folder</span>
+                  <select className="input" value={moveFolderId} onChange={(e) => setMoveFolderId(e.target.value)}>
+                    <option value="">Category root</option>
+                    {moveFolders.map((folder) => <option key={folder.folder_id} value={folder.folder_id}>{folder.folder_name}</option>)}
+                  </select>
+                </label>
+                <button className="btn btn-primary self-end" onClick={() => void saveMove().catch((err) => setMessage(String(err)))} type="button"><MoveRight size={16} />Save Move</button>
+              </div>}
+
+              {!isTrashView && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_auto]">
+                <label>
+                  <span className="form-label">Change status</span>
+                  <select className="input" value={statusDraft} onChange={(e) => setStatusDraft(e.target.value as DocumentStatus)}>
+                    <option>Filed</option><option>Archived</option><option>Confidential</option><option>Other</option>
+                  </select>
+                </label>
+                <button className="btn btn-primary self-end" onClick={() => void saveStatus().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Status</button>
+              </div>}
 
               <div className="border-t border-border pt-4">
                 <div className="mb-3 flex items-center gap-2"><Paperclip size={17} className="text-primary" /><h3 className="font-semibold text-secondary">Attachments</h3></div>

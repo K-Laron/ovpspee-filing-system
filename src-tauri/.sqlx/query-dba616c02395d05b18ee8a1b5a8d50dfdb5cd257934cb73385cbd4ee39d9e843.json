@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"count!: i64\" FROM audit_log\n         WHERE table_affected = 'document' AND record_id = ?\n           AND (log_action = 'MOVE' OR description LIKE 'Changed document status%')",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "dba616c02395d05b18ee8a1b5a8d50dfdb5cd257934cb73385cbd4ee39d9e843"
+}

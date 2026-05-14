@@ -15,8 +15,9 @@ pub fn run() {
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             let db_path = app_data_dir.join("filing_system.db");
-            let handle = tauri::async_runtime::block_on(async move { connect_database(&db_path).await })
-                .map_err(|err| Box::<dyn std::error::Error>::from(err.to_string()))?;
+            let handle =
+                tauri::async_runtime::block_on(async move { connect_database(&db_path).await })
+                    .map_err(|err| Box::<dyn std::error::Error>::from(err.to_string()))?;
             app.manage(DbState { pool: handle });
             Ok(())
         })
@@ -44,6 +45,8 @@ pub fn run() {
             commands::change_my_password,
             commands::create_document,
             commands::update_document,
+            commands::move_document,
+            commands::set_document_status,
             commands::set_document_hidden,
             commands::trash_document,
             commands::restore_document,

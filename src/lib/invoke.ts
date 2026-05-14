@@ -174,6 +174,19 @@ export const updateDocument = (params: {
   status: DocumentStatus;
 }): Promise<void> => invoke('update_document', params);
 
+export const moveDocument = (params: {
+  sessionId: string;
+  documentId: number;
+  categoryId: number;
+  folderId: number | null;
+}): Promise<void> => invoke('move_document', params);
+
+export const setDocumentStatus = (params: {
+  sessionId: string;
+  documentId: number;
+  status: DocumentStatus;
+}): Promise<void> => invoke('set_document_status', params);
+
 export const setDocumentHidden = (params: {
   sessionId: string;
   documentId: number;

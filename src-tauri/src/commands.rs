@@ -10,9 +10,7 @@ use crate::{
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
-    users::{
-        self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput,
-    },
+    users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
 };
 
 #[tauri::command]
@@ -437,6 +435,31 @@ pub async fn update_document(
     )
     .await
     .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn move_document(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+    category_id: i64,
+    folder_id: Option<i64>,
+) -> Result<(), String> {
+    documents::move_document(&db.pool, &session_id, document_id, category_id, folder_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn set_document_status(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+    status: String,
+) -> Result<(), String> {
+    documents::set_document_status(&db.pool, &session_id, document_id, status)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
