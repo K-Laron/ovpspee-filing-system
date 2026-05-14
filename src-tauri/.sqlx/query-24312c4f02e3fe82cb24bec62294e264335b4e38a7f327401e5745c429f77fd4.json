@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"count!: i64\" FROM user u JOIN role r ON r.role_id = u.role_id WHERE r.role_name = 'Admin'",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "24312c4f02e3fe82cb24bec62294e264335b4e38a7f327401e5745c429f77fd4"
+}

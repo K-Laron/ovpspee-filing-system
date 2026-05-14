@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE office SET office_name = ?, description = ?, is_active = ?, updated_at = ? WHERE office_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "d4b2e358aee812c02afcdad48157796d80f2351896affe4ebd14b91068578960"
+}

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT category_id, category_name, description, color_code, icon, is_system, is_active,\n            0 AS \"document_count!: i64\"\n         FROM category\n         WHERE (? = 1 OR is_active = 1)\n         ORDER BY CASE WHEN category_name = 'TRASH' THEN 1 ELSE 0 END, category_name COLLATE NOCASE ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "category_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "category_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "color_code",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "icon",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_system",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_active",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "document_count!: i64",
+        "ordinal": 7,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bb5b21e7721b2a6c64f55449240737c9cfbd3abc37f5e685da030e74cfcc3963"
+}

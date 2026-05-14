@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT is_system AS \"is_system!: i64\" FROM category WHERE category_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_system!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "50a53e075dc4d074273bc37154a2669b2aeb0e9e1989f0904d4049fa318ba129"
+}

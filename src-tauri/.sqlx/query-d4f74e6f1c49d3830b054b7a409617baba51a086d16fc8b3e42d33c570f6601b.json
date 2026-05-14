@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT folder_id FROM folder WHERE folder_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "folder_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d4f74e6f1c49d3830b054b7a409617baba51a086d16fc8b3e42d33c570f6601b"
+}

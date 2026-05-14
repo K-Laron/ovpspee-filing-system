@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO category (category_name, description, color_code, icon) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8f5b2772131de9e1017adc871c8c332e79ba7111cc8aa18958671ee3e31b7ca8"
+}

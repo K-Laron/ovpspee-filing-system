@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT u.user_id AS \"user_id!: i64\", r.role_name, u.first_name, u.middle_name, u.last_name,\n            u.username, u.email, u.contact_number, u.address, u.profile_pic_path, u.is_active,\n            u.last_login_at, u.created_at, u.updated_at\n         FROM user u\n         JOIN role r ON r.role_id = u.role_id\n         WHERE (? IS NULL OR u.username LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)\n         ORDER BY u.is_active DESC, u.last_name COLLATE NOCASE ASC, u.first_name COLLATE NOCASE ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "role_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "first_name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "middle_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_name",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "username",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "email",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "contact_number",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "address",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "profile_pic_path",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_active",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "last_login_at",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 13,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "b83902964a07e9e5cb7bbcf74f51990de27fbd3dce2b14754d5362fbd22f2589"
+}

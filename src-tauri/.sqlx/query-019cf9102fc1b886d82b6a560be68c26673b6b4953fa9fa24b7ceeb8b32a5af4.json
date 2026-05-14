@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO office (office_name, description) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "019cf9102fc1b886d82b6a560be68c26673b6b4953fa9fa24b7ceeb8b32a5af4"
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.env
+src-tauri/sqlx_dev.db*
+dev_filing_system.db*
+dev_storage/
+.DS_Store

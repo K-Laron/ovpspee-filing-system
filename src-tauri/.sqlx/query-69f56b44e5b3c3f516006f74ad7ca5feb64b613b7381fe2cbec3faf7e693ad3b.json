@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT role_id AS \"role_id!: i64\" FROM role WHERE role_name = 'Admin'",
+  "describe": {
+    "columns": [
+      {
+        "name": "role_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "69f56b44e5b3c3f516006f74ad7ca5feb64b613b7381fe2cbec3faf7e693ad3b"
+}

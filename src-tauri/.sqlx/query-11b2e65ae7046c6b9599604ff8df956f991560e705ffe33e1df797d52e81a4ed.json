@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT s.session_id AS \"session_id!: String\", s.user_id AS \"user_id!: i64\", u.first_name, u.last_name, u.profile_pic_path, r.role_name, s.expires_at, u.is_active\n         FROM session s\n         JOIN user u ON u.user_id = s.user_id\n         JOIN role r ON r.role_id = u.role_id\n         WHERE s.session_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "session_id!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_id!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "first_name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "profile_pic_path",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "role_name",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_active",
+        "ordinal": 7,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "11b2e65ae7046c6b9599604ff8df956f991560e705ffe33e1df797d52e81a4ed"
+}
