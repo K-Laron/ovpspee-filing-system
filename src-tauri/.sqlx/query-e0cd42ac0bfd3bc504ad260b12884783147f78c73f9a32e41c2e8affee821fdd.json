@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT d.document_id AS \"document_id!: i64\", d.document_name, d.category_id AS \"category_id!: i64\",\n            c.category_name, d.folder_id, f.folder_name, d.office_id, o.office_name, d.date_received,\n            d.date_added, d.remarks, d.status, d.is_hidden AS \"is_hidden!: i64\",\n            d.is_trashed AS \"is_trashed!: i64\", d.created_by AS \"created_by!: i64\", d.updated_at,\n            u.first_name || ' ' || u.last_name AS \"created_by_name!: String\",\n            COUNT(a.attachment_id) AS \"attachment_count!: i64\"\n         FROM document d\n         JOIN category c ON c.category_id = d.category_id\n         JOIN user u ON u.user_id = d.created_by\n         LEFT JOIN folder f ON f.folder_id = d.folder_id\n         LEFT JOIN office o ON o.office_id = d.office_id\n         LEFT JOIN attachment a ON a.document_id = d.document_id\n         WHERE (? = 0 OR (d.is_hidden = 0 AND d.is_trashed = 0))\n           AND (? IS NULL OR d.category_id = ?)\n           AND (? IS NULL OR d.folder_id = ?)\n           AND (? IS NULL OR d.office_id = ?)\n           AND (? IS NULL OR d.date_received >= ?)\n           AND (? IS NULL OR d.date_received <= ?)\n           AND (? IS NULL OR d.document_name LIKE ? OR d.remarks LIKE ? OR o.office_name LIKE ?)\n         GROUP BY d.document_id\n         ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC",
+  "query": "SELECT d.document_id AS \"document_id!: i64\", d.document_name, d.category_id AS \"category_id!: i64\",\n            c.category_name, d.folder_id, f.folder_name, d.office_id, o.office_name, d.date_received,\n            d.date_added, d.remarks, d.status, d.is_hidden AS \"is_hidden!: i64\",\n            d.is_trashed AS \"is_trashed!: i64\", d.created_by AS \"created_by!: i64\", d.updated_at,\n            u.first_name || ' ' || u.last_name AS \"created_by_name!: String\",\n            COUNT(a.attachment_id) AS \"attachment_count!: i64\"\n         FROM document d\n         JOIN category c ON c.category_id = d.category_id\n         JOIN user u ON u.user_id = d.created_by\n         LEFT JOIN folder f ON f.folder_id = d.folder_id\n         LEFT JOIN office o ON o.office_id = d.office_id\n         LEFT JOIN attachment a ON a.document_id = d.document_id\n         WHERE (? = 0 OR (d.is_hidden = 0 AND d.is_trashed = 0))\n           AND ((? = 1 AND d.is_trashed = 1) OR (? = 0 AND d.is_trashed = 0))\n           AND (? IS NULL OR d.category_id = ?)\n           AND (? IS NULL OR d.folder_id = ?)\n           AND (? IS NULL OR d.office_id = ?)\n           AND (? IS NULL OR d.date_received >= ?)\n           AND (? IS NULL OR d.date_received <= ?)\n           AND (? IS NULL OR d.document_name LIKE ? OR d.remarks LIKE ? OR o.office_name LIKE ?)\n         GROUP BY d.document_id\n         ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC",
   "describe": {
     "columns": [
       {
@@ -95,10 +95,10 @@
       }
     ],
     "parameters": {
-      "Right": 15
+      "Right": 17
     },
     "nullable": [
-      false,
+      true,
       false,
       false,
       false,
@@ -118,5 +118,5 @@
       false
     ]
   },
-  "hash": "1c61c0adc86a6b70232a309168b15cabc4d5db4fdc4966f06b954c26dfda3092"
+  "hash": "e0cd42ac0bfd3bc504ad260b12884783147f78c73f9a32e41c2e8affee821fdd"
 }

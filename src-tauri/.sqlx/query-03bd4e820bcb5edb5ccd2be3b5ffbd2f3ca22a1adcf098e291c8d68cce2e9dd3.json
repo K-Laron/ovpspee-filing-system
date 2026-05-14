@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT attachment_id AS \"attachment_id!: i64\", stored_relative_path\n         FROM attachment WHERE document_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "stored_relative_path",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "03bd4e820bcb5edb5ccd2be3b5ffbd2f3ca22a1adcf098e291c8d68cce2e9dd3"
+}

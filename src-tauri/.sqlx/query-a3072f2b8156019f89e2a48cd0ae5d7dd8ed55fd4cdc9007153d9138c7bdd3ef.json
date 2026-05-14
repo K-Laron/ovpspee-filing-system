@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT category_id AS \"category_id!: i64\", is_active AS \"is_active!: i64\"\n             FROM folder WHERE folder_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "category_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_active!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a3072f2b8156019f89e2a48cd0ae5d7dd8ed55fd4cdc9007153d9138c7bdd3ef"
+}

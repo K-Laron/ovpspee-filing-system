@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE document\n         SET category_id = ?, folder_id = ?, is_trashed = 0, trashed_at = NULL,\n             original_category_id = NULL, original_folder_id = NULL, updated_at = ?\n         WHERE document_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "05bb48d3b4bc9670311233bd20acee2136e34509d846829958cdafa2ed8027d0"
+}

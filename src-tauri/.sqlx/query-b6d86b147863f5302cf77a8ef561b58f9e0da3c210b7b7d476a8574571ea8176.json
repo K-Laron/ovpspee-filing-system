@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT category_id AS \"category_id!: i64\" FROM category WHERE category_name = 'TRASH' AND is_system = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "category_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b6d86b147863f5302cf77a8ef561b58f9e0da3c210b7b7d476a8574571ea8176"
+}

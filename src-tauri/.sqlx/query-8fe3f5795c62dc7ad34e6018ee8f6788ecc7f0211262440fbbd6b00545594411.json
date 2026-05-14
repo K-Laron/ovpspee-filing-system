@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE document SET is_hidden = ?, updated_at = ? WHERE document_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8fe3f5795c62dc7ad34e6018ee8f6788ecc7f0211262440fbbd6b00545594411"
+}

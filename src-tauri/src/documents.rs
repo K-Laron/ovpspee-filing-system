@@ -9,7 +9,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    auth::{require_session, write_audit_log},
+    auth::{require_admin_role, require_session, write_audit_log},
     db::DbPool,
     error::{AppError, AppResult},
     master_data::{CategoryItem, FolderItem},
@@ -175,6 +175,184 @@ pub async fn create_document(
     Ok(id)
 }
 
+pub async fn set_document_hidden(
+    pool: &DbPool,
+    session_id: &str,
+    document_id: i64,
+    is_hidden: bool,
+) -> AppResult<()> {
+    let session = require_document_editor(pool, session_id).await?;
+    ensure_document_exists(pool, document_id).await?;
+    let hidden = if is_hidden { 1_i64 } else { 0_i64 };
+    let now = now_text();
+    sqlx::query!(
+        "UPDATE document SET is_hidden = ?, updated_at = ? WHERE document_id = ?",
+        hidden,
+        now,
+        document_id
+    )
+    .execute(pool)
+    .await?;
+    write_audit_log(
+        pool,
+        "UPDATE",
+        Some("document"),
+        Some(document_id),
+        if is_hidden { "Hid document" } else { "Unhid document" },
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn trash_document(pool: &DbPool, session_id: &str, document_id: i64) -> AppResult<()> {
+    let session = require_document_editor(pool, session_id).await?;
+    let current = sqlx::query!(
+        "SELECT category_id AS \"category_id!: i64\", folder_id, is_trashed AS \"is_trashed!: i64\"
+         FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
+    if current.is_trashed == 1 {
+        return Ok(());
+    }
+    let trash_category_id = trash_category_id(pool).await?;
+    let now = now_text();
+    sqlx::query!(
+        "UPDATE document
+         SET category_id = ?, folder_id = NULL, is_trashed = 1, trashed_at = ?,
+             original_category_id = ?, original_folder_id = ?, updated_at = ?
+         WHERE document_id = ?",
+        trash_category_id,
+        now,
+        current.category_id,
+        current.folder_id,
+        now,
+        document_id
+    )
+    .execute(pool)
+    .await?;
+    refresh_document_fts(pool, document_id).await?;
+    write_audit_log(
+        pool,
+        "TRASH",
+        Some("document"),
+        Some(document_id),
+        "Moved document to trash",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn restore_document(pool: &DbPool, session_id: &str, document_id: i64) -> AppResult<()> {
+    let session = require_document_editor(pool, session_id).await?;
+    let current = sqlx::query!(
+        "SELECT is_trashed AS \"is_trashed!: i64\", original_category_id, original_folder_id
+         FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
+    if current.is_trashed != 1 {
+        return Err(AppError::Validation("Document is not in trash.".into()));
+    }
+    let category_id = current
+        .original_category_id
+        .ok_or_else(|| AppError::Conflict("Original category is missing.".into()))?;
+    let category = sqlx::query!(
+        "SELECT is_active AS \"is_active!: i64\", is_system AS \"is_system!: i64\"
+         FROM category WHERE category_id = ?",
+        category_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::Conflict("Original category no longer exists.".into()))?;
+    if category.is_active != 1 || category.is_system == 1 {
+        return Err(AppError::Conflict("Original category is inactive or unavailable.".into()));
+    }
+    let folder_id = if let Some(folder_id) = current.original_folder_id {
+        let folder = sqlx::query!(
+            "SELECT category_id AS \"category_id!: i64\", is_active AS \"is_active!: i64\"
+             FROM folder WHERE folder_id = ?",
+            folder_id
+        )
+        .fetch_optional(pool)
+        .await?;
+        match folder {
+            Some(folder) if folder.category_id == category_id && folder.is_active == 1 => Some(folder_id),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let now = now_text();
+    sqlx::query!(
+        "UPDATE document
+         SET category_id = ?, folder_id = ?, is_trashed = 0, trashed_at = NULL,
+             original_category_id = NULL, original_folder_id = NULL, updated_at = ?
+         WHERE document_id = ?",
+        category_id,
+        folder_id,
+        now,
+        document_id
+    )
+    .execute(pool)
+    .await?;
+    refresh_document_fts(pool, document_id).await?;
+    write_audit_log(
+        pool,
+        "RESTORE",
+        Some("document"),
+        Some(document_id),
+        "Restored document",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn list_trash_documents(pool: &DbPool, session_id: &str) -> AppResult<Vec<DocumentItem>> {
+    require_trash_viewer(pool, session_id).await?;
+    fetch_documents(pool, DocumentListFilter::default(), false, true).await
+}
+
+pub async fn purge_document(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: &str,
+    document_id: i64,
+) -> AppResult<()> {
+    let session = require_admin(pool, session_id).await?;
+    purge_document_internal(pool, storage, document_id, session.user_id).await
+}
+
+pub async fn empty_trash(pool: &DbPool, storage: &StorageRoot, session_id: &str) -> AppResult<i64> {
+    let session = require_admin(pool, session_id).await?;
+    let rows = sqlx::query!(
+        "SELECT document_id AS \"document_id!: i64\" FROM document WHERE is_trashed = 1"
+    )
+    .fetch_all(pool)
+    .await?;
+    let count = rows.len() as i64;
+    for row in rows {
+        purge_document_internal(pool, storage, row.document_id, session.user_id).await?;
+    }
+    write_audit_log(
+        pool,
+        "PURGE",
+        Some("document"),
+        None,
+        "Emptied trash",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(count)
+}
+
 pub async fn update_document(
     pool: &DbPool,
     session_id: &str,
@@ -184,12 +362,11 @@ pub async fn update_document(
     let session = require_document_editor(pool, session_id).await?;
     ensure_document_exists(pool, document_id).await?;
     let input = validate_document_input(pool, input).await?;
-    let is_hidden = if input.status == "Confidential" { 1 } else { 0 };
     let now = now_text();
     sqlx::query!(
         "UPDATE document
          SET document_name = ?, category_id = ?, folder_id = ?, office_id = ?, date_received = ?,
-             remarks = ?, status = ?, is_hidden = ?, updated_at = ?
+             remarks = ?, status = ?, is_hidden = CASE WHEN ? = 'Confidential' THEN 1 ELSE is_hidden END, updated_at = ?
          WHERE document_id = ?",
         input.document_name,
         input.category_id,
@@ -198,7 +375,7 @@ pub async fn update_document(
         input.date_received,
         input.remarks,
         input.status,
-        is_hidden,
+        input.status,
         now,
         document_id
     )
@@ -223,14 +400,14 @@ pub async fn list_documents(
     filter: DocumentListFilter,
 ) -> AppResult<Vec<DocumentItem>> {
     require_document_editor(pool, session_id).await?;
-    fetch_documents(pool, filter, false).await
+    fetch_documents(pool, filter, false, false).await
 }
 
 pub async fn list_public_documents(
     pool: &DbPool,
     filter: DocumentListFilter,
 ) -> AppResult<Vec<DocumentItem>> {
-    fetch_documents(pool, filter, true).await
+    fetch_documents(pool, filter, true, false).await
 }
 
 pub async fn get_document(
@@ -482,6 +659,21 @@ pub async fn list_document_offices(pool: &DbPool, session_id: &str) -> AppResult
 
 async fn require_document_editor(pool: &DbPool, session_id: &str) -> AppResult<crate::auth::ValidSession> {
     let session = require_session(pool, session_id).await?;
+    if session.role == "Secretary" {
+        Ok(session)
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}
+
+async fn require_admin(pool: &DbPool, session_id: &str) -> AppResult<crate::auth::ValidSession> {
+    let session = require_session(pool, session_id).await?;
+    require_admin_role(&session.role)?;
+    Ok(session)
+}
+
+async fn require_trash_viewer(pool: &DbPool, session_id: &str) -> AppResult<crate::auth::ValidSession> {
+    let session = require_session(pool, session_id).await?;
     if session.role == "Secretary" || session.role == "Admin" {
         Ok(session)
     } else {
@@ -538,11 +730,13 @@ async fn fetch_documents(
     pool: &DbPool,
     filter: DocumentListFilter,
     public_only: bool,
+    trash_only: bool,
 ) -> AppResult<Vec<DocumentItem>> {
     let search = like_filter(filter.search.as_deref());
     let date_from = normalize_optional_date(filter.date_from.as_deref())?;
     let date_to = normalize_optional_date(filter.date_to.as_deref())?;
     let public_only = if public_only { 1_i64 } else { 0_i64 };
+    let trash_mode = if trash_only { 1_i64 } else { 0_i64 };
     let rows = sqlx::query!(
         "SELECT d.document_id AS \"document_id!: i64\", d.document_name, d.category_id AS \"category_id!: i64\",
             c.category_name, d.folder_id, f.folder_name, d.office_id, o.office_name, d.date_received,
@@ -557,6 +751,7 @@ async fn fetch_documents(
          LEFT JOIN office o ON o.office_id = d.office_id
          LEFT JOIN attachment a ON a.document_id = d.document_id
          WHERE (? = 0 OR (d.is_hidden = 0 AND d.is_trashed = 0))
+           AND ((? = 1 AND d.is_trashed = 1) OR (? = 0 AND d.is_trashed = 0))
            AND (? IS NULL OR d.category_id = ?)
            AND (? IS NULL OR d.folder_id = ?)
            AND (? IS NULL OR d.office_id = ?)
@@ -566,6 +761,8 @@ async fn fetch_documents(
          GROUP BY d.document_id
          ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC",
         public_only,
+        trash_mode,
+        trash_mode,
         filter.category_id,
         filter.category_id,
         filter.folder_id,
@@ -692,6 +889,70 @@ async fn ensure_document_exists(pool: &DbPool, document_id: i64) -> AppResult<()
     } else {
         Err(AppError::NotFound("Document not found.".into()))
     }
+}
+
+async fn trash_category_id(pool: &DbPool) -> AppResult<i64> {
+    sqlx::query!(
+        "SELECT category_id AS \"category_id!: i64\" FROM category WHERE category_name = 'TRASH' AND is_system = 1"
+    )
+    .fetch_optional(pool)
+    .await?
+    .map(|row| row.category_id)
+    .ok_or_else(|| AppError::NotFound("TRASH category not found.".into()))
+}
+
+async fn purge_document_internal(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    document_id: i64,
+    user_id: i64,
+) -> AppResult<()> {
+    let document = sqlx::query!(
+        "SELECT document_id AS \"document_id!: i64\", is_trashed AS \"is_trashed!: i64\"
+         FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
+    if document.is_trashed != 1 {
+        return Err(AppError::Validation("Only trashed documents can be purged.".into()));
+    }
+    let attachments = sqlx::query!(
+        "SELECT attachment_id AS \"attachment_id!: i64\", stored_relative_path
+         FROM attachment WHERE document_id = ?",
+        document_id
+    )
+    .fetch_all(pool)
+    .await?;
+    for attachment in &attachments {
+        let path = storage.resolve_checked(&attachment.stored_relative_path)?;
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+    }
+    let mut tx = pool.begin().await?;
+    sqlx::query!("DELETE FROM attachment WHERE document_id = ?", document_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM document_fts WHERE rowid = ?")
+        .bind(document_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query!("DELETE FROM document WHERE document_id = ?", document_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    write_audit_log(
+        pool,
+        "PURGE",
+        Some("document"),
+        Some(document_id),
+        "Purged document",
+        Some(user_id),
+    )
+    .await?;
+    Ok(())
 }
 
 async fn refresh_document_fts(pool: &DbPool, document_id: i64) -> AppResult<()> {

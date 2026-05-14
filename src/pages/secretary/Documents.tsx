@@ -1,5 +1,5 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { Edit3, ExternalLink, Paperclip, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
+import { Edit3, ExternalLink, Eye, EyeOff, Paperclip, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import {
@@ -10,7 +10,11 @@ import {
   listDocuments,
   listPublicCategories,
   listPublicFolders,
+  listTrashDocuments,
   removeAttachment,
+  restoreDocument,
+  setDocumentHidden,
+  trashDocument,
   updateDocument
 } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
@@ -44,6 +48,7 @@ export const Documents = () => {
   const [editing, setEditing] = useState(false);
   const [pendingAttachmentPaths, setPendingAttachmentPaths] = useState<string[]>([]);
   const [message, setMessage] = useState('');
+  const [view, setView] = useState<'active' | 'trash'>('active');
 
   const loadLookups = async () => {
     if (!sessionId) return;
@@ -63,14 +68,19 @@ export const Documents = () => {
 
   const loadDocuments = async () => {
     if (!sessionId) return;
-    const rows = await listDocuments({
-      sessionId,
-      search: search || null,
-      categoryId: categoryId ? Number(categoryId) : null,
-      folderId: folderId ? Number(folderId) : null,
-      officeId: officeId ? Number(officeId) : null
-    });
+    const rows = view === 'trash'
+      ? await listTrashDocuments(sessionId)
+      : await listDocuments({
+          sessionId,
+          search: search || null,
+          categoryId: categoryId ? Number(categoryId) : null,
+          folderId: folderId ? Number(folderId) : null,
+          officeId: officeId ? Number(officeId) : null
+        });
     setDocuments(rows);
+    if (detail && !rows.some((row) => row.document_id === detail.document.document_id)) {
+      setDetail(null);
+    }
     if (!detail && rows[0]) {
       await openDetail(rows[0].document_id);
     }
@@ -88,7 +98,7 @@ export const Documents = () => {
 
   useEffect(() => {
     void loadDocuments().catch((err) => setMessage(String(err)));
-  }, [sessionId]);
+  }, [sessionId, view]);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -153,6 +163,37 @@ export const Documents = () => {
     setMessage(path);
   };
 
+  const toggleHidden = async () => {
+    if (!sessionId || !detail) return;
+    const nextHidden = !detail.document.is_hidden;
+    await setDocumentHidden({
+      sessionId,
+      documentId: detail.document.document_id,
+      isHidden: nextHidden
+    });
+    setMessage(nextHidden ? 'Document hidden.' : 'Document unhidden.');
+    await openDetail(detail.document.document_id);
+    await loadDocuments();
+  };
+
+  const moveToTrash = async () => {
+    if (!sessionId || !detail) return;
+    await trashDocument({ sessionId, documentId: detail.document.document_id });
+    setMessage('Document moved to trash.');
+    setDetail(null);
+    await loadDocuments();
+  };
+
+  const restore = async () => {
+    if (!sessionId || !detail) return;
+    await restoreDocument({ sessionId, documentId: detail.document.document_id });
+    setMessage('Document restored.');
+    setDetail(null);
+    await loadDocuments();
+  };
+
+  const isTrashView = view === 'trash';
+
   return (
     <section className="space-y-5">
       <div className="flex items-center justify-between">
@@ -163,7 +204,12 @@ export const Documents = () => {
         <button className="btn" onClick={() => void loadDocuments()} type="button"><RefreshCw size={16} />Refresh</button>
       </div>
 
-      <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_180px_180px_180px_auto]" onSubmit={submitSearch}>
+      <div className="inline-flex rounded border border-border bg-surface p-1 text-sm shadow-sm">
+        <button className={view === 'active' ? 'btn btn-primary' : 'btn'} onClick={() => { setView('active'); setDetail(null); }} type="button">Documents</button>
+        <button className={view === 'trash' ? 'btn btn-primary' : 'btn'} onClick={() => { setView('trash'); setDetail(null); }} type="button">Trash</button>
+      </div>
+
+      {!isTrashView && <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_180px_180px_180px_auto]" onSubmit={submitSearch}>
         <label>
           <span className="form-label">Search</span>
           <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -190,7 +236,7 @@ export const Documents = () => {
           </select>
         </label>
         <button className="btn btn-primary self-end" type="submit"><Search size={16} />Apply</button>
-      </form>
+      </form>}
 
       {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
 
@@ -203,7 +249,12 @@ export const Documents = () => {
             <tbody>
               {documents.map((doc) => (
                 <tr className="cursor-pointer border-b border-border hover:bg-background" key={doc.document_id} onClick={() => void openDetail(doc.document_id)}>
-                  <td className="p-3"><p className="font-semibold text-secondary">{doc.document_name}</p><p className="text-xs text-muted">{doc.status} · {doc.attachment_count} file(s)</p></td>
+                  <td className="p-3">
+                    <p className="font-semibold text-secondary">{doc.document_name}</p>
+                    <p className="text-xs text-muted">
+                      {doc.status} · {doc.attachment_count} file(s){doc.is_hidden ? ' · Hidden' : ''}{doc.is_trashed ? ' · Trashed' : ''}
+                    </p>
+                  </td>
                   <td className="p-3 text-muted">{doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</td>
                   <td className="p-3 text-muted">{doc.date_received}</td>
                 </tr>
@@ -224,26 +275,36 @@ export const Documents = () => {
                   )}
                   <p className="mt-1 text-sm text-muted">{detail.document.category_name}{detail.document.folder_name ? ` / ${detail.document.folder_name}` : ''}</p>
                 </div>
-                <button className="btn" onClick={() => setEditing(!editing)} type="button"><Edit3 size={16} />Edit</button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {!isTrashView && <button className="btn" onClick={() => setEditing(!editing)} type="button"><Edit3 size={16} />Edit</button>}
+                  {!isTrashView && (
+                    <button className="btn" onClick={() => void toggleHidden().catch((err) => setMessage(String(err)))} type="button">
+                      {detail.document.is_hidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                      {detail.document.is_hidden ? 'Unhide' : 'Hide'}
+                    </button>
+                  )}
+                  {!isTrashView && <button className="btn" onClick={() => void moveToTrash().catch((err) => setMessage(String(err)))} type="button"><Trash2 size={16} />Move to Trash</button>}
+                  {isTrashView && <button className="btn btn-primary" onClick={() => void restore().catch((err) => setMessage(String(err)))} type="button"><RotateCcw size={16} />Restore</button>}
+                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <label>
                   <span className="form-label">Date received</span>
-                  <input className="input" disabled={!editing} type="date" value={detail.document.date_received} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, date_received: e.target.value } })} />
+                  <input className="input" disabled={!editing || isTrashView} type="date" value={detail.document.date_received} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, date_received: e.target.value } })} />
                 </label>
                 <label>
                   <span className="form-label">Status</span>
-                  <select className="input" disabled={!editing} value={detail.document.status} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, status: e.target.value as DocumentStatus } })}>
+                  <select className="input" disabled={!editing || isTrashView} value={detail.document.status} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, status: e.target.value as DocumentStatus } })}>
                     <option>Filed</option><option>Archived</option><option>Confidential</option><option>Other</option>
                   </select>
                 </label>
                 <label className="md:col-span-2">
                   <span className="form-label">Remarks</span>
-                  <textarea className="input min-h-24" disabled={!editing} value={detail.document.remarks ?? ''} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, remarks: e.target.value } })} />
+                  <textarea className="input min-h-24" disabled={!editing || isTrashView} value={detail.document.remarks ?? ''} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, remarks: e.target.value } })} />
                 </label>
               </div>
-              {editing && <button className="btn btn-primary" onClick={() => void saveEdit().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Changes</button>}
+              {editing && !isTrashView && <button className="btn btn-primary" onClick={() => void saveEdit().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Changes</button>}
 
               <div className="border-t border-border pt-4">
                 <div className="mb-3 flex items-center gap-2"><Paperclip size={17} className="text-primary" /><h3 className="font-semibold text-secondary">Attachments</h3></div>
@@ -253,12 +314,12 @@ export const Documents = () => {
                       <div><p className="font-medium text-secondary">{file.original_file_name}</p><p className="text-xs text-muted">{Math.ceil(file.file_size_bytes / 1024)} KB</p></div>
                       <div className="flex gap-2">
                         <button className="icon-btn" title="Show file path" onClick={() => void showPath(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><ExternalLink size={15} /></button>
-                        <button className="icon-btn" title="Remove attachment" onClick={() => void remove(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><Trash2 size={15} /></button>
+                        {!isTrashView && <button className="icon-btn" title="Remove attachment" onClick={() => void remove(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><Trash2 size={15} /></button>}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 space-y-3">
+                {!isTrashView && <div className="mt-3 space-y-3">
                   <button className="btn" onClick={() => void chooseAttachments().catch((err) => setMessage(String(err)))} type="button">
                     <Paperclip size={16} />
                     Add Attachments
@@ -286,7 +347,7 @@ export const Documents = () => {
                       </button>
                     </div>
                   )}
-                </div>
+                </div>}
               </div>
             </div>
           )}

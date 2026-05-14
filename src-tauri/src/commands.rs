@@ -440,6 +440,75 @@ pub async fn update_document(
 }
 
 #[tauri::command]
+pub async fn set_document_hidden(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+    is_hidden: bool,
+) -> Result<(), String> {
+    documents::set_document_hidden(&db.pool, &session_id, document_id, is_hidden)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn trash_document(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+) -> Result<(), String> {
+    documents::trash_document(&db.pool, &session_id, document_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_document(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+) -> Result<(), String> {
+    documents::restore_document(&db.pool, &session_id, document_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_trash_documents(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<DocumentItem>, String> {
+    documents::list_trash_documents(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn purge_document(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+) -> Result<(), String> {
+    let storage = storage_root(&app)?;
+    documents::purge_document(&db.pool, &storage, &session_id, document_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn empty_trash(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<i64, String> {
+    let storage = storage_root(&app)?;
+    documents::empty_trash(&db.pool, &storage, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn list_documents(
     db: State<'_, DbState>,
     session_id: String,

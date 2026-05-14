@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT document_id AS \"document_id!: i64\" FROM document WHERE is_trashed = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "document_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "be2c6258aefa81b734523330950ae980f5fafb49356657f4fa323606752c9142"
+}

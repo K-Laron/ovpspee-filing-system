@@ -8,7 +8,7 @@ export const SecretaryHome = () => (
       <Files className="mb-3 text-primary" size={28} />
       <h2 className="font-semibold text-secondary">Document filing ready</h2>
       <p className="mt-1 text-sm text-muted">
-        Create documents, attach files by path, and browse filed records. Scan intake, PDF export, and trash workflows remain deferred.
+        Create documents, attach files, manage visibility, and restore trashed records. Scan intake and PDF export remain deferred.
       </p>
     </div>
   </section>

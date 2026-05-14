@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 struct Fixture {
     pool: DbPool,
+    admin: String,
     secretary: String,
     category_id: i64,
     other_category_id: i64,
@@ -85,6 +86,7 @@ async fn fixture() -> Fixture {
 
     Fixture {
         pool,
+        admin,
         secretary,
         category_id,
         other_category_id,
@@ -222,6 +224,8 @@ async fn viewer_cannot_call_create_or_update_commands() {
 
     assert!(create_document(&fx.pool, "", doc(&fx, "Blocked")).await.is_err());
     assert!(update_document(&fx.pool, "", id, doc(&fx, "Blocked")).await.is_err());
+    assert!(create_document(&fx.pool, &fx.admin, doc(&fx, "Admin Blocked")).await.is_err());
+    assert!(update_document(&fx.pool, &fx.admin, id, doc(&fx, "Admin Blocked")).await.is_err());
 }
 
 #[tokio::test]

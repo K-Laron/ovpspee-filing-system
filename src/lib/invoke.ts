@@ -174,6 +174,33 @@ export const updateDocument = (params: {
   status: DocumentStatus;
 }): Promise<void> => invoke('update_document', params);
 
+export const setDocumentHidden = (params: {
+  sessionId: string;
+  documentId: number;
+  isHidden: boolean;
+}): Promise<void> => invoke('set_document_hidden', params);
+
+export const trashDocument = (params: {
+  sessionId: string;
+  documentId: number;
+}): Promise<void> => invoke('trash_document', params);
+
+export const restoreDocument = (params: {
+  sessionId: string;
+  documentId: number;
+}): Promise<void> => invoke('restore_document', params);
+
+export const listTrashDocuments = (sessionId: string): Promise<DocumentItem[]> =>
+  invoke('list_trash_documents', { sessionId });
+
+export const purgeDocument = (params: {
+  sessionId: string;
+  documentId: number;
+}): Promise<void> => invoke('purge_document', params);
+
+export const emptyTrash = (sessionId: string): Promise<number> =>
+  invoke('empty_trash', { sessionId });
+
 export const listDocuments = (params: {
   sessionId: string;
   search?: string | null;

@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT is_trashed AS \"is_trashed!: i64\", original_category_id, original_folder_id\n         FROM document WHERE document_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_trashed!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "original_category_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "original_folder_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d63e0336971a974a0f7d78e05c3ef32912f970abd0438421e523caecc3309502"
+}

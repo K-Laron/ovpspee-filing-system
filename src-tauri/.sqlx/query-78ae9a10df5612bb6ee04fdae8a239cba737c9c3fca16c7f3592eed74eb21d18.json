@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT is_active AS \"is_active!: i64\", is_system AS \"is_system!: i64\"\n         FROM category WHERE category_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_active!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_system!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "78ae9a10df5612bb6ee04fdae8a239cba737c9c3fca16c7f3592eed74eb21d18"
+}

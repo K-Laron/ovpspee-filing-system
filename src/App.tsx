@@ -8,6 +8,7 @@ import { SecretaryLayout } from './components/layout/SecretaryLayout';
 import { firstRunCheck, validateSession } from './lib/invoke';
 import { AdminHome } from './pages/admin/AdminHome';
 import { MasterData } from './pages/admin/MasterData';
+import { TrashManagement } from './pages/admin/TrashManagement';
 import { Users } from './pages/admin/Users';
 import { FirstRunSetup } from './pages/FirstRunSetup';
 import { GuestLanding } from './pages/GuestLanding';
@@ -80,6 +81,7 @@ export const App = () => {
         <Route index element={<AdminHome />} />
         <Route path="users" element={<Users />} />
         <Route path="master-data" element={<MasterData />} />
+        <Route path="trash" element={<TrashManagement />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route
