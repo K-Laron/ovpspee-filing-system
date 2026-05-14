@@ -66,3 +66,42 @@ export interface ProfileItem {
   address: string | null;
   profile_pic_path: string | null;
 }
+
+export type DocumentStatus = 'Filed' | 'Archived' | 'Confidential' | 'Other';
+
+export interface DocumentItem {
+  document_id: number;
+  document_name: string;
+  category_id: number;
+  category_name: string;
+  folder_id: number | null;
+  folder_name: string | null;
+  office_id: number | null;
+  office_name: string | null;
+  date_received: string;
+  date_added: string;
+  remarks: string | null;
+  status: DocumentStatus;
+  is_hidden: boolean;
+  is_trashed: boolean;
+  attachment_count: number;
+  created_by: number;
+  created_by_name: string;
+  updated_at: string;
+}
+
+export interface AttachmentItem {
+  attachment_id: number;
+  document_id: number;
+  original_file_name: string;
+  stored_relative_path: string;
+  mime_type: string;
+  file_size_bytes: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface DocumentDetail {
+  document: DocumentItem;
+  attachments: AttachmentItem[];
+}

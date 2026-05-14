@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT c.category_id, c.category_name, c.description, c.color_code, c.icon, c.is_system, c.is_active,\n            COUNT(d.document_id) AS \"document_count!: i64\"\n         FROM category c\n         LEFT JOIN document d ON d.category_id = c.category_id AND d.is_hidden = 0 AND d.is_trashed = 0\n         WHERE c.is_active = 1 AND c.is_system = 0\n         GROUP BY c.category_id\n         ORDER BY c.category_name COLLATE NOCASE ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "category_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "category_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "color_code",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "icon",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_system",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_active",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "document_count!: i64",
+        "ordinal": 7,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bb27e1648471d9becf4f73c262c3fece0168267f7f0d37ba2981e8f167700136"
+}

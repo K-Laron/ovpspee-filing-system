@@ -9,8 +9,8 @@ export const SecretaryLayout = () => (
     navItems={[
       { label: 'Dashboard', path: '/s', icon: LayoutDashboard },
       { label: 'Profile', path: '/s/profile', icon: UserCircle },
-      { label: 'Documents', path: '/s', icon: Files },
-      { label: 'Add Document', path: '/s', icon: FilePlus }
+      { label: 'Documents', path: '/s/documents', icon: Files },
+      { label: 'Add Document', path: '/s/documents/new', icon: FilePlus }
     ]}
   />
 );

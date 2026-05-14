@@ -13,6 +13,8 @@ import { FirstRunSetup } from './pages/FirstRunSetup';
 import { GuestLanding } from './pages/GuestLanding';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
+import { AddDocument } from './pages/secretary/AddDocument';
+import { Documents } from './pages/secretary/Documents';
 import { SecretaryHome } from './pages/secretary/SecretaryHome';
 import { useSessionStore } from './store/sessionStore';
 
@@ -90,6 +92,8 @@ export const App = () => {
       >
         <Route index element={<SecretaryHome />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="documents" element={<Documents />} />
+        <Route path="documents/new" element={<AddDocument />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

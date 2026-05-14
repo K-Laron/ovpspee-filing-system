@@ -30,3 +30,23 @@ input {
 .focus-ring {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
 }
+
+.form-label {
+  @apply mb-1 block text-xs font-semibold uppercase tracking-normal text-muted;
+}
+
+.input {
+  @apply focus-ring w-full rounded border border-border bg-white px-3 py-2 text-sm text-secondary shadow-sm disabled:bg-background disabled:text-muted;
+}
+
+.btn {
+  @apply focus-ring inline-flex items-center justify-center gap-2 rounded border border-border bg-white px-3 py-2 text-sm font-semibold text-secondary shadow-sm transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.btn-primary {
+  @apply border-primary bg-primary text-white hover:bg-red-700;
+}
+
+.icon-btn {
+  @apply focus-ring inline-flex h-9 w-9 items-center justify-center rounded border border-border text-secondary hover:bg-background;
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO document\n         (document_name, category_id, folder_id, office_id, date_received, date_added, remarks, status, is_hidden, created_by, updated_at)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "49c008bb840bde08381a8f211f86c9a44949fd440928c67d7954b6cba71c64a1"
+}

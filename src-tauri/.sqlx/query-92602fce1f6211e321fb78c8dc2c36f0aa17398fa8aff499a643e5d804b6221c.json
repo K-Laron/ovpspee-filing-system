@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT is_active AS \"is_active!: i64\" FROM office WHERE office_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_active!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "92602fce1f6211e321fb78c8dc2c36f0aa17398fa8aff499a643e5d804b6221c"
+}

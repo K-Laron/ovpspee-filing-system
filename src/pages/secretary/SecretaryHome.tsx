@@ -6,9 +6,9 @@ export const SecretaryHome = () => (
     <p className="mt-1 text-sm text-muted">Authenticated workspace layout is available.</p>
     <div className="mt-6 rounded border border-border bg-surface p-5 shadow-sm">
       <Files className="mb-3 text-primary" size={28} />
-      <h2 className="font-semibold text-secondary">Document filing deferred</h2>
+      <h2 className="font-semibold text-secondary">Document filing ready</h2>
       <p className="mt-1 text-sm text-muted">
-        Document filing, scan intake, PDF export, and trash workflows start in later slices.
+        Create documents, attach files by path, and browse filed records. Scan intake, PDF export, and trash workflows remain deferred.
       </p>
     </div>
   </section>

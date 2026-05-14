@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT f.folder_id AS \"folder_id!: i64\", f.category_id AS \"category_id!: i64\", c.category_name, f.folder_name, f.description, f.folder_color,\n            f.is_active, COUNT(d.document_id) AS \"document_count!: i64\"\n         FROM folder f\n         JOIN category c ON c.category_id = f.category_id\n         LEFT JOIN document d ON d.folder_id = f.folder_id AND d.is_hidden = 0 AND d.is_trashed = 0\n         WHERE f.category_id = ? AND f.is_active = 1\n         GROUP BY f.folder_id\n         ORDER BY f.folder_name COLLATE NOCASE ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "folder_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "category_id!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "category_name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "folder_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "folder_color",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_active",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "document_count!: i64",
+        "ordinal": 7,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "df08d4b2b7d87d8220ebdf908e4b8f95a738abb6262aaf33e2e15e848c19da4f"
+}

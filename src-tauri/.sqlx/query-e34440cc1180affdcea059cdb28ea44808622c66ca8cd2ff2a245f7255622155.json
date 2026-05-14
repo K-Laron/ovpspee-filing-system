@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT a.stored_relative_path, d.document_id AS \"document_id!: i64\",\n            d.is_hidden AS \"is_hidden!: i64\", d.is_trashed AS \"is_trashed!: i64\"\n         FROM attachment a\n         JOIN document d ON d.document_id = a.document_id\n         WHERE a.attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "stored_relative_path",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "document_id!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_hidden!: i64",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_trashed!: i64",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e34440cc1180affdcea059cdb28ea44808622c66ca8cd2ff2a245f7255622155"
+}

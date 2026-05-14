@@ -1,8 +1,12 @@
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::{
     auth::{self, SessionPayload},
     db::DbState,
+    documents::{
+        self, AttachmentInput, DocumentDetail, DocumentInput, DocumentItem, DocumentListFilter,
+        StorageRoot,
+    },
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
@@ -373,4 +377,235 @@ pub async fn change_my_password(
     users::change_my_password(&db.pool, &session_id, &current_password, &new_password)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_document(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_name: String,
+    category_id: i64,
+    folder_id: Option<i64>,
+    office_id: Option<i64>,
+    date_received: String,
+    remarks: Option<String>,
+    status: String,
+) -> Result<i64, String> {
+    documents::create_document(
+        &db.pool,
+        &session_id,
+        DocumentInput {
+            document_name,
+            category_id,
+            folder_id,
+            office_id,
+            date_received,
+            remarks,
+            status,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_document(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+    document_name: String,
+    category_id: i64,
+    folder_id: Option<i64>,
+    office_id: Option<i64>,
+    date_received: String,
+    remarks: Option<String>,
+    status: String,
+) -> Result<(), String> {
+    documents::update_document(
+        &db.pool,
+        &session_id,
+        document_id,
+        DocumentInput {
+            document_name,
+            category_id,
+            folder_id,
+            office_id,
+            date_received,
+            remarks,
+            status,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_documents(
+    db: State<'_, DbState>,
+    session_id: String,
+    search: Option<String>,
+    category_id: Option<i64>,
+    folder_id: Option<i64>,
+    office_id: Option<i64>,
+    date_from: Option<String>,
+    date_to: Option<String>,
+) -> Result<Vec<DocumentItem>, String> {
+    documents::list_documents(
+        &db.pool,
+        &session_id,
+        DocumentListFilter {
+            search,
+            category_id,
+            folder_id,
+            office_id,
+            date_from,
+            date_to,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_document(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+) -> Result<DocumentDetail, String> {
+    documents::get_document(&db.pool, &session_id, document_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn add_attachment(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+    source_path: String,
+    sort_order: Option<i64>,
+) -> Result<i64, String> {
+    let storage = storage_root(&app)?;
+    documents::add_attachment(
+        &db.pool,
+        &storage,
+        &session_id,
+        document_id,
+        AttachmentInput {
+            source_path,
+            sort_order,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn remove_attachment(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    attachment_id: i64,
+) -> Result<(), String> {
+    let storage = storage_root(&app)?;
+    documents::remove_attachment(&db.pool, &storage, &session_id, attachment_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn reorder_attachments(
+    db: State<'_, DbState>,
+    session_id: String,
+    document_id: i64,
+    attachment_ids: Vec<i64>,
+) -> Result<(), String> {
+    documents::reorder_attachments(&db.pool, &session_id, document_id, attachment_ids)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_attachment_file_path(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+    attachment_id: i64,
+) -> Result<String, String> {
+    let storage = storage_root(&app)?;
+    documents::get_attachment_file_path(&db.pool, &storage, session_id.as_deref(), attachment_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_public_categories(db: State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
+    documents::list_public_categories(&db.pool)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_public_folders(
+    db: State<'_, DbState>,
+    category_id: i64,
+) -> Result<Vec<FolderItem>, String> {
+    documents::list_public_folders(&db.pool, category_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_public_documents(
+    db: State<'_, DbState>,
+    search: Option<String>,
+    category_id: Option<i64>,
+    folder_id: Option<i64>,
+    office_id: Option<i64>,
+    date_from: Option<String>,
+    date_to: Option<String>,
+) -> Result<Vec<DocumentItem>, String> {
+    documents::list_public_documents(
+        &db.pool,
+        DocumentListFilter {
+            search,
+            category_id,
+            folder_id,
+            office_id,
+            date_from,
+            date_to,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_public_document(
+    db: State<'_, DbState>,
+    document_id: i64,
+) -> Result<DocumentDetail, String> {
+    documents::get_public_document(&db.pool, document_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_document_offices(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<OfficeItem>, String> {
+    documents::list_document_offices(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| err.to_string())?
+        .join("storage");
+    StorageRoot::new(root).map_err(|err| err.to_string())
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachment SET sort_order = ? WHERE attachment_id = ? AND document_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b73e7f35213f8a03752e3ab54514022d7a52e513fd776776076c4bced84d3396"
+}

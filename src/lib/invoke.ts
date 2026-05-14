@@ -1,5 +1,16 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { CategoryItem, FolderItem, OfficeItem, ProfileItem, Role, SessionPayload, UserItem } from '../types';
+import type {
+  CategoryItem,
+  DocumentDetail,
+  DocumentItem,
+  DocumentStatus,
+  FolderItem,
+  OfficeItem,
+  ProfileItem,
+  Role,
+  SessionPayload,
+  UserItem
+} from '../types';
 
 export const firstRunCheck = (): Promise<boolean> => invoke('first_run_check');
 
@@ -139,3 +150,82 @@ export const changeMyPassword = (params: {
   currentPassword: string;
   newPassword: string;
 }): Promise<void> => invoke('change_my_password', params);
+
+export const createDocument = (params: {
+  sessionId: string;
+  documentName: string;
+  categoryId: number;
+  folderId: number | null;
+  officeId: number | null;
+  dateReceived: string;
+  remarks: string | null;
+  status: DocumentStatus;
+}): Promise<number> => invoke('create_document', params);
+
+export const updateDocument = (params: {
+  sessionId: string;
+  documentId: number;
+  documentName: string;
+  categoryId: number;
+  folderId: number | null;
+  officeId: number | null;
+  dateReceived: string;
+  remarks: string | null;
+  status: DocumentStatus;
+}): Promise<void> => invoke('update_document', params);
+
+export const listDocuments = (params: {
+  sessionId: string;
+  search?: string | null;
+  categoryId?: number | null;
+  folderId?: number | null;
+  officeId?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+}): Promise<DocumentItem[]> => invoke('list_documents', params);
+
+export const getDocument = (sessionId: string, documentId: number): Promise<DocumentDetail> =>
+  invoke('get_document', { sessionId, documentId });
+
+export const addAttachment = (params: {
+  sessionId: string;
+  documentId: number;
+  sourcePath: string;
+  sortOrder?: number | null;
+}): Promise<number> => invoke('add_attachment', params);
+
+export const removeAttachment = (params: {
+  sessionId: string;
+  attachmentId: number;
+}): Promise<void> => invoke('remove_attachment', params);
+
+export const reorderAttachments = (params: {
+  sessionId: string;
+  documentId: number;
+  attachmentIds: number[];
+}): Promise<void> => invoke('reorder_attachments', params);
+
+export const getAttachmentFilePath = (
+  attachmentId: number,
+  sessionId: string | null = null
+): Promise<string> => invoke('get_attachment_file_path', { attachmentId, sessionId });
+
+export const listPublicCategories = (): Promise<CategoryItem[]> => invoke('list_public_categories');
+
+export const listPublicFolders = (categoryId: number): Promise<FolderItem[]> =>
+  invoke('list_public_folders', { categoryId });
+
+export const listPublicDocuments = (params: {
+  search?: string | null;
+  categoryId?: number | null;
+  folderId?: number | null;
+  officeId?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+} = {}): Promise<DocumentItem[]> => invoke('list_public_documents', params);
+
+export const getPublicDocument = (documentId: number): Promise<DocumentDetail> =>
+  invoke('get_public_document', { documentId });
+
+export const listDocumentOffices = (sessionId: string): Promise<OfficeItem[]> =>
+  invoke('list_document_offices', { sessionId });

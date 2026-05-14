@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT office_id AS \"office_id!: i64\", office_name, description, is_active\n         FROM office\n         WHERE is_active = 1\n         ORDER BY office_name COLLATE NOCASE ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "office_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "office_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_active",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "282902269208df3719a6309b2e89c1c9cae42cf24964fe9be7cdee9cf7dee61a"
+}

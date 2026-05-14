@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod commands;
 pub mod db;
+pub mod documents;
 pub mod error;
 pub mod master_data;
 pub mod users;
@@ -10,6 +11,7 @@ use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             let db_path = app_data_dir.join("filing_system.db");
@@ -39,7 +41,20 @@ pub fn run() {
             commands::admin_reset_password,
             commands::get_my_profile,
             commands::update_my_profile,
-            commands::change_my_password
+            commands::change_my_password,
+            commands::create_document,
+            commands::update_document,
+            commands::list_documents,
+            commands::get_document,
+            commands::add_attachment,
+            commands::remove_attachment,
+            commands::reorder_attachments,
+            commands::get_attachment_file_path,
+            commands::list_public_categories,
+            commands::list_public_folders,
+            commands::list_public_documents,
+            commands::get_public_document,
+            commands::list_document_offices
         ])
         .run(tauri::generate_context!())
         .expect("error while running OVPSPEE Filing System");
