@@ -1,3 +1,4 @@
+pub mod audit_log;
 pub mod auth;
 pub mod commands;
 pub mod db;
@@ -71,7 +72,13 @@ pub fn run() {
             commands::update_scan_intake_notes,
             commands::remove_scan_intake,
             commands::file_scan_as_document,
-            commands::attach_scan_to_document
+            commands::attach_scan_to_document,
+            commands::list_audit_logs,
+            commands::list_my_activity,
+            commands::list_audit_event_types,
+            commands::list_my_activity_event_types,
+            commands::get_audit_retention_settings,
+            commands::update_audit_retention_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running OVPSPEE Filing System");

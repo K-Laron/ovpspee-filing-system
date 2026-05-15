@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   CategoryItem,
+  AuditLogPage,
+  AuditRetentionSettings,
   DocumentDetail,
   DocumentItem,
   DocumentStatus,
@@ -312,3 +314,41 @@ export const attachScanToDocument = (params: {
   scanIntakeIds: number[];
   documentId: number;
 }): Promise<number[]> => invoke('attach_scan_to_document', params);
+
+export const listAuditLogs = (params: {
+  sessionId: string;
+  search?: string | null;
+  actorUserId?: number | null;
+  actorSearch?: string | null;
+  action?: string | null;
+  entityType?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}): Promise<AuditLogPage> => invoke('list_audit_logs', params);
+
+export const listMyActivity = (params: {
+  sessionId: string;
+  search?: string | null;
+  action?: string | null;
+  entityType?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}): Promise<AuditLogPage> => invoke('list_my_activity', params);
+
+export const listAuditEventTypes = (sessionId: string): Promise<string[]> =>
+  invoke('list_audit_event_types', { sessionId });
+
+export const listMyActivityEventTypes = (sessionId: string): Promise<string[]> =>
+  invoke('list_my_activity_event_types', { sessionId });
+
+export const getAuditRetentionSettings = (sessionId: string): Promise<AuditRetentionSettings> =>
+  invoke('get_audit_retention_settings', { sessionId });
+
+export const updateAuditRetentionSettings = (params: {
+  sessionId: string;
+  retentionMonths: number;
+}): Promise<AuditRetentionSettings> => invoke('update_audit_retention_settings', params);

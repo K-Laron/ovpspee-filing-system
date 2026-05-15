@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { SecretaryLayout } from './components/layout/SecretaryLayout';
 import { firstRunCheck, validateSession } from './lib/invoke';
 import { AdminHome } from './pages/admin/AdminHome';
+import { AuditLog } from './pages/admin/AuditLog';
 import { MasterData } from './pages/admin/MasterData';
 import { TrashManagement } from './pages/admin/TrashManagement';
 import { Users } from './pages/admin/Users';
@@ -16,6 +17,7 @@ import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
 import { AddDocument } from './pages/secretary/AddDocument';
 import { Documents } from './pages/secretary/Documents';
+import { MyActivity } from './pages/secretary/MyActivity';
 import { ScanIntake } from './pages/secretary/ScanIntake';
 import { SecretaryHome } from './pages/secretary/SecretaryHome';
 import { useSessionStore } from './store/sessionStore';
@@ -83,6 +85,7 @@ export const App = () => {
         <Route path="users" element={<Users />} />
         <Route path="master-data" element={<MasterData />} />
         <Route path="trash" element={<TrashManagement />} />
+        <Route path="audit-log" element={<AuditLog />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route
@@ -98,6 +101,7 @@ export const App = () => {
         <Route path="documents" element={<Documents />} />
         <Route path="documents/new" element={<AddDocument />} />
         <Route path="scan-intake" element={<ScanIntake />} />
+        <Route path="my-activity" element={<MyActivity />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

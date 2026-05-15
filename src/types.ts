@@ -121,3 +121,30 @@ export interface ScanIntakeItem {
   updated_at: string;
   filed_document_id: number | null;
 }
+
+export interface AuditLogEntry {
+  id: number;
+  action: string;
+  actor_user_id: number | null;
+  actor_username: string | null;
+  actor_display_name: string | null;
+  actor_role: Role | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  summary: string;
+  created_at: string;
+  ip_address: string | null;
+}
+
+export interface AuditLogPage {
+  entries: AuditLogEntry[];
+  limit: number;
+  offset: number;
+}
+
+export interface AuditRetentionSettings {
+  retention_months: number;
+  min_months: number;
+  max_months: number;
+  cleanup_deferred: boolean;
+}

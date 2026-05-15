@@ -1,6 +1,7 @@
 use tauri::{AppHandle, Manager, State};
 
 use crate::{
+    audit_log::{self, AuditLogFilter, AuditLogPage, AuditRetentionSettings},
     auth::{self, SessionPayload},
     db::DbState,
     documents::{
@@ -803,6 +804,110 @@ pub async fn attach_scan_to_document(
     )
     .await
     .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_audit_logs(
+    db: State<'_, DbState>,
+    session_id: String,
+    search: Option<String>,
+    actor_user_id: Option<i64>,
+    actor_search: Option<String>,
+    action: Option<String>,
+    entity_type: Option<String>,
+    date_from: Option<String>,
+    date_to: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<AuditLogPage, String> {
+    audit_log::list_audit_logs(
+        &db.pool,
+        &session_id,
+        AuditLogFilter {
+            search,
+            actor_user_id,
+            actor_search,
+            action,
+            entity_type,
+            date_from,
+            date_to,
+            limit,
+            offset,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_my_activity(
+    db: State<'_, DbState>,
+    session_id: String,
+    search: Option<String>,
+    action: Option<String>,
+    entity_type: Option<String>,
+    date_from: Option<String>,
+    date_to: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<AuditLogPage, String> {
+    audit_log::list_my_activity(
+        &db.pool,
+        &session_id,
+        AuditLogFilter {
+            search,
+            action,
+            entity_type,
+            date_from,
+            date_to,
+            limit,
+            offset,
+            ..AuditLogFilter::default()
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_audit_event_types(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<String>, String> {
+    audit_log::list_audit_event_types(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_my_activity_event_types(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<String>, String> {
+    audit_log::list_my_activity_event_types(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_audit_retention_settings(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<AuditRetentionSettings, String> {
+    audit_log::get_audit_retention_settings(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_audit_retention_settings(
+    db: State<'_, DbState>,
+    session_id: String,
+    retention_months: i64,
+) -> Result<AuditRetentionSettings, String> {
+    audit_log::update_audit_retention_settings(&db.pool, &session_id, retention_months)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {

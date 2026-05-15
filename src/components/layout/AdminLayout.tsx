@@ -11,7 +11,7 @@ export const AdminLayout = () => (
       { label: 'Master Data', path: '/a/master-data', icon: Database },
       { label: 'Trash', path: '/a/trash', icon: Trash2 },
       { label: 'Profile', path: '/a/profile', icon: UserCircle },
-      { label: 'Audit Log', path: '/a', icon: ClipboardList }
+      { label: 'Audit Log', path: '/a/audit-log', icon: ClipboardList }
     ]}
   />
 );
