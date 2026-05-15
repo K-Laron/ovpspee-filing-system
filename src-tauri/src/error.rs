@@ -20,6 +20,8 @@ pub enum AppError {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("ERR_IO: {0}")]
     Io(#[from] std::io::Error),
+    #[error("ERR_VALIDATION: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 pub type AppResult<T> = Result<T, AppError>;

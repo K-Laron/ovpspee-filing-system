@@ -5,6 +5,9 @@ import type {
   AuditRetentionSettings,
   AttachmentPreviewInfo,
   AttachmentPreviewPage,
+  BackupSettings,
+  BackupSummary,
+  BackupValidation,
   DocumentDetail,
   DocumentItem,
   DocumentStatus,
@@ -14,6 +17,7 @@ import type {
   Role,
   ScanIntakeItem,
   SessionPayload,
+  RestoreResult,
   UserItem
 } from '../types';
 
@@ -372,3 +376,49 @@ export const updateAuditRetentionSettings = (params: {
   sessionId: string;
   retentionMonths: number;
 }): Promise<AuditRetentionSettings> => invoke('update_audit_retention_settings', params);
+
+export const getBackupSettings = (sessionId: string): Promise<BackupSettings> =>
+  invoke('get_backup_settings', { sessionId });
+
+export const updateBackupSettings = (params: {
+  sessionId: string;
+  destinationPath: string | null;
+  scheduleEnabled: boolean;
+  scheduleTime: string;
+  retentionCount: number;
+}): Promise<BackupSettings> => invoke('update_backup_settings', params);
+
+export const createBackup = (sessionId: string): Promise<BackupSummary> =>
+  invoke('create_backup', { sessionId });
+
+export const listBackupHistory = (sessionId: string): Promise<BackupSummary[]> =>
+  invoke('list_backup_history', { sessionId });
+
+export const exportBackupArchive = (params: {
+  sessionId: string;
+  backupName: string;
+  outputPath: string;
+}): Promise<string> => invoke('export_backup_archive', params);
+
+export const validateBackupArchive = (params: {
+  sessionId: string;
+  archivePath: string;
+}): Promise<BackupValidation> => invoke('validate_backup_archive', params);
+
+export const importBackupArchive = (params: {
+  sessionId: string;
+  archivePath: string;
+}): Promise<BackupSummary> => invoke('import_backup_archive', params);
+
+export const restoreFromBackup = (params: {
+  sessionId: string;
+  backupName: string;
+}): Promise<RestoreResult> => invoke('restore_from_backup', params);
+
+export const restoreFromBackupFolder = (params: {
+  sessionId: string;
+  folderPath: string;
+}): Promise<RestoreResult> => invoke('restore_from_backup_folder', params);
+
+export const runScheduledBackupCheck = (sessionId: string): Promise<BackupSummary | null> =>
+  invoke('run_scheduled_backup_check', { sessionId });

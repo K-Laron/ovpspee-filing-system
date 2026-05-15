@@ -219,7 +219,11 @@ pub async fn update_user(
         "UPDATE",
         Some("user"),
         Some(user_id),
-        if input.is_active { "Updated user account" } else { "Updated and deactivated user account" },
+        if input.is_active {
+            "Updated user account"
+        } else {
+            "Updated and deactivated user account"
+        },
         Some(session.user_id),
     )
     .await?;
@@ -375,7 +379,11 @@ pub async fn change_my_password(
 async fn role_id(pool: &DbPool, role: &str) -> AppResult<i64> {
     match role {
         "Admin" | "Secretary" => {}
-        _ => return Err(AppError::Validation("Role must be Admin or Secretary.".into())),
+        _ => {
+            return Err(AppError::Validation(
+                "Role must be Admin or Secretary.".into(),
+            ))
+        }
     }
     let row = sqlx::query!(
         "SELECT role_id AS \"role_id!: i64\" FROM role WHERE role_name = ?",

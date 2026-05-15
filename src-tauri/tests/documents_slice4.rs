@@ -11,7 +11,9 @@ use ovpspee_filing_system::{
         list_public_documents, remove_attachment, reorder_attachments, update_document,
         AttachmentInput, DocumentInput, DocumentListFilter, StorageRoot,
     },
-    master_data::{create_category, create_folder, create_office, CategoryInput, FolderInput, OfficeInput},
+    master_data::{
+        create_category, create_folder, create_office, CategoryInput, FolderInput, OfficeInput,
+    },
     users::{create_user, UserInput},
 };
 use uuid::Uuid;
@@ -138,7 +140,9 @@ async fn create_document_success() {
     let id = create_document(&fx.pool, &fx.secretary, doc(&fx, "Board Memo"))
         .await
         .expect("document created");
-    let item = get_document(&fx.pool, &fx.secretary, id).await.expect("document");
+    let item = get_document(&fx.pool, &fx.secretary, id)
+        .await
+        .expect("document");
 
     assert_eq!(item.document.document_name, "Board Memo");
     assert_eq!(item.attachments.len(), 0);
@@ -164,14 +168,19 @@ async fn create_document_with_attachment_copies_file_and_stores_relative_path() 
     )
     .await
     .expect("attachment");
-    let item = get_document(&fx.pool, &fx.secretary, id).await.expect("document");
+    let item = get_document(&fx.pool, &fx.secretary, id)
+        .await
+        .expect("document");
     let attachment = item
         .attachments
         .iter()
         .find(|row| row.attachment_id == attachment_id)
         .expect("attachment listed");
 
-    assert!(fx.storage.resolve_relative(&attachment.stored_relative_path).exists());
+    assert!(fx
+        .storage
+        .resolve_relative(&attachment.stored_relative_path)
+        .exists());
     assert!(!Path::new(&attachment.stored_relative_path).is_absolute());
 }
 
@@ -201,10 +210,13 @@ async fn viewer_list_excludes_hidden_and_trashed_documents() {
     let trashed = create_document(&fx.pool, &fx.secretary, doc(&fx, "Trashed"))
         .await
         .expect("trashed");
-    sqlx::query!("UPDATE document SET is_trashed = 1 WHERE document_id = ?", trashed)
-        .execute(&fx.pool)
-        .await
-        .expect("mark trashed");
+    sqlx::query!(
+        "UPDATE document SET is_trashed = 1 WHERE document_id = ?",
+        trashed
+    )
+    .execute(&fx.pool)
+    .await
+    .expect("mark trashed");
 
     let rows = list_public_documents(&fx.pool, DocumentListFilter::default())
         .await
@@ -222,10 +234,22 @@ async fn viewer_cannot_call_create_or_update_commands() {
         .await
         .expect("document");
 
-    assert!(create_document(&fx.pool, "", doc(&fx, "Blocked")).await.is_err());
-    assert!(update_document(&fx.pool, "", id, doc(&fx, "Blocked")).await.is_err());
-    assert!(create_document(&fx.pool, &fx.admin, doc(&fx, "Admin Blocked")).await.is_err());
-    assert!(update_document(&fx.pool, &fx.admin, id, doc(&fx, "Admin Blocked")).await.is_err());
+    assert!(create_document(&fx.pool, "", doc(&fx, "Blocked"))
+        .await
+        .is_err());
+    assert!(update_document(&fx.pool, "", id, doc(&fx, "Blocked"))
+        .await
+        .is_err());
+    assert!(
+        create_document(&fx.pool, &fx.admin, doc(&fx, "Admin Blocked"))
+            .await
+            .is_err()
+    );
+    assert!(
+        update_document(&fx.pool, &fx.admin, id, doc(&fx, "Admin Blocked"))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -239,13 +263,17 @@ async fn update_document_success_and_folder_must_belong_to_category() {
     update_document(&fx.pool, &fx.secretary, id, updated)
         .await
         .expect("updated");
-    let item = get_document(&fx.pool, &fx.secretary, id).await.expect("document");
+    let item = get_document(&fx.pool, &fx.secretary, id)
+        .await
+        .expect("document");
     assert_eq!(item.document.document_name, "Updated");
 
     let mut invalid = doc(&fx, "Invalid");
     invalid.category_id = fx.other_category_id;
     invalid.folder_id = Some(fx.folder_id);
-    assert!(update_document(&fx.pool, &fx.secretary, id, invalid).await.is_err());
+    assert!(update_document(&fx.pool, &fx.secretary, id, invalid)
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -260,7 +288,9 @@ async fn remove_attachment_deletes_file_and_reorder_updates_sort_order() {
         &fx.secretary,
         id,
         AttachmentInput {
-            source_path: write_file(&fx.source_dir, "a.pdf", b"%PDF-a").to_string_lossy().into_owned(),
+            source_path: write_file(&fx.source_dir, "a.pdf", b"%PDF-a")
+                .to_string_lossy()
+                .into_owned(),
             sort_order: Some(1),
         },
     )
@@ -272,7 +302,9 @@ async fn remove_attachment_deletes_file_and_reorder_updates_sort_order() {
         &fx.secretary,
         id,
         AttachmentInput {
-            source_path: write_file(&fx.source_dir, "b.pdf", b"%PDF-b").to_string_lossy().into_owned(),
+            source_path: write_file(&fx.source_dir, "b.pdf", b"%PDF-b")
+                .to_string_lossy()
+                .into_owned(),
             sort_order: Some(2),
         },
     )
@@ -356,10 +388,16 @@ async fn file_over_one_gb_rejected_without_copying() {
 #[tokio::test]
 async fn confidential_status_auto_hides_document_from_public_detail() {
     let fx = fixture().await;
-    let id = create_document(&fx.pool, &fx.secretary, confidential_doc(&fx, "Confidential Memo"))
+    let id = create_document(
+        &fx.pool,
+        &fx.secretary,
+        confidential_doc(&fx, "Confidential Memo"),
+    )
+    .await
+    .expect("document");
+    let item = get_document(&fx.pool, &fx.secretary, id)
         .await
         .expect("document");
-    let item = get_document(&fx.pool, &fx.secretary, id).await.expect("document");
 
     assert!(item.document.is_hidden);
     assert!(get_public_document(&fx.pool, id).await.is_err());

@@ -111,9 +111,10 @@ pub async fn create_first_admin(
     validate_username(&username)?;
     let password_hash = hash_password(password)?;
 
-    let role = sqlx::query!("SELECT role_id AS \"role_id!: i64\" FROM role WHERE role_name = 'Admin'")
-        .fetch_one(pool)
-        .await?;
+    let role =
+        sqlx::query!("SELECT role_id AS \"role_id!: i64\" FROM role WHERE role_name = 'Admin'")
+            .fetch_one(pool)
+            .await?;
 
     let result = sqlx::query!(
         "INSERT INTO user (role_id, first_name, last_name, username, password_hash) VALUES (?, ?, ?, ?, ?)",
@@ -171,7 +172,8 @@ pub async fn authenticate_user(
     verify_password(password, &row.password_hash)?;
 
     let now = Utc::now();
-    let expires_at = (now + Duration::hours(SESSION_HOURS)).to_rfc3339_opts(SecondsFormat::Secs, true);
+    let expires_at =
+        (now + Duration::hours(SESSION_HOURS)).to_rfc3339_opts(SecondsFormat::Secs, true);
     let session_id = Uuid::new_v4().to_string();
     let session_id_arg = session_id.as_str();
     let expires_at_arg = expires_at.as_str();
@@ -186,8 +188,8 @@ pub async fn authenticate_user(
         row.user_id,
         expires_at_arg
     )
-        .execute(&mut *tx)
-        .await?;
+    .execute(&mut *tx)
+    .await?;
     let now_text = now.to_rfc3339_opts(SecondsFormat::Secs, true);
     sqlx::query!(
         "UPDATE user SET last_login_at = ?, updated_at = ? WHERE user_id = ?",
@@ -195,8 +197,8 @@ pub async fn authenticate_user(
         now_text,
         row.user_id
     )
-        .execute(&mut *tx)
-        .await?;
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     write_audit_log(
@@ -231,7 +233,8 @@ pub async fn validate_session(pool: &DbPool, session_id: &str) -> AppResult<Sess
     .await?
     .ok_or(AppError::Unauthorized)?;
 
-    if row.is_active != 1 || row.expires_at <= Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true) {
+    if row.is_active != 1 || row.expires_at <= Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    {
         sqlx::query!("DELETE FROM session WHERE session_id = ?", session_id)
             .execute(pool)
             .await?;

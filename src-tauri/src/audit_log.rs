@@ -247,7 +247,7 @@ async fn fetch_audit_logs(
 async fn list_event_types_for_user(pool: &DbPool, user_id: Option<i64>) -> AppResult<Vec<String>> {
     let rows = if let Some(user_id) = user_id {
         sqlx::query(
-            "SELECT DISTINCT log_action AS \"log_action!: String\"
+            "SELECT DISTINCT log_action
              FROM audit_log
              WHERE user_id = ?
              ORDER BY log_action",
@@ -257,7 +257,7 @@ async fn list_event_types_for_user(pool: &DbPool, user_id: Option<i64>) -> AppRe
         .await?
     } else {
         sqlx::query(
-            "SELECT DISTINCT log_action AS \"log_action!: String\"
+            "SELECT DISTINCT log_action
              FROM audit_log
              ORDER BY log_action",
         )

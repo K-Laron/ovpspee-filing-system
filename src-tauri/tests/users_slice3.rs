@@ -18,9 +18,13 @@ async fn setup_admin(pool: &DbPool) -> String {
 }
 
 async fn setup_secretary(pool: &DbPool, admin_session: &str) -> String {
-    create_user(pool, admin_session, user("Secretary", "secretary", Some("sec@example.edu.ph")))
-        .await
-        .expect("secretary created");
+    create_user(
+        pool,
+        admin_session,
+        user("Secretary", "secretary", Some("sec@example.edu.ph")),
+    )
+    .await
+    .expect("secretary created");
     authenticate_user(pool, "secretary", "Valid123!")
         .await
         .expect("secretary login")
@@ -71,12 +75,18 @@ async fn create_user_success() {
     let pool = create_test_pool().await.expect("pool");
     let admin = setup_admin(&pool).await;
 
-    let user_id = create_user(&pool, &admin, user("Secretary", "secretary", Some("sec@example.edu.ph")))
-        .await
-        .expect("user created");
+    let user_id = create_user(
+        &pool,
+        &admin,
+        user("Secretary", "secretary", Some("sec@example.edu.ph")),
+    )
+    .await
+    .expect("user created");
     let users = list_users(&pool, &admin, None).await.expect("users listed");
 
-    assert!(users.iter().any(|row| row.user_id == user_id && row.username == "secretary"));
+    assert!(users
+        .iter()
+        .any(|row| row.user_id == user_id && row.username == "secretary"));
 }
 
 #[tokio::test]
@@ -88,9 +98,11 @@ async fn duplicate_username_rejected() {
         .await
         .expect("user created");
 
-    assert!(create_user(&pool, &admin, user("Secretary", "SECRETARY", None))
-        .await
-        .is_err());
+    assert!(
+        create_user(&pool, &admin, user("Secretary", "SECRETARY", None))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -98,13 +110,21 @@ async fn duplicate_email_rejected_when_provided() {
     let pool = create_test_pool().await.expect("pool");
     let admin = setup_admin(&pool).await;
 
-    create_user(&pool, &admin, user("Secretary", "one", Some("same@example.edu.ph")))
-        .await
-        .expect("user created");
+    create_user(
+        &pool,
+        &admin,
+        user("Secretary", "one", Some("same@example.edu.ph")),
+    )
+    .await
+    .expect("user created");
 
-    assert!(create_user(&pool, &admin, user("Secretary", "two", Some("SAME@example.edu.ph")))
-        .await
-        .is_err());
+    assert!(create_user(
+        &pool,
+        &admin,
+        user("Secretary", "two", Some("SAME@example.edu.ph"))
+    )
+    .await
+    .is_err());
 }
 
 #[tokio::test]
@@ -129,7 +149,9 @@ async fn update_user_deactivate_blocks_login() {
         .await
         .expect("user deactivated");
 
-    assert!(authenticate_user(&pool, "secretary", "Valid123!").await.is_err());
+    assert!(authenticate_user(&pool, "secretary", "Valid123!")
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -144,8 +166,12 @@ async fn admin_reset_password_changes_login_credential() {
         .await
         .expect("password reset");
 
-    assert!(authenticate_user(&pool, "secretary", "Valid123!").await.is_err());
-    assert!(authenticate_user(&pool, "secretary", "Reset123!").await.is_ok());
+    assert!(authenticate_user(&pool, "secretary", "Valid123!")
+        .await
+        .is_err());
+    assert!(authenticate_user(&pool, "secretary", "Reset123!")
+        .await
+        .is_ok());
 }
 
 #[tokio::test]
@@ -154,9 +180,11 @@ async fn non_admin_cannot_manage_users() {
     let admin = setup_admin(&pool).await;
     let secretary = setup_secretary(&pool, &admin).await;
 
-    assert!(create_user(&pool, &secretary, user("Secretary", "blocked", None))
-        .await
-        .is_err());
+    assert!(
+        create_user(&pool, &secretary, user("Secretary", "blocked", None))
+            .await
+            .is_err()
+    );
     assert!(list_users(&pool, &secretary, None).await.is_err());
 }
 
@@ -183,16 +211,22 @@ async fn change_password_success_and_wrong_current_rejected() {
     let admin = setup_admin(&pool).await;
     let secretary = setup_secretary(&pool, &admin).await;
 
-    assert!(change_my_password(&pool, &secretary, "Wrong123!", "Newpass123!")
-        .await
-        .is_err());
+    assert!(
+        change_my_password(&pool, &secretary, "Wrong123!", "Newpass123!")
+            .await
+            .is_err()
+    );
 
     change_my_password(&pool, &secretary, "Valid123!", "Newpass123!")
         .await
         .expect("password changed");
 
-    assert!(authenticate_user(&pool, "secretary", "Valid123!").await.is_err());
-    assert!(authenticate_user(&pool, "secretary", "Newpass123!").await.is_ok());
+    assert!(authenticate_user(&pool, "secretary", "Valid123!")
+        .await
+        .is_err());
+    assert!(authenticate_user(&pool, "secretary", "Newpass123!")
+        .await
+        .is_ok());
 }
 
 #[tokio::test]

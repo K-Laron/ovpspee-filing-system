@@ -8,6 +8,7 @@ import { SecretaryLayout } from './components/layout/SecretaryLayout';
 import { firstRunCheck, validateSession } from './lib/invoke';
 import { AdminHome } from './pages/admin/AdminHome';
 import { AuditLog } from './pages/admin/AuditLog';
+import { BackupRestore } from './pages/admin/BackupRestore';
 import { MasterData } from './pages/admin/MasterData';
 import { TrashManagement } from './pages/admin/TrashManagement';
 import { Users } from './pages/admin/Users';
@@ -86,6 +87,7 @@ export const App = () => {
         <Route path="master-data" element={<MasterData />} />
         <Route path="trash" element={<TrashManagement />} />
         <Route path="audit-log" element={<AuditLog />} />
+        <Route path="backup-restore" element={<BackupRestore />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route

@@ -8,11 +8,13 @@ use ovpspee_filing_system::{
         get_attachment_preview_page, set_document_hidden, trash_document, AttachmentInput,
         DocumentInput, StorageRoot,
     },
-    master_data::{create_category, create_folder, create_office, CategoryInput, FolderInput, OfficeInput},
+    master_data::{
+        create_category, create_folder, create_office, CategoryInput, FolderInput, OfficeInput,
+    },
     users::{create_user, UserInput},
 };
-use tempfile::TempDir;
 use sqlx::Row;
+use tempfile::TempDir;
 
 struct Fixture {
     pool: DbPool,
@@ -162,9 +164,11 @@ async fn public_viewer_cannot_export_hidden_confidential_or_trashed_documents() 
         .await
         .expect("trash");
 
-    assert!(export_document_pdf(&fx.pool, &fx.storage, None, hidden, &out(&fx, "hidden.pdf"))
-        .await
-        .is_err());
+    assert!(
+        export_document_pdf(&fx.pool, &fx.storage, None, hidden, &out(&fx, "hidden.pdf"))
+            .await
+            .is_err()
+    );
     assert!(export_document_pdf(
         &fx.pool,
         &fx.storage,
@@ -174,9 +178,15 @@ async fn public_viewer_cannot_export_hidden_confidential_or_trashed_documents() 
     )
     .await
     .is_err());
-    assert!(export_document_pdf(&fx.pool, &fx.storage, None, trashed, &out(&fx, "trashed.pdf"))
-        .await
-        .is_err());
+    assert!(export_document_pdf(
+        &fx.pool,
+        &fx.storage,
+        None,
+        trashed,
+        &out(&fx, "trashed.pdf")
+    )
+    .await
+    .is_err());
 }
 
 #[tokio::test]
@@ -281,16 +291,30 @@ async fn export_rejects_bad_document_and_bad_output_path_and_writes_audit() {
         .join("bad.pdf")
         .to_string_lossy()
         .into_owned();
-    assert!(export_document_pdf(&fx.pool, &fx.storage, Some(&fx.secretary), 999_999, &out(&fx, "missing.pdf"))
-        .await
-        .is_err());
-    assert!(export_document_pdf(&fx.pool, &fx.storage, Some(&fx.secretary), id, &bad_path)
-        .await
-        .is_err());
+    assert!(export_document_pdf(
+        &fx.pool,
+        &fx.storage,
+        Some(&fx.secretary),
+        999_999,
+        &out(&fx, "missing.pdf")
+    )
+    .await
+    .is_err());
+    assert!(
+        export_document_pdf(&fx.pool, &fx.storage, Some(&fx.secretary), id, &bad_path)
+            .await
+            .is_err()
+    );
 
-    export_document_pdf(&fx.pool, &fx.storage, Some(&fx.secretary), id, &out(&fx, "audited.pdf"))
-        .await
-        .expect("export");
+    export_document_pdf(
+        &fx.pool,
+        &fx.storage,
+        Some(&fx.secretary),
+        id,
+        &out(&fx, "audited.pdf"),
+    )
+    .await
+    .expect("export");
     let count = sqlx::query(
         "SELECT COUNT(*) AS count FROM audit_log WHERE log_action = 'EXPORT' AND table_affected = 'document' AND record_id = ?",
     )
@@ -345,14 +369,17 @@ async fn attachment_preview_enforces_visibility_and_supports_pdf_pagination() {
         .expect("public preview info");
     assert_eq!(info.preview_kind, "Pdf");
     assert_eq!(info.page_count, Some(2));
-    let page = get_attachment_preview_page(&fx.pool, &fx.storage, None, visible_attachment, Some(2))
-        .await
-        .expect("page two");
+    let page =
+        get_attachment_preview_page(&fx.pool, &fx.storage, None, visible_attachment, Some(2))
+            .await
+            .expect("page two");
     assert_eq!(page.page_number, 2);
     assert!(page.file_path.is_some());
-    assert!(get_attachment_preview_info(&fx.pool, &fx.storage, None, hidden_attachment)
-        .await
-        .is_err());
+    assert!(
+        get_attachment_preview_info(&fx.pool, &fx.storage, None, hidden_attachment)
+            .await
+            .is_err()
+    );
     assert!(get_attachment_preview_info(
         &fx.pool,
         &fx.storage,
@@ -380,13 +407,17 @@ async fn attachment_preview_rejects_path_traversal() {
     )
     .await
     .expect("attachment");
-    sqlx::query("UPDATE attachment SET stored_relative_path = '../escape.txt' WHERE attachment_id = ?")
-        .bind(attachment_id)
-        .execute(&fx.pool)
-        .await
-        .expect("tamper");
+    sqlx::query(
+        "UPDATE attachment SET stored_relative_path = '../escape.txt' WHERE attachment_id = ?",
+    )
+    .bind(attachment_id)
+    .execute(&fx.pool)
+    .await
+    .expect("tamper");
 
-    assert!(get_attachment_preview_info(&fx.pool, &fx.storage, Some(&fx.secretary), attachment_id)
-        .await
-        .is_err());
+    assert!(
+        get_attachment_preview_info(&fx.pool, &fx.storage, Some(&fx.secretary), attachment_id)
+            .await
+            .is_err()
+    );
 }

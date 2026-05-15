@@ -3,6 +3,10 @@ use tauri::{AppHandle, Manager, State};
 use crate::{
     audit_log::{self, AuditLogFilter, AuditLogPage, AuditRetentionSettings},
     auth::{self, SessionPayload},
+    backup::{
+        self, BackupRuntime, BackupSettings, BackupSettingsInput, BackupSummary, BackupValidation,
+        RestoreResult,
+    },
     db::DbState,
     documents::{
         self, AttachmentInput, AttachmentPreviewInfo, AttachmentPreviewPage, DocumentDetail,
@@ -963,6 +967,146 @@ pub async fn update_audit_retention_settings(
         .map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+pub async fn get_backup_settings(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<BackupSettings, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::get_backup_settings(&db.pool, &runtime, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_backup_settings(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    destination_path: Option<String>,
+    schedule_enabled: bool,
+    schedule_time: String,
+    retention_count: i64,
+) -> Result<BackupSettings, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::update_backup_settings(
+        &db.pool,
+        &runtime,
+        &session_id,
+        BackupSettingsInput {
+            destination_path,
+            schedule_enabled,
+            schedule_time,
+            retention_count,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_backup(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<BackupSummary, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::create_backup(&db.pool, &runtime, &session_id, false)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_backup_history(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<BackupSummary>, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::list_backup_history(&db.pool, &runtime, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn export_backup_archive(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    backup_name: String,
+    output_path: String,
+) -> Result<String, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::export_backup_archive(&db.pool, &runtime, &session_id, backup_name, output_path)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn validate_backup_archive(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    archive_path: String,
+) -> Result<BackupValidation, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::validate_backup_archive(&db.pool, &runtime, &session_id, archive_path)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn import_backup_archive(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    archive_path: String,
+) -> Result<BackupSummary, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::import_backup_archive(&db.pool, &runtime, &session_id, archive_path)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_from_backup(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    backup_name: String,
+) -> Result<RestoreResult, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::restore_from_backup(&db.pool, &runtime, &session_id, backup_name)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_from_backup_folder(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    folder_path: String,
+) -> Result<RestoreResult, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::restore_from_backup_folder(&db.pool, &runtime, &session_id, folder_path)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn run_scheduled_backup_check(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Option<BackupSummary>, String> {
+    let runtime = backup_runtime(&app)?;
+    backup::run_scheduled_backup_check(&db.pool, &runtime, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
 fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {
     let root = app
         .path()
@@ -970,4 +1114,11 @@ fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {
         .map_err(|err| err.to_string())?
         .join("storage");
     StorageRoot::new(root).map_err(|err| err.to_string())
+}
+
+fn backup_runtime(app: &AppHandle) -> Result<BackupRuntime, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
+    let db_path = app_data_dir.join("filing_system.db");
+    let storage = storage_root(app)?;
+    Ok(BackupRuntime::new(app_data_dir, db_path, storage))
 }

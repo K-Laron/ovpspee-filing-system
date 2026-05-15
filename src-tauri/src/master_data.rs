@@ -67,7 +67,11 @@ pub async fn list_categories(
 ) -> AppResult<Vec<CategoryItem>> {
     let session = require_session(pool, session_id).await?;
     require_admin_role(&session.role)?;
-    let include_inactive = if include_inactive.unwrap_or(false) { 1_i64 } else { 0_i64 };
+    let include_inactive = if include_inactive.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    };
 
     let rows = sqlx::query!(
         "SELECT category_id, category_name, description, color_code, icon, is_system, is_active,
@@ -188,7 +192,11 @@ pub async fn list_folders(
 ) -> AppResult<Vec<FolderItem>> {
     let session = require_session(pool, session_id).await?;
     require_admin_role(&session.role)?;
-    let include_inactive = if include_inactive.unwrap_or(false) { 1_i64 } else { 0_i64 };
+    let include_inactive = if include_inactive.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    };
 
     let rows = sqlx::query!(
         "SELECT f.folder_id, f.category_id AS \"category_id!: i64\", c.category_name, f.folder_name, f.description, f.folder_color,
@@ -307,7 +315,11 @@ pub async fn list_offices(
 ) -> AppResult<Vec<OfficeItem>> {
     let session = require_session(pool, session_id).await?;
     require_admin_role(&session.role)?;
-    let include_inactive = if include_inactive.unwrap_or(false) { 1_i64 } else { 0_i64 };
+    let include_inactive = if include_inactive.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    };
     let rows = sqlx::query!(
         "SELECT office_id AS \"office_id!: i64\", office_name, description, is_active
          FROM office
@@ -411,7 +423,9 @@ async fn ensure_category_allows_folders(pool: &DbPool, category_id: i64) -> AppR
 fn validate_name(value: &str, label: &str) -> AppResult<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.chars().count() > 100 {
-        return Err(AppError::Validation(format!("{label} must be 1 to 100 characters.")));
+        return Err(AppError::Validation(format!(
+            "{label} must be 1 to 100 characters."
+        )));
     }
     Ok(trimmed.to_owned())
 }

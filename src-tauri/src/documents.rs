@@ -1183,7 +1183,7 @@ async fn attachment_access_row(
             d.is_hidden, d.is_trashed, d.status
          FROM attachment a
          JOIN document d ON d.document_id = a.document_id
-         WHERE a.attachment_id = ?"
+         WHERE a.attachment_id = ?",
     )
     .bind(attachment_id)
     .fetch_optional(pool)
@@ -1260,7 +1260,8 @@ fn preview_kind(mime_type: &str) -> &'static str {
 fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
     let bytes = fs::read(path).ok()?;
     let text = String::from_utf8_lossy(&bytes);
-    let count = text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
+    let count =
+        text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
     Some(count.max(1))
 }
 
@@ -1304,8 +1305,14 @@ fn export_pages(
         String::new(),
         format!("Document: {}", doc.document_name),
         format!("Category: {}", doc.category_name),
-        format!("Folder: {}", doc.folder_name.as_deref().unwrap_or("Category root")),
-        format!("Sender Office: {}", doc.office_name.as_deref().unwrap_or("Not specified")),
+        format!(
+            "Folder: {}",
+            doc.folder_name.as_deref().unwrap_or("Category root")
+        ),
+        format!(
+            "Sender Office: {}",
+            doc.office_name.as_deref().unwrap_or("Not specified")
+        ),
         format!("Date Received: {}", doc.date_received),
         format!("Date Filed: {}", doc.date_added),
         format!("Status: {}", doc.status),
@@ -1314,7 +1321,10 @@ fn export_pages(
         String::new(),
         "Remarks".to_owned(),
     ]];
-    pages[0].extend(wrap_text(doc.remarks.as_deref().unwrap_or("No remarks."), 86));
+    pages[0].extend(wrap_text(
+        doc.remarks.as_deref().unwrap_or("No remarks."),
+        86,
+    ));
     pages[0].extend([
         String::new(),
         "Certification".to_owned(),
@@ -1431,7 +1441,12 @@ fn build_simple_pdf(pages: &[Vec<String>]) -> Vec<u8> {
 fn page_stream(lines: &[String], page_number: usize, total_pages: usize) -> String {
     let mut stream = String::new();
     stream.push_str("BT\n/F1 11 Tf\n14 TL\n72 730 Td\n");
-    for (index, line) in lines.iter().flat_map(|line| wrap_text(line, 90)).take(43).enumerate() {
+    for (index, line) in lines
+        .iter()
+        .flat_map(|line| wrap_text(line, 90))
+        .take(43)
+        .enumerate()
+    {
         if index == 0 {
             stream.push_str(&format!("({}) Tj\n", pdf_escape(&line)));
         } else {
@@ -1442,7 +1457,9 @@ fn page_stream(lines: &[String], page_number: usize, total_pages: usize) -> Stri
     stream.push_str("BT\n/F1 9 Tf\n72 42 Td\n");
     stream.push_str(&format!(
         "({}) Tj\n",
-        pdf_escape("System-generated copy. Verify against OVPSPEE Filing & Tracking System records.")
+        pdf_escape(
+            "System-generated copy. Verify against OVPSPEE Filing & Tracking System records."
+        )
     ));
     stream.push_str(&format!(
         "430 0 Td (PAGE {} of {}) Tj\n",

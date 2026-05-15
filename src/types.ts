@@ -166,3 +166,41 @@ export interface AttachmentPreviewPage {
   page_number: number;
   file_path: string | null;
 }
+
+export interface BackupSettings {
+  destination_path: string;
+  is_local_app_data: boolean;
+  schedule_enabled: boolean;
+  schedule_time: string;
+  retention_count: number;
+}
+
+export interface BackupSummary {
+  backup_name: string;
+  backup_path: string;
+  manifest_path: string;
+  database_path: string;
+  storage_path: string;
+  created_at: string;
+  total_bytes: number;
+  file_count: number;
+  is_valid: boolean;
+}
+
+export interface BackupValidation {
+  is_valid: boolean;
+  backup_name: string;
+  created_at: string;
+  app_version: string;
+  schema_version: string;
+  file_count: number;
+  total_bytes: number;
+  message: string;
+}
+
+export interface RestoreResult {
+  restored_backup_name: string;
+  pre_restore_backup_name: string;
+  restart_required: boolean;
+  message: string;
+}

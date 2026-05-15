@@ -69,7 +69,9 @@ async fn create_category_success() {
     let rows = list_categories(&pool, &admin, Some(false))
         .await
         .expect("categories listed");
-    assert!(rows.iter().any(|row| row.category_id == id && row.category_name == "BAC"));
+    assert!(rows
+        .iter()
+        .any(|row| row.category_id == id && row.category_name == "BAC"));
 }
 
 #[tokio::test]
@@ -77,16 +79,22 @@ async fn duplicate_category_rejected_case_insensitive() {
     let pool = create_test_pool().await.expect("pool");
     let admin = setup_admin(&pool).await;
 
-    create_category(&pool, &admin, category("BAC")).await.expect("category");
+    create_category(&pool, &admin, category("BAC"))
+        .await
+        .expect("category");
 
-    assert!(create_category(&pool, &admin, category("bac")).await.is_err());
+    assert!(create_category(&pool, &admin, category("bac"))
+        .await
+        .is_err());
 }
 
 #[tokio::test]
 async fn trash_seeded_and_sorted_last() {
     let pool = create_test_pool().await.expect("pool");
     let admin = setup_admin(&pool).await;
-    create_category(&pool, &admin, category("ZZZ Category")).await.expect("category");
+    create_category(&pool, &admin, category("ZZZ Category"))
+        .await
+        .expect("category");
 
     let rows = list_categories(&pool, &admin, Some(false))
         .await
@@ -108,9 +116,15 @@ async fn cannot_edit_system_category() {
         .find(|row| row.category_name == "TRASH")
         .expect("trash exists");
 
-    assert!(update_category(&pool, &admin, trash.category_id, category("Trash Edit"), true)
-        .await
-        .is_err());
+    assert!(update_category(
+        &pool,
+        &admin,
+        trash.category_id,
+        category("Trash Edit"),
+        true
+    )
+    .await
+    .is_err());
 }
 
 #[tokio::test]
@@ -138,8 +152,12 @@ async fn cannot_create_folder_under_trash() {
 async fn folder_name_unique_within_category_but_allowed_across_categories() {
     let pool = create_test_pool().await.expect("pool");
     let admin = setup_admin(&pool).await;
-    let bac = create_category(&pool, &admin, category("BAC")).await.expect("bac");
-    let bor = create_category(&pool, &admin, category("BOR")).await.expect("bor");
+    let bac = create_category(&pool, &admin, category("BAC"))
+        .await
+        .expect("bac");
+    let bor = create_category(&pool, &admin, category("BOR"))
+        .await
+        .expect("bor");
 
     let folder = |category_id| FolderInput {
         category_id,
@@ -148,7 +166,9 @@ async fn folder_name_unique_within_category_but_allowed_across_categories() {
         folder_color: "#64748B".to_owned(),
     };
 
-    create_folder(&pool, &admin, folder(bac)).await.expect("folder");
+    create_folder(&pool, &admin, folder(bac))
+        .await
+        .expect("folder");
     assert!(create_folder(&pool, &admin, folder(bac)).await.is_err());
     assert!(create_folder(&pool, &admin, folder(bor)).await.is_ok());
 }
@@ -165,8 +185,12 @@ async fn create_office_success_and_duplicate_rejected() {
         .await
         .expect("offices listed");
 
-    assert!(rows.iter().any(|row| row.office_id == id && row.office_name == "OVPSPEE"));
-    assert!(create_office(&pool, &admin, office("ovpspee")).await.is_err());
+    assert!(rows
+        .iter()
+        .any(|row| row.office_id == id && row.office_name == "OVPSPEE"));
+    assert!(create_office(&pool, &admin, office("ovpspee"))
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -175,5 +199,7 @@ async fn secretary_cannot_manage_master_data() {
     let _admin = setup_admin(&pool).await;
     let secretary = create_secretary(&pool).await;
 
-    assert!(create_category(&pool, &secretary, category("BAC")).await.is_err());
+    assert!(create_category(&pool, &secretary, category("BAC"))
+        .await
+        .is_err());
 }

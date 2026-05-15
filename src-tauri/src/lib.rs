@@ -1,5 +1,6 @@
 pub mod audit_log;
 pub mod auth;
+pub mod backup;
 pub mod commands;
 pub mod db;
 pub mod documents;
@@ -81,7 +82,17 @@ pub fn run() {
             commands::list_audit_event_types,
             commands::list_my_activity_event_types,
             commands::get_audit_retention_settings,
-            commands::update_audit_retention_settings
+            commands::update_audit_retention_settings,
+            commands::get_backup_settings,
+            commands::update_backup_settings,
+            commands::create_backup,
+            commands::list_backup_history,
+            commands::export_backup_archive,
+            commands::validate_backup_archive,
+            commands::import_backup_archive,
+            commands::restore_from_backup,
+            commands::restore_from_backup_folder,
+            commands::run_scheduled_backup_check
         ])
         .run(tauri::generate_context!())
         .expect("error while running OVPSPEE Filing System");
