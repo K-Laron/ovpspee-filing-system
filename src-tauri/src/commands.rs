@@ -8,6 +8,10 @@ use crate::{
         RestoreResult,
     },
     db::DbState,
+    devices::{
+        self, DeviceSettings, DeviceSettingsInput, PrinterDevice, ScanOptions, ScannerCapabilities,
+        ScannerDevice,
+    },
     documents::{
         self, AttachmentInput, AttachmentPreviewInfo, AttachmentPreviewPage, DocumentDetail,
         DocumentInput, DocumentItem, DocumentListFilter, StorageRoot,
@@ -15,6 +19,7 @@ use crate::{
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
+    printing::{self, PrintOptions, PrintResult},
     scan_intake::{self, ScanIntakeItem},
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
 };
@@ -864,6 +869,31 @@ pub async fn attach_scan_to_document(
 }
 
 #[tauri::command]
+pub async fn get_scanner_capabilities(
+    db: State<'_, DbState>,
+    session_id: String,
+    scanner_id: String,
+) -> Result<ScannerCapabilities, String> {
+    devices::get_scanner_capabilities(&db.pool, &session_id, &scanner_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn scan_to_intake(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    scanner_id: String,
+    options: ScanOptions,
+) -> Result<ScanIntakeItem, String> {
+    let storage = storage_root(&app)?;
+    devices::scan_to_intake(&db.pool, &storage, &session_id, &scanner_id, options)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn list_audit_logs(
     db: State<'_, DbState>,
     session_id: String,
@@ -1105,6 +1135,103 @@ pub async fn run_scheduled_backup_check(
     backup::run_scheduled_backup_check(&db.pool, &runtime, &session_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_scanners(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<ScannerDevice>, String> {
+    devices::list_scanners(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_printers(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<PrinterDevice>, String> {
+    devices::list_printers(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_default_printer(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Option<PrinterDevice>, String> {
+    devices::get_default_printer(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_device_settings(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<DeviceSettings, String> {
+    devices::get_device_settings(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_device_settings(
+    db: State<'_, DbState>,
+    session_id: String,
+    default_scanner_id: Option<String>,
+    default_printer_id: Option<String>,
+    scan_default_dpi: i64,
+    scan_default_color_mode: String,
+    scan_default_output_format: String,
+) -> Result<DeviceSettings, String> {
+    devices::update_device_settings(
+        &db.pool,
+        &session_id,
+        DeviceSettingsInput {
+            default_scanner_id,
+            default_printer_id,
+            scan_default_dpi,
+            scan_default_color_mode,
+            scan_default_output_format,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_print_printers(
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+) -> Result<Vec<PrinterDevice>, String> {
+    printing::list_print_printers(&db.pool, session_id.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn print_document_pdf(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+    document_id: i64,
+    printer_id: String,
+    copies: i64,
+) -> Result<PrintResult, String> {
+    let storage = storage_root(&app)?;
+    printing::print_document_pdf(
+        &db.pool,
+        &storage,
+        session_id.as_deref(),
+        document_id,
+        &printer_id,
+        PrintOptions { copies },
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {

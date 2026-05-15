@@ -66,34 +66,62 @@ pub async fn import_scan_files(
         fs::copy(&source, &destination)?;
         let mime_type = mime_for_extension(&ext).to_owned();
         let file_size_i64 = file_size as i64;
-        let now = now_text();
-        let result = sqlx::query!(
-            "INSERT INTO scan_intake
-             (original_file_name, stored_relative_path, mime_type, file_size_bytes, status, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?)",
+        let item = create_scan_intake_from_stored_file(
+            pool,
+            session.user_id,
             original_file_name,
             relative,
             mime_type,
             file_size_i64,
-            session.user_id,
-            now,
-            now
-        )
-        .execute(pool)
-        .await?;
-        let id = result.last_insert_rowid();
-        write_audit_log(
-            pool,
-            "SCAN",
-            Some("scan_intake"),
-            Some(id),
             "Imported scan intake file",
-            Some(session.user_id),
         )
         .await?;
-        ids.push(id);
+        ids.push(item.scan_intake_id);
     }
     Ok(ids)
+}
+
+pub async fn create_scan_intake_from_stored_file(
+    pool: &DbPool,
+    user_id: i64,
+    original_file_name: String,
+    stored_relative_path: String,
+    mime_type: String,
+    file_size_bytes: i64,
+    audit_summary: &str,
+) -> AppResult<ScanIntakeItem> {
+    if PathBuf::from(&stored_relative_path).is_absolute()
+        || stored_relative_path.contains("..")
+        || stored_relative_path.contains('\\')
+    {
+        return Err(AppError::Validation("Invalid scan storage path.".into()));
+    }
+    let now = now_text();
+    let result = sqlx::query!(
+        "INSERT INTO scan_intake
+         (original_file_name, stored_relative_path, mime_type, file_size_bytes, status, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?)",
+        original_file_name,
+        stored_relative_path,
+        mime_type,
+        file_size_bytes,
+        user_id,
+        now,
+        now
+    )
+    .execute(pool)
+    .await?;
+    let id = result.last_insert_rowid();
+    write_audit_log(
+        pool,
+        "SCAN",
+        Some("scan_intake"),
+        Some(id),
+        audit_summary,
+        Some(user_id),
+    )
+    .await?;
+    fetch_scan(pool, id).await
 }
 
 pub async fn list_scan_intake(pool: &DbPool, session_id: &str) -> AppResult<Vec<ScanIntakeItem>> {

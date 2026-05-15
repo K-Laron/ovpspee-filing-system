@@ -9,6 +9,7 @@ import { firstRunCheck, validateSession } from './lib/invoke';
 import { AdminHome } from './pages/admin/AdminHome';
 import { AuditLog } from './pages/admin/AuditLog';
 import { BackupRestore } from './pages/admin/BackupRestore';
+import { DeviceSettingsPage } from './pages/admin/DeviceSettings';
 import { MasterData } from './pages/admin/MasterData';
 import { TrashManagement } from './pages/admin/TrashManagement';
 import { Users } from './pages/admin/Users';
@@ -88,6 +89,7 @@ export const App = () => {
         <Route path="trash" element={<TrashManagement />} />
         <Route path="audit-log" element={<AuditLog />} />
         <Route path="backup-restore" element={<BackupRestore />} />
+        <Route path="devices" element={<DeviceSettingsPage />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route
@@ -103,6 +105,7 @@ export const App = () => {
         <Route path="documents" element={<Documents />} />
         <Route path="documents/new" element={<AddDocument />} />
         <Route path="scan-intake" element={<ScanIntake />} />
+        <Route path="devices" element={<DeviceSettingsPage />} />
         <Route path="my-activity" element={<MyActivity />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

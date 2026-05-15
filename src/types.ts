@@ -204,3 +204,55 @@ export interface RestoreResult {
   restart_required: boolean;
   message: string;
 }
+
+export interface ScannerDevice {
+  device_id: string;
+  name: string;
+  manufacturer: string | null;
+  connection_type: string | null;
+  is_available: boolean;
+  status: string | null;
+}
+
+export interface PrinterDevice {
+  printer_id: string;
+  name: string;
+  is_default: boolean;
+  status: string;
+  is_available: boolean;
+  is_network: boolean;
+}
+
+export interface PrintResult {
+  document_id: number;
+  printer_name: string;
+  copies: number;
+  status: string;
+}
+
+export interface DeviceSettings {
+  default_scanner_id: string | null;
+  default_printer_id: string | null;
+  scan_default_dpi: number;
+  scan_default_color_mode: 'color' | 'grayscale' | 'black_white';
+  scan_default_output_format: 'pdf' | 'png' | 'jpg';
+  device_detection_last_checked_at: string | null;
+}
+
+export interface ScannerCapabilities {
+  scanner_id: string;
+  is_available: boolean;
+  status: string;
+  supports_flatbed: boolean;
+  supports_adf: boolean;
+  supported_dpi: number[];
+  supported_color_modes: Array<'color' | 'grayscale' | 'black_white'>;
+  supported_output_formats: Array<'png' | 'jpg'>;
+}
+
+export interface ScanOptions {
+  dpi: number;
+  color_mode: 'color' | 'grayscale' | 'black_white';
+  output_format: 'png' | 'jpg';
+  source: 'flatbed' | 'adf';
+}

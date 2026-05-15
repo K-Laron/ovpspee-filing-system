@@ -8,13 +8,19 @@ import type {
   BackupSettings,
   BackupSummary,
   BackupValidation,
+  DeviceSettings,
   DocumentDetail,
   DocumentItem,
   DocumentStatus,
   FolderItem,
   OfficeItem,
+  PrinterDevice,
+  PrintResult,
   ProfileItem,
   Role,
+  ScanOptions,
+  ScannerCapabilities,
+  ScannerDevice,
   ScanIntakeItem,
   SessionPayload,
   RestoreResult,
@@ -422,3 +428,45 @@ export const restoreFromBackupFolder = (params: {
 
 export const runScheduledBackupCheck = (sessionId: string): Promise<BackupSummary | null> =>
   invoke('run_scheduled_backup_check', { sessionId });
+
+export const listScanners = (sessionId: string): Promise<ScannerDevice[]> =>
+  invoke('list_scanners', { sessionId });
+
+export const listPrinters = (sessionId: string): Promise<PrinterDevice[]> =>
+  invoke('list_printers', { sessionId });
+
+export const getDefaultPrinter = (sessionId: string): Promise<PrinterDevice | null> =>
+  invoke('get_default_printer', { sessionId });
+
+export const getDeviceSettings = (sessionId: string): Promise<DeviceSettings> =>
+  invoke('get_device_settings', { sessionId });
+
+export const updateDeviceSettings = (params: {
+  sessionId: string;
+  defaultScannerId: string | null;
+  defaultPrinterId: string | null;
+  scanDefaultDpi: number;
+  scanDefaultColorMode: DeviceSettings['scan_default_color_mode'];
+  scanDefaultOutputFormat: DeviceSettings['scan_default_output_format'];
+}): Promise<DeviceSettings> => invoke('update_device_settings', params);
+
+export const listPrintPrinters = (sessionId: string | null): Promise<PrinterDevice[]> =>
+  invoke('list_print_printers', { sessionId });
+
+export const printDocumentPdf = (params: {
+  sessionId: string | null;
+  documentId: number;
+  printerId: string;
+  copies: number;
+}): Promise<PrintResult> => invoke('print_document_pdf', params);
+
+export const getScannerCapabilities = (params: {
+  sessionId: string;
+  scannerId: string;
+}): Promise<ScannerCapabilities> => invoke('get_scanner_capabilities', params);
+
+export const scanToIntake = (params: {
+  sessionId: string;
+  scannerId: string;
+  options: ScanOptions;
+}): Promise<ScanIntakeItem> => invoke('scan_to_intake', params);

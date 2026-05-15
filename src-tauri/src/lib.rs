@@ -3,9 +3,11 @@ pub mod auth;
 pub mod backup;
 pub mod commands;
 pub mod db;
+pub mod devices;
 pub mod documents;
 pub mod error;
 pub mod master_data;
+pub mod printing;
 pub mod scan_intake;
 pub mod users;
 
@@ -77,6 +79,8 @@ pub fn run() {
             commands::remove_scan_intake,
             commands::file_scan_as_document,
             commands::attach_scan_to_document,
+            commands::get_scanner_capabilities,
+            commands::scan_to_intake,
             commands::list_audit_logs,
             commands::list_my_activity,
             commands::list_audit_event_types,
@@ -92,7 +96,14 @@ pub fn run() {
             commands::import_backup_archive,
             commands::restore_from_backup,
             commands::restore_from_backup_folder,
-            commands::run_scheduled_backup_check
+            commands::run_scheduled_backup_check,
+            commands::list_scanners,
+            commands::list_printers,
+            commands::get_default_printer,
+            commands::get_device_settings,
+            commands::update_device_settings,
+            commands::list_print_printers,
+            commands::print_document_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running OVPSPEE Filing System");

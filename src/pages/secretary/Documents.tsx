@@ -1,5 +1,5 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { Download, Edit3, ExternalLink, Eye, EyeOff, MoveRight, Paperclip, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
+import { Download, Edit3, ExternalLink, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
@@ -8,6 +8,7 @@ import {
   exportDocumentPdf,
   getAttachmentFilePath,
   getDocument,
+  listPrintPrinters,
   listDocumentOffices,
   listDocuments,
   listPublicCategories,
@@ -19,10 +20,11 @@ import {
   setDocumentStatus,
   setDocumentHidden,
   trashDocument,
-  updateDocument
+  updateDocument,
+  printDocumentPdf
 } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
-import type { CategoryItem, DocumentDetail, DocumentItem, DocumentStatus, FolderItem, OfficeItem } from '../../types';
+import type { CategoryItem, DocumentDetail, DocumentItem, DocumentStatus, FolderItem, OfficeItem, PrinterDevice } from '../../types';
 
 const attachmentFilters = [
   {
@@ -43,6 +45,9 @@ export const Documents = () => {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [offices, setOffices] = useState<OfficeItem[]>([]);
+  const [printers, setPrinters] = useState<PrinterDevice[]>([]);
+  const [selectedPrinterId, setSelectedPrinterId] = useState('');
+  const [copies, setCopies] = useState(1);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [search, setSearch] = useState('');
@@ -60,13 +65,20 @@ export const Documents = () => {
   const [message, setMessage] = useState('');
   const [view, setView] = useState<'active' | 'trash'>('active');
   const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
 
   const loadLookups = async () => {
     if (!sessionId) return;
-    const [nextCategories, nextOffices] = await Promise.all([listPublicCategories(), listDocumentOffices(sessionId)]);
+    const [nextCategories, nextOffices, nextPrinters] = await Promise.all([
+      listPublicCategories(),
+      listDocumentOffices(sessionId),
+      listPrintPrinters(sessionId)
+    ]);
     setCategories(nextCategories);
     setOffices(nextOffices);
+    setPrinters(nextPrinters);
+    setSelectedPrinterId((current) => current || nextPrinters.find((printer) => printer.is_default)?.printer_id || nextPrinters[0]?.printer_id || '');
   };
 
   const loadFolders = async (nextCategoryId: string) => {
@@ -268,6 +280,25 @@ export const Documents = () => {
     }
   };
 
+  const printPdf = async () => {
+    if (!sessionId || !detail || !selectedPrinterId || printing) return;
+    setPrinting(true);
+    setMessage('');
+    try {
+      const result = await printDocumentPdf({
+        sessionId,
+        documentId: detail.document.document_id,
+        printerId: selectedPrinterId,
+        copies
+      });
+      setMessage(`Print submitted to ${result.printer_name}.`);
+    } catch (err) {
+      setMessage(String(err));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const isTrashView = view === 'trash';
 
   return (
@@ -392,6 +423,23 @@ export const Documents = () => {
                 </label>
               </div>
               {editing && !isTrashView && <button className="btn btn-primary" onClick={() => void saveEdit().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Changes</button>}
+
+              {!isTrashView && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_110px_auto]">
+                <label>
+                  <span className="form-label">Printer</span>
+                  <select className="input" value={selectedPrinterId} onChange={(e) => setSelectedPrinterId(e.target.value)}>
+                    <option value="">Select printer</option>
+                    {printers.map((printer) => <option key={printer.printer_id} value={printer.printer_id}>{printer.name}{printer.is_default ? ' (Windows default)' : ''}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="form-label">Copies</span>
+                  <input className="input" min={1} max={20} type="number" value={copies} onChange={(e) => setCopies(Number(e.target.value))} />
+                </label>
+                <button className="btn btn-primary self-end" disabled={printing || !selectedPrinterId} onClick={() => void printPdf()} type="button">
+                  <Printer size={16} />{printing ? 'Printing...' : 'Print PDF'}
+                </button>
+              </div>}
 
               {!isTrashView && moving && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_1fr_auto]">
                 <label>
