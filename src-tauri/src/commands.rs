@@ -10,6 +10,7 @@ use crate::{
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
+    scan_intake::{self, ScanIntakeItem},
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
 };
 
@@ -691,6 +692,117 @@ pub async fn list_document_offices(
     documents::list_document_offices(&db.pool, &session_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn import_scan_files(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    source_paths: Vec<String>,
+) -> Result<Vec<i64>, String> {
+    let storage = storage_root(&app)?;
+    scan_intake::import_scan_files(&db.pool, &storage, &session_id, source_paths)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_scan_intake(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<ScanIntakeItem>, String> {
+    scan_intake::list_scan_intake(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_scan_intake(
+    db: State<'_, DbState>,
+    session_id: String,
+    scan_intake_id: i64,
+) -> Result<ScanIntakeItem, String> {
+    scan_intake::get_scan_intake(&db.pool, &session_id, scan_intake_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_scan_intake_notes(
+    db: State<'_, DbState>,
+    session_id: String,
+    scan_intake_id: i64,
+    notes: Option<String>,
+) -> Result<(), String> {
+    scan_intake::update_scan_intake_notes(&db.pool, &session_id, scan_intake_id, notes)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn remove_scan_intake(
+    db: State<'_, DbState>,
+    session_id: String,
+    scan_intake_id: i64,
+) -> Result<(), String> {
+    scan_intake::remove_scan_intake(&db.pool, &session_id, scan_intake_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn file_scan_as_document(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    scan_intake_ids: Vec<i64>,
+    document_name: String,
+    category_id: i64,
+    folder_id: Option<i64>,
+    office_id: Option<i64>,
+    date_received: String,
+    remarks: Option<String>,
+    status: String,
+) -> Result<i64, String> {
+    let storage = storage_root(&app)?;
+    scan_intake::file_scan_as_document(
+        &db.pool,
+        &storage,
+        &session_id,
+        scan_intake_ids,
+        DocumentInput {
+            document_name,
+            category_id,
+            folder_id,
+            office_id,
+            date_received,
+            remarks,
+            status,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn attach_scan_to_document(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    scan_intake_ids: Vec<i64>,
+    document_id: i64,
+) -> Result<Vec<i64>, String> {
+    let storage = storage_root(&app)?;
+    scan_intake::attach_scan_to_document(
+        &db.pool,
+        &storage,
+        &session_id,
+        scan_intake_ids,
+        document_id,
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {

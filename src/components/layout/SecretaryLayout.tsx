@@ -1,4 +1,4 @@
-import { FilePlus, Files, LayoutDashboard, UserCircle } from 'lucide-react';
+import { FilePlus, Files, FileScan, LayoutDashboard, UserCircle } from 'lucide-react';
 
 import { AppShell } from './AppShell';
 
@@ -10,6 +10,7 @@ export const SecretaryLayout = () => (
       { label: 'Dashboard', path: '/s', icon: LayoutDashboard },
       { label: 'Profile', path: '/s/profile', icon: UserCircle },
       { label: 'Documents', path: '/s/documents', icon: Files },
+      { label: 'Scan Intake', path: '/s/scan-intake', icon: FileScan },
       { label: 'Add Document', path: '/s/documents/new', icon: FilePlus }
     ]}
   />

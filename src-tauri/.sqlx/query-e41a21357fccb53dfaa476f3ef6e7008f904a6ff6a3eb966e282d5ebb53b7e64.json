@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(MAX(sort_order), 0) AS \"max_order!: i64\" FROM attachment WHERE document_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_order!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e41a21357fccb53dfaa476f3ef6e7008f904a6ff6a3eb966e282d5ebb53b7e64"
+}

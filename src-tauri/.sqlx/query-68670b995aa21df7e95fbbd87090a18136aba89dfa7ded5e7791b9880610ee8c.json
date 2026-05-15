@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE scan_intake SET notes = ?, updated_at = ? WHERE scan_intake_id = ? AND status = 'Pending' AND is_deleted = 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "68670b995aa21df7e95fbbd87090a18136aba89dfa7ded5e7791b9880610ee8c"
+}

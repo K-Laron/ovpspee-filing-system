@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE scan_intake\n         SET status = 'Removed', is_deleted = 1, deleted_at = ?, updated_at = ?\n         WHERE scan_intake_id = ? AND status = 'Pending' AND is_deleted = 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "0f553411f7613669c0a9b9873f471012c604757fb80206b926cba9c9844fe354"
+}

@@ -16,6 +16,7 @@ import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
 import { AddDocument } from './pages/secretary/AddDocument';
 import { Documents } from './pages/secretary/Documents';
+import { ScanIntake } from './pages/secretary/ScanIntake';
 import { SecretaryHome } from './pages/secretary/SecretaryHome';
 import { useSessionStore } from './store/sessionStore';
 
@@ -96,6 +97,7 @@ export const App = () => {
         <Route path="profile" element={<Profile />} />
         <Route path="documents" element={<Documents />} />
         <Route path="documents/new" element={<AddDocument />} />
+        <Route path="scan-intake" element={<ScanIntake />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -8,6 +8,7 @@ import type {
   OfficeItem,
   ProfileItem,
   Role,
+  ScanIntakeItem,
   SessionPayload,
   UserItem
 } from '../types';
@@ -269,3 +270,45 @@ export const getPublicDocument = (documentId: number): Promise<DocumentDetail> =
 
 export const listDocumentOffices = (sessionId: string): Promise<OfficeItem[]> =>
   invoke('list_document_offices', { sessionId });
+
+export const importScanFiles = (params: {
+  sessionId: string;
+  sourcePaths: string[];
+}): Promise<number[]> => invoke('import_scan_files', params);
+
+export const listScanIntake = (sessionId: string): Promise<ScanIntakeItem[]> =>
+  invoke('list_scan_intake', { sessionId });
+
+export const getScanIntake = (
+  sessionId: string,
+  scanIntakeId: number
+): Promise<ScanIntakeItem> => invoke('get_scan_intake', { sessionId, scanIntakeId });
+
+export const updateScanIntakeNotes = (params: {
+  sessionId: string;
+  scanIntakeId: number;
+  notes: string | null;
+}): Promise<void> => invoke('update_scan_intake_notes', params);
+
+export const removeScanIntake = (params: {
+  sessionId: string;
+  scanIntakeId: number;
+}): Promise<void> => invoke('remove_scan_intake', params);
+
+export const fileScanAsDocument = (params: {
+  sessionId: string;
+  scanIntakeIds: number[];
+  documentName: string;
+  categoryId: number;
+  folderId: number | null;
+  officeId: number | null;
+  dateReceived: string;
+  remarks: string | null;
+  status: DocumentStatus;
+}): Promise<number> => invoke('file_scan_as_document', params);
+
+export const attachScanToDocument = (params: {
+  sessionId: string;
+  scanIntakeIds: number[];
+  documentId: number;
+}): Promise<number[]> => invoke('attach_scan_to_document', params);

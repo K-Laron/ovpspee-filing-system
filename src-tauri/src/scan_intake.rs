@@ -1,0 +1,448 @@
+use std::{ffi::OsStr, fs, path::PathBuf};
+
+use serde::Serialize;
+use uuid::Uuid;
+
+use crate::{
+    auth::{require_session, write_audit_log},
+    db::DbPool,
+    documents::{
+        self, mime_for_extension, now_text, trim_optional, validate_magic, validate_source_file,
+        DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,
+    },
+    error::{AppError, AppResult},
+};
+
+const LARGE_SCAN_WARNING_BYTES: i64 = 262_144_000;
+const SCAN_EXTENSIONS: &[&str] = &["pdf", "jpg", "jpeg", "png", "tif", "tiff"];
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ScanIntakeItem {
+    pub scan_intake_id: i64,
+    pub original_file_name: String,
+    pub stored_relative_path: String,
+    pub mime_type: String,
+    pub file_size_bytes: i64,
+    pub status: String,
+    pub notes: Option<String>,
+    pub is_deleted: bool,
+    pub is_large: bool,
+    pub created_by: i64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub filed_document_id: Option<i64>,
+}
+
+pub async fn import_scan_files(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: &str,
+    source_paths: Vec<String>,
+) -> AppResult<Vec<i64>> {
+    let session = require_scan_user(pool, session_id).await?;
+    if source_paths.is_empty() {
+        return Err(AppError::Validation(
+            "Select at least one scan file.".into(),
+        ));
+    }
+    let mut ids = Vec::with_capacity(source_paths.len());
+    for source_path in source_paths {
+        let source = validate_scan_source(&source_path)?;
+        let original_file_name = source
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| AppError::Validation("File name is required.".into()))?
+            .to_owned();
+        let ext = scan_extension(&source)?;
+        let file_size = fs::metadata(&source)?.len();
+        if file_size > MAX_ATTACHMENT_BYTES {
+            return Err(AppError::Validation(
+                "Scan file exceeds 1 GB maximum.".into(),
+            ));
+        }
+        validate_magic(&source, &ext)?;
+        let relative = format!("intake/{}.{}", Uuid::new_v4(), ext);
+        let destination = storage.resolve_checked(&relative)?;
+        fs::copy(&source, &destination)?;
+        let mime_type = mime_for_extension(&ext).to_owned();
+        let file_size_i64 = file_size as i64;
+        let now = now_text();
+        let result = sqlx::query!(
+            "INSERT INTO scan_intake
+             (original_file_name, stored_relative_path, mime_type, file_size_bytes, status, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?)",
+            original_file_name,
+            relative,
+            mime_type,
+            file_size_i64,
+            session.user_id,
+            now,
+            now
+        )
+        .execute(pool)
+        .await?;
+        let id = result.last_insert_rowid();
+        write_audit_log(
+            pool,
+            "SCAN",
+            Some("scan_intake"),
+            Some(id),
+            "Imported scan intake file",
+            Some(session.user_id),
+        )
+        .await?;
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+pub async fn list_scan_intake(pool: &DbPool, session_id: &str) -> AppResult<Vec<ScanIntakeItem>> {
+    require_scan_user(pool, session_id).await?;
+    let rows = sqlx::query!(
+        "SELECT scan_intake_id AS \"scan_intake_id!: i64\", original_file_name, stored_relative_path,
+            mime_type, file_size_bytes AS \"file_size_bytes!: i64\", status, notes,
+            is_deleted AS \"is_deleted!: i64\", created_by AS \"created_by!: i64\", created_at, updated_at,
+            filed_document_id
+         FROM scan_intake
+         WHERE status = 'Pending' AND is_deleted = 0
+         ORDER BY created_at DESC, scan_intake_id DESC"
+    )
+        .fetch_all(pool)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            scan_item(
+                row.scan_intake_id,
+                row.original_file_name,
+                row.stored_relative_path,
+                row.mime_type,
+                row.file_size_bytes,
+                row.status,
+                row.notes,
+                row.is_deleted,
+                row.created_by,
+                row.created_at,
+                row.updated_at,
+                row.filed_document_id,
+            )
+        })
+        .collect())
+}
+
+pub async fn get_scan_intake(
+    pool: &DbPool,
+    session_id: &str,
+    scan_intake_id: i64,
+) -> AppResult<ScanIntakeItem> {
+    require_scan_user(pool, session_id).await?;
+    fetch_scan(pool, scan_intake_id).await
+}
+
+pub async fn update_scan_intake_notes(
+    pool: &DbPool,
+    session_id: &str,
+    scan_intake_id: i64,
+    notes: Option<String>,
+) -> AppResult<()> {
+    let session = require_scan_user(pool, session_id).await?;
+    let notes = trim_optional(notes, 1000)?;
+    let now = now_text();
+    let result = sqlx::query!(
+        "UPDATE scan_intake SET notes = ?, updated_at = ? WHERE scan_intake_id = ? AND status = 'Pending' AND is_deleted = 0",
+        notes,
+        now,
+        scan_intake_id
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Pending scan not found.".into()));
+    }
+    write_audit_log(
+        pool,
+        "UPDATE",
+        Some("scan_intake"),
+        Some(scan_intake_id),
+        "Updated scan intake notes",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn remove_scan_intake(
+    pool: &DbPool,
+    session_id: &str,
+    scan_intake_id: i64,
+) -> AppResult<()> {
+    let session = require_scan_user(pool, session_id).await?;
+    let now = now_text();
+    let result = sqlx::query!(
+        "UPDATE scan_intake
+         SET status = 'Removed', is_deleted = 1, deleted_at = ?, updated_at = ?
+         WHERE scan_intake_id = ? AND status = 'Pending' AND is_deleted = 0",
+        now,
+        now,
+        scan_intake_id
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Pending scan not found.".into()));
+    }
+    write_audit_log(
+        pool,
+        "DELETE",
+        Some("scan_intake"),
+        Some(scan_intake_id),
+        "Removed scan intake file",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn file_scan_as_document(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: &str,
+    scan_intake_ids: Vec<i64>,
+    input: DocumentInput,
+) -> AppResult<i64> {
+    let session = require_scan_user(pool, session_id).await?;
+    let scans = validate_pending_scans(pool, &scan_intake_ids).await?;
+    let document_id = documents::create_document(pool, session_id, input).await?;
+    claim_scans(pool, storage, session.user_id, document_id, scans).await?;
+    write_audit_log(
+        pool,
+        "SCAN",
+        Some("document"),
+        Some(document_id),
+        "Filed scan intake as new document",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(document_id)
+}
+
+pub async fn attach_scan_to_document(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: &str,
+    scan_intake_ids: Vec<i64>,
+    document_id: i64,
+) -> AppResult<Vec<i64>> {
+    let session = require_scan_user(pool, session_id).await?;
+    let document = sqlx::query!(
+        "SELECT is_trashed AS \"is_trashed!: i64\" FROM document WHERE document_id = ?",
+        document_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Document not found.".into()))?;
+    if document.is_trashed == 1 {
+        return Err(AppError::Validation(
+            "Restore document before attaching scans.".into(),
+        ));
+    }
+    let scans = validate_pending_scans(pool, &scan_intake_ids).await?;
+    let ids = claim_scans(pool, storage, session.user_id, document_id, scans).await?;
+    write_audit_log(
+        pool,
+        "SCAN",
+        Some("document"),
+        Some(document_id),
+        "Attached scan intake to existing document",
+        Some(session.user_id),
+    )
+    .await?;
+    Ok(ids)
+}
+
+async fn claim_scans(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    user_id: i64,
+    document_id: i64,
+    scans: Vec<ScanIntakeItem>,
+) -> AppResult<Vec<i64>> {
+    let mut attachment_ids = Vec::with_capacity(scans.len());
+    let max_order = sqlx::query!(
+        "SELECT COALESCE(MAX(sort_order), 0) AS \"max_order!: i64\" FROM attachment WHERE document_id = ?",
+        document_id
+    )
+    .fetch_one(pool)
+    .await?
+    .max_order;
+    for (index, scan) in scans.into_iter().enumerate() {
+        let ext = PathBuf::from(&scan.stored_relative_path)
+            .extension()
+            .and_then(OsStr::to_str)
+            .unwrap_or("scan")
+            .to_ascii_lowercase();
+        let new_relative = format!("documents/{document_id}/scans/{}.{}", Uuid::new_v4(), ext);
+        let old_path = storage.resolve_checked(&scan.stored_relative_path)?;
+        let new_path = storage.resolve_checked(&new_relative)?;
+        if let Err(rename_err) = fs::rename(&old_path, &new_path) {
+            fs::copy(&old_path, &new_path).map_err(|_| rename_err)?;
+            fs::remove_file(&old_path)?;
+        }
+        let sort_order = max_order + index as i64 + 1;
+        let result = sqlx::query!(
+            "INSERT INTO attachment
+             (document_id, original_file_name, stored_relative_path, mime_type, file_size_bytes, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?)",
+            document_id,
+            scan.original_file_name,
+            new_relative,
+            scan.mime_type,
+            scan.file_size_bytes,
+            sort_order
+        )
+        .execute(pool)
+        .await?;
+        let attachment_id = result.last_insert_rowid();
+        let now = now_text();
+        sqlx::query!(
+            "UPDATE scan_intake
+             SET status = 'Filed', stored_relative_path = ?, filed_document_id = ?, updated_at = ?
+             WHERE scan_intake_id = ?",
+            new_relative,
+            document_id,
+            now,
+            scan.scan_intake_id
+        )
+        .execute(pool)
+        .await?;
+        write_audit_log(
+            pool,
+            "SCAN",
+            Some("scan_intake"),
+            Some(scan.scan_intake_id),
+            "Claimed scan intake as document attachment",
+            Some(user_id),
+        )
+        .await?;
+        attachment_ids.push(attachment_id);
+    }
+    Ok(attachment_ids)
+}
+
+async fn validate_pending_scans(
+    pool: &DbPool,
+    scan_intake_ids: &[i64],
+) -> AppResult<Vec<ScanIntakeItem>> {
+    if scan_intake_ids.is_empty() {
+        return Err(AppError::Validation("Select at least one scan.".into()));
+    }
+    let mut scans = Vec::with_capacity(scan_intake_ids.len());
+    for scan_intake_id in scan_intake_ids {
+        let scan = fetch_scan(pool, *scan_intake_id).await?;
+        if scan.status != "Pending" || scan.is_deleted {
+            return Err(AppError::Validation(
+                "Only pending scans can be filed.".into(),
+            ));
+        }
+        scans.push(scan);
+    }
+    Ok(scans)
+}
+
+async fn fetch_scan(pool: &DbPool, scan_intake_id: i64) -> AppResult<ScanIntakeItem> {
+    let row = sqlx::query!(
+        "SELECT scan_intake_id AS \"scan_intake_id!: i64\", original_file_name, stored_relative_path,
+            mime_type, file_size_bytes AS \"file_size_bytes!: i64\", status, notes,
+            is_deleted AS \"is_deleted!: i64\", created_by AS \"created_by!: i64\", created_at, updated_at,
+            filed_document_id
+         FROM scan_intake WHERE scan_intake_id = ?",
+        scan_intake_id
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Scan intake item not found.".into()))?;
+    Ok(scan_item(
+        row.scan_intake_id,
+        row.original_file_name,
+        row.stored_relative_path,
+        row.mime_type,
+        row.file_size_bytes,
+        row.status,
+        row.notes,
+        row.is_deleted,
+        row.created_by,
+        row.created_at,
+        row.updated_at,
+        row.filed_document_id,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scan_item(
+    scan_intake_id: i64,
+    original_file_name: String,
+    stored_relative_path: String,
+    mime_type: String,
+    file_size_bytes: i64,
+    status: String,
+    notes: Option<String>,
+    is_deleted: i64,
+    created_by: i64,
+    created_at: String,
+    updated_at: String,
+    filed_document_id: Option<i64>,
+) -> ScanIntakeItem {
+    ScanIntakeItem {
+        scan_intake_id,
+        original_file_name,
+        stored_relative_path,
+        mime_type,
+        file_size_bytes,
+        status,
+        notes,
+        is_deleted: is_deleted == 1,
+        is_large: file_size_bytes > LARGE_SCAN_WARNING_BYTES,
+        created_by,
+        created_at,
+        updated_at,
+        filed_document_id,
+    }
+}
+
+fn validate_scan_source(source_path: &str) -> AppResult<PathBuf> {
+    let source = validate_source_file(source_path)?;
+    let ext = scan_extension(&source)?;
+    if !SCAN_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(AppError::Validation(
+            "Scan file type is not allowed.".into(),
+        ));
+    }
+    Ok(source)
+}
+
+fn scan_extension(path: &PathBuf) -> AppResult<String> {
+    let ext = path
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if SCAN_EXTENSIONS.contains(&ext.as_str()) {
+        Ok(ext)
+    } else {
+        Err(AppError::Validation(
+            "Scan file type is not allowed.".into(),
+        ))
+    }
+}
+
+async fn require_scan_user(
+    pool: &DbPool,
+    session_id: &str,
+) -> AppResult<crate::auth::ValidSession> {
+    let session = require_session(pool, session_id).await?;
+    if session.role == "Secretary" {
+        Ok(session)
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}

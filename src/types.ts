@@ -105,3 +105,19 @@ export interface DocumentDetail {
   document: DocumentItem;
   attachments: AttachmentItem[];
 }
+
+export interface ScanIntakeItem {
+  scan_intake_id: number;
+  original_file_name: string;
+  stored_relative_path: string;
+  mime_type: string;
+  file_size_bytes: number;
+  status: 'Pending' | 'Filed' | 'Removed';
+  notes: string | null;
+  is_deleted: boolean;
+  is_large: boolean;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  filed_document_id: number | null;
+}

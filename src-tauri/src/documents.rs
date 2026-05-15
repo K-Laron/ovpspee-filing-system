@@ -16,7 +16,7 @@ use crate::{
     master_data::{CategoryItem, FolderItem},
 };
 
-const MAX_ATTACHMENT_BYTES: u64 = 1_073_741_824;
+pub(crate) const MAX_ATTACHMENT_BYTES: u64 = 1_073_741_824;
 
 const ALLOWED_EXTENSIONS: &[&str] = &[
     "pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png", "tif", "tiff", "txt",
@@ -30,6 +30,7 @@ pub struct StorageRoot {
 impl StorageRoot {
     pub fn new(base: PathBuf) -> AppResult<Self> {
         fs::create_dir_all(base.join("documents"))?;
+        fs::create_dir_all(base.join("intake"))?;
         let base = base.canonicalize()?;
         Ok(Self { base })
     }
@@ -1110,7 +1111,7 @@ async fn refresh_document_fts(pool: &DbPool, document_id: i64) -> AppResult<()> 
     Ok(())
 }
 
-fn validate_source_file(source_path: &str) -> AppResult<PathBuf> {
+pub(crate) fn validate_source_file(source_path: &str) -> AppResult<PathBuf> {
     let path = PathBuf::from(source_path);
     if !path.is_absolute() || !path.is_file() {
         return Err(AppError::Validation(
@@ -1130,7 +1131,7 @@ fn validate_extension(ext: &str) -> AppResult<()> {
     }
 }
 
-fn validate_magic(path: &Path, ext: &str) -> AppResult<()> {
+pub(crate) fn validate_magic(path: &Path, ext: &str) -> AppResult<()> {
     let bytes = fs::read(path)?;
     let ok = match ext {
         "pdf" => bytes.starts_with(b"%PDF"),
@@ -1150,7 +1151,7 @@ fn validate_magic(path: &Path, ext: &str) -> AppResult<()> {
     }
 }
 
-fn mime_for_extension(ext: &str) -> &'static str {
+pub(crate) fn mime_for_extension(ext: &str) -> &'static str {
     match ext {
         "pdf" => "application/pdf",
         "doc" => "application/msword",
@@ -1165,7 +1166,7 @@ fn mime_for_extension(ext: &str) -> &'static str {
     }
 }
 
-fn require_len(value: &str, label: &str, max: usize) -> AppResult<String> {
+pub(crate) fn require_len(value: &str, label: &str, max: usize) -> AppResult<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.chars().count() > max {
         return Err(AppError::Validation(format!(
@@ -1175,7 +1176,7 @@ fn require_len(value: &str, label: &str, max: usize) -> AppResult<String> {
     Ok(trimmed.to_owned())
 }
 
-fn trim_optional(value: Option<String>, max: usize) -> AppResult<Option<String>> {
+pub(crate) fn trim_optional(value: Option<String>, max: usize) -> AppResult<Option<String>> {
     match value {
         Some(value) => {
             let trimmed = value.trim();
@@ -1229,6 +1230,6 @@ fn like_filter(value: Option<&str>) -> Option<String> {
         .map(|value| format!("%{value}%"))
 }
 
-fn now_text() -> String {
+pub(crate) fn now_text() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }

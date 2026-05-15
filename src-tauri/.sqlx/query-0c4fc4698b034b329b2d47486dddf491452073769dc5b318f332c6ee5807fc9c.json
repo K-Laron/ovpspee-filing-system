@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE scan_intake\n             SET status = 'Filed', stored_relative_path = ?, filed_document_id = ?, updated_at = ?\n             WHERE scan_intake_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0c4fc4698b034b329b2d47486dddf491452073769dc5b318f332c6ee5807fc9c"
+}

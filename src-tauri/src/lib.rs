@@ -4,6 +4,7 @@ pub mod db;
 pub mod documents;
 pub mod error;
 pub mod master_data;
+pub mod scan_intake;
 pub mod users;
 
 use db::{connect_database, DbState};
@@ -63,7 +64,14 @@ pub fn run() {
             commands::list_public_folders,
             commands::list_public_documents,
             commands::get_public_document,
-            commands::list_document_offices
+            commands::list_document_offices,
+            commands::import_scan_files,
+            commands::list_scan_intake,
+            commands::get_scan_intake,
+            commands::update_scan_intake_notes,
+            commands::remove_scan_intake,
+            commands::file_scan_as_document,
+            commands::attach_scan_to_document
         ])
         .run(tauri::generate_context!())
         .expect("error while running OVPSPEE Filing System");

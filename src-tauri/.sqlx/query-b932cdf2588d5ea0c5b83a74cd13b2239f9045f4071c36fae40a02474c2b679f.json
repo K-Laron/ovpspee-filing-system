@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT scan_intake_id AS \"scan_intake_id!: i64\", original_file_name, stored_relative_path,\n            mime_type, file_size_bytes AS \"file_size_bytes!: i64\", status, notes,\n            is_deleted AS \"is_deleted!: i64\", created_by AS \"created_by!: i64\", created_at, updated_at,\n            filed_document_id\n         FROM scan_intake\n         WHERE status = 'Pending' AND is_deleted = 0\n         ORDER BY created_at DESC, scan_intake_id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "scan_intake_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "original_file_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "stored_relative_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "mime_type",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_size_bytes!: i64",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "status",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "notes",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_deleted!: i64",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_by!: i64",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "filed_document_id",
+        "ordinal": 11,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b932cdf2588d5ea0c5b83a74cd13b2239f9045f4071c36fae40a02474c2b679f"
+}
