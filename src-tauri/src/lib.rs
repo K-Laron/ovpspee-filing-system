@@ -78,6 +78,8 @@ pub fn run() {
             commands::remove_scan_intake,
             commands::file_scan_as_document,
             commands::attach_scan_to_document,
+            commands::get_scanner_capabilities,
+            commands::scan_to_intake,
             commands::list_audit_logs,
             commands::list_my_activity,
             commands::list_audit_event_types,

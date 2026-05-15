@@ -68,6 +68,7 @@ async fn fixture() -> Fixture {
                 is_available: true,
                 is_network: false,
             }],
+            ..Default::default()
         },
     }
 }
@@ -102,16 +103,20 @@ async fn admin_can_list_scanners_and_printers() {
 async fn secretary_can_list_and_read_device_settings() {
     let fx = fixture().await;
 
-    assert!(list_scanners_with_provider(&fx.pool, &fx.secretary, &fx.provider)
-        .await
-        .expect("secretary scanners")
-        .iter()
-        .any(|device| device.device_id == "scanner-main"));
-    assert!(list_printers_with_provider(&fx.pool, &fx.secretary, &fx.provider)
-        .await
-        .expect("secretary printers")
-        .iter()
-        .any(|device| device.printer_id == "printer-main"));
+    assert!(
+        list_scanners_with_provider(&fx.pool, &fx.secretary, &fx.provider)
+            .await
+            .expect("secretary scanners")
+            .iter()
+            .any(|device| device.device_id == "scanner-main")
+    );
+    assert!(
+        list_printers_with_provider(&fx.pool, &fx.secretary, &fx.provider)
+            .await
+            .expect("secretary printers")
+            .iter()
+            .any(|device| device.printer_id == "printer-main")
+    );
 
     let settings = get_device_settings(&fx.pool, &fx.secretary)
         .await
@@ -142,12 +147,16 @@ async fn admin_can_update_and_persist_device_settings() {
 async fn secretary_and_unauthenticated_users_cannot_update_global_defaults() {
     let fx = fixture().await;
 
-    assert!(update_device_settings_with_provider(&fx.pool, &fx.secretary, input(), &fx.provider)
-        .await
-        .is_err());
-    assert!(update_device_settings_with_provider(&fx.pool, "", input(), &fx.provider)
-        .await
-        .is_err());
+    assert!(
+        update_device_settings_with_provider(&fx.pool, &fx.secretary, input(), &fx.provider)
+            .await
+            .is_err()
+    );
+    assert!(
+        update_device_settings_with_provider(&fx.pool, "", input(), &fx.provider)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -183,27 +192,35 @@ async fn invalid_dpi_color_output_and_device_ids_are_rejected() {
     let fx = fixture().await;
     let mut bad = input();
     bad.scan_default_dpi = 150;
-    assert!(update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
-        .await
-        .is_err());
+    assert!(
+        update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
+            .await
+            .is_err()
+    );
 
     let mut bad = input();
     bad.scan_default_color_mode = "sepia".to_owned();
-    assert!(update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
-        .await
-        .is_err());
+    assert!(
+        update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
+            .await
+            .is_err()
+    );
 
     let mut bad = input();
     bad.scan_default_output_format = "bmp".to_owned();
-    assert!(update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
-        .await
-        .is_err());
+    assert!(
+        update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
+            .await
+            .is_err()
+    );
 
     let mut bad = input();
     bad.default_scanner_id = Some("C:\\driver\\scanner".to_owned());
-    assert!(update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
-        .await
-        .is_err());
+    assert!(
+        update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -246,6 +263,7 @@ async fn device_dtos_do_not_expose_absolute_paths() {
                 is_network: false,
             },
         ],
+        ..Default::default()
     };
 
     let scanners = list_scanners_with_provider(&fx.pool, &fx.admin, &provider)

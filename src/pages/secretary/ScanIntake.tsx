@@ -1,5 +1,5 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { FileScan, Link2, RefreshCw, Save, Trash2, Upload, X } from 'lucide-react';
+import { FileScan, Link2, RefreshCw, Save, ScanLine, Trash2, Upload, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,16 +7,30 @@ import {
   attachScanToDocument,
   fileScanAsDocument,
   importScanFiles,
+  getDeviceSettings,
+  getScannerCapabilities,
   listDocumentOffices,
   listDocuments,
   listPublicCategories,
   listPublicFolders,
   listScanIntake,
+  listScanners,
   removeScanIntake,
+  scanToIntake,
   updateScanIntakeNotes
 } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
-import type { CategoryItem, DocumentItem, DocumentStatus, FolderItem, OfficeItem, ScanIntakeItem } from '../../types';
+import type {
+  CategoryItem,
+  DocumentItem,
+  DocumentStatus,
+  FolderItem,
+  OfficeItem,
+  ScanIntakeItem,
+  ScanOptions,
+  ScannerCapabilities,
+  ScannerDevice
+} from '../../types';
 
 const today = new Date().toISOString().slice(0, 10);
 const scanFilters = [
@@ -53,11 +67,21 @@ export const ScanIntake = () => {
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [offices, setOffices] = useState<OfficeItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [scanners, setScanners] = useState<ScannerDevice[]>([]);
+  const [selectedScannerId, setSelectedScannerId] = useState('');
+  const [scannerCapabilities, setScannerCapabilities] = useState<ScannerCapabilities | null>(null);
+  const [scanOptions, setScanOptions] = useState<ScanOptions>({
+    dpi: 300,
+    color_mode: 'color',
+    output_format: 'png',
+    source: 'flatbed'
+  });
   const [form, setForm] = useState(emptyForm);
   const [existingDocumentId, setExistingDocumentId] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.scan_intake_id)),
@@ -76,6 +100,25 @@ export const ScanIntake = () => {
     setDocuments(nextDocuments);
   };
 
+  const loadScanners = async () => {
+    if (!sessionId) return;
+    const [rows, settings] = await Promise.all([
+      listScanners(sessionId),
+      getDeviceSettings(sessionId)
+    ]);
+    setScanners(rows);
+    const preferred = settings.default_scanner_id && rows.some((scanner) => scanner.device_id === settings.default_scanner_id)
+      ? settings.default_scanner_id
+      : rows[0]?.device_id ?? '';
+    setSelectedScannerId(preferred);
+    setScanOptions((current) => ({
+      ...current,
+      dpi: settings.scan_default_dpi,
+      color_mode: settings.scan_default_color_mode,
+      output_format: settings.scan_default_output_format === 'jpg' ? 'jpg' : 'png'
+    }));
+  };
+
   const loadIntake = async () => {
     if (!sessionId) return;
     const rows = await listScanIntake(sessionId);
@@ -84,8 +127,29 @@ export const ScanIntake = () => {
   };
 
   useEffect(() => {
-    void Promise.all([loadLookups(), loadIntake()]).catch((err) => setMessage(String(err)));
+    void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(String(err)));
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !selectedScannerId) {
+      setScannerCapabilities(null);
+      return;
+    }
+    void getScannerCapabilities({ sessionId, scannerId: selectedScannerId })
+      .then((capabilities) => {
+        setScannerCapabilities(capabilities);
+        setScanOptions((current) => ({
+          dpi: capabilities.supported_dpi.includes(current.dpi) ? current.dpi : capabilities.supported_dpi[0] ?? 300,
+          color_mode: capabilities.supported_color_modes.includes(current.color_mode) ? current.color_mode : capabilities.supported_color_modes[0] ?? 'color',
+          output_format: capabilities.supported_output_formats.includes(current.output_format) ? current.output_format : capabilities.supported_output_formats[0] ?? 'png',
+          source: current.source === 'adf' && capabilities.supports_adf ? 'adf' : 'flatbed'
+        }));
+      })
+      .catch((err) => {
+        setScannerCapabilities(null);
+        setMessage(String(err));
+      });
+  }, [sessionId, selectedScannerId]);
 
   useEffect(() => {
     const categoryId = Number(form.categoryId);
@@ -133,6 +197,25 @@ export const ScanIntake = () => {
       setMessage(String(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const captureFromScanner = async () => {
+    if (!sessionId || !selectedScannerId || scanBusy) return;
+    setScanBusy(true);
+    setMessage('Scanner capture started...');
+    try {
+      await scanToIntake({
+        sessionId,
+        scannerId: selectedScannerId,
+        options: scanOptions
+      });
+      setMessage('Scanner capture added to pending intake.');
+      await loadIntake();
+    } catch (err) {
+      setMessage(String(err));
+    } finally {
+      setScanBusy(false);
     }
   };
 
@@ -224,7 +307,7 @@ export const ScanIntake = () => {
           <h1 className="text-2xl font-bold text-secondary">Scan Intake</h1>
           <p className="mt-1 text-sm text-muted">Import scanned PDF/image files, then file them as documents.</p>
         </div>
-        <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake()]).catch((err) => setMessage(String(err)))} type="button">
+        <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(String(err)))} type="button">
           <RefreshCw size={16} />Refresh
         </button>
       </div>
@@ -233,6 +316,81 @@ export const ScanIntake = () => {
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-5">
+          <div className="rounded border border-border bg-surface p-5 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <ScanLine size={18} className="text-primary" />
+              <h2 className="font-semibold text-secondary">Scanner Capture</h2>
+            </div>
+            <div className="grid gap-3">
+              <div className="flex items-end gap-3">
+                <label className="min-w-0 flex-1">
+                  <span className="form-label">Selected scanner</span>
+                  <select className="input" value={selectedScannerId} onChange={(e) => setSelectedScannerId(e.target.value)}>
+                    <option value="">No scanner selected</option>
+                    {scanners.map((scanner) => (
+                      <option key={scanner.device_id} value={scanner.device_id}>
+                        {scanner.name}{scanner.is_available ? '' : ' (Unavailable)'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="btn" onClick={() => void loadScanners().catch((err) => setMessage(String(err)))} type="button">
+                  <RefreshCw size={16} />Refresh
+                </button>
+              </div>
+              {scanners.length === 0 ? (
+                <p className="rounded border border-dashed border-border p-3 text-sm text-muted">No scanner detected.</p>
+              ) : (
+                <div className="rounded border border-border p-3 text-sm">
+                  <p className="font-medium text-secondary">
+                    {scanners.find((scanner) => scanner.device_id === selectedScannerId)?.name ?? 'Scanner'}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {scannerCapabilities?.status ?? scanners.find((scanner) => scanner.device_id === selectedScannerId)?.status ?? 'Status unknown'}
+                  </p>
+                </div>
+              )}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label>
+                  <span className="form-label">DPI</span>
+                  <select className="input" value={scanOptions.dpi} onChange={(e) => setScanOptions({ ...scanOptions, dpi: Number(e.target.value) })}>
+                    {(scannerCapabilities?.supported_dpi ?? [200, 300, 600]).map((dpi) => <option key={dpi} value={dpi}>{dpi}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="form-label">Color mode</span>
+                  <select className="input" value={scanOptions.color_mode} onChange={(e) => setScanOptions({ ...scanOptions, color_mode: e.target.value as ScanOptions['color_mode'] })}>
+                    {(scannerCapabilities?.supported_color_modes ?? ['color', 'grayscale', 'black_white']).map((mode) => (
+                      <option key={mode} value={mode}>{mode === 'black_white' ? 'Black & white' : mode[0].toUpperCase() + mode.slice(1)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="form-label">Output format</span>
+                  <select className="input" value={scanOptions.output_format} onChange={(e) => setScanOptions({ ...scanOptions, output_format: e.target.value as ScanOptions['output_format'] })}>
+                    {(scannerCapabilities?.supported_output_formats ?? ['png', 'jpg']).map((format) => <option key={format} value={format}>{format.toUpperCase()}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="form-label">Source</span>
+                  <select className="input" value={scanOptions.source} onChange={(e) => setScanOptions({ ...scanOptions, source: e.target.value as ScanOptions['source'] })}>
+                    <option value="flatbed">Flatbed</option>
+                    {scannerCapabilities?.supports_adf && <option value="adf">ADF</option>}
+                  </select>
+                </label>
+              </div>
+              <button
+                className="btn btn-primary w-full justify-center"
+                disabled={scanBusy || !selectedScannerId || scannerCapabilities?.is_available === false}
+                onClick={() => void captureFromScanner()}
+                type="button"
+              >
+                <ScanLine size={16} />{scanBusy ? 'Scanning...' : 'Scan to Intake'}
+              </button>
+              <p className="text-xs text-muted">Flatbed single-page capture. PNG/JPG supported for MVP; PDF batching stays deferred.</p>
+            </div>
+          </div>
+
           <div className="rounded border border-border bg-surface p-5 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <FileScan size={18} className="text-primary" />

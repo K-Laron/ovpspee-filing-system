@@ -17,6 +17,8 @@ import type {
   PrinterDevice,
   ProfileItem,
   Role,
+  ScanOptions,
+  ScannerCapabilities,
   ScannerDevice,
   ScanIntakeItem,
   SessionPayload,
@@ -446,3 +448,14 @@ export const updateDeviceSettings = (params: {
   scanDefaultColorMode: DeviceSettings['scan_default_color_mode'];
   scanDefaultOutputFormat: DeviceSettings['scan_default_output_format'];
 }): Promise<DeviceSettings> => invoke('update_device_settings', params);
+
+export const getScannerCapabilities = (params: {
+  sessionId: string;
+  scannerId: string;
+}): Promise<ScannerCapabilities> => invoke('get_scanner_capabilities', params);
+
+export const scanToIntake = (params: {
+  sessionId: string;
+  scannerId: string;
+  options: ScanOptions;
+}): Promise<ScanIntakeItem> => invoke('scan_to_intake', params);

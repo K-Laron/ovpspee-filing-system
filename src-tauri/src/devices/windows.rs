@@ -1,10 +1,13 @@
+use std::path::Path;
 use std::process::Command;
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    devices::{PrinterDevice, ScannerDevice},
+    devices::{
+        default_capabilities, PrinterDevice, ScanOptions, ScannerCapabilities, ScannerDevice,
+    },
     error::{AppError, AppResult},
 };
 
@@ -37,6 +40,103 @@ struct CimPrinter {
 }
 
 pub async fn list_scanners() -> AppResult<Vec<ScannerDevice>> {
+    let rows = scanner_rows()?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            let raw_device_id = row.device_id?;
+            let device_id = opaque_id("scanner", &raw_device_id);
+            Some(ScannerDevice {
+                name: row.name.unwrap_or_else(|| device_id.clone()),
+                device_id,
+                manufacturer: row.manufacturer,
+                connection_type: row.connection_type,
+                is_available: true,
+                status: Some("Detected".to_owned()),
+            })
+        })
+        .collect())
+}
+
+pub async fn scanner_capabilities(scanner_id: &str) -> AppResult<ScannerCapabilities> {
+    let _raw = find_raw_scanner_id(scanner_id)?;
+    Ok(default_capabilities(scanner_id, true, "Ready"))
+}
+
+pub async fn scan_to_path(
+    scanner_id: &str,
+    options: &ScanOptions,
+    destination: &Path,
+) -> AppResult<()> {
+    let raw_device_id = find_raw_scanner_id(scanner_id)?;
+    let image_format = match options.output_format.as_str() {
+        "jpg" => "Jpeg",
+        "png" => "Png",
+        _ => {
+            return Err(AppError::Validation(
+                "Scanner capture currently supports PNG or JPG output.".into(),
+            ))
+        }
+    };
+    let color_intent = match options.color_mode.as_str() {
+        "color" => 1,
+        "grayscale" => 2,
+        "black_white" => 4,
+        _ => 1,
+    };
+    let destination = destination
+        .to_str()
+        .ok_or_else(|| AppError::Validation("Scan output path is not valid.".into()))?;
+    let script = format!(
+        r#"
+$ErrorActionPreference = 'Stop'
+$rawDeviceId = {raw}
+$destination = {destination}
+$savePath = $destination
+if ($savePath.StartsWith('\\?\')) {{ $savePath = $savePath.Substring(4) }}
+$bmpGuid = '{{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}}'
+$imageFormat = '{image_format}'
+$dpi = {dpi}
+$colorIntent = {color_intent}
+$manager = New-Object -ComObject WIA.DeviceManager
+$deviceInfo = $null
+foreach ($info in $manager.DeviceInfos) {{
+  if ([string]$info.DeviceID -eq $rawDeviceId) {{ $deviceInfo = $info; break }}
+}}
+if ($null -eq $deviceInfo) {{ throw 'Selected scanner is not available.' }}
+$device = $deviceInfo.Connect()
+$item = $device.Items.Item(1)
+foreach ($prop in $item.Properties) {{
+  try {{
+    switch ($prop.PropertyID) {{
+      6146 {{ $prop.Value = $colorIntent }}
+      6147 {{ $prop.Value = $dpi }}
+      6148 {{ $prop.Value = $dpi }}
+    }}
+  }} catch {{}}
+}}
+$temp = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), 'bmp')
+$image = $item.Transfer($bmpGuid)
+if (Test-Path -LiteralPath $temp) {{ Remove-Item -LiteralPath $temp -Force }}
+$image.SaveFile($temp)
+Add-Type -AssemblyName System.Drawing
+$bitmap = [System.Drawing.Image]::FromFile($temp)
+if (Test-Path -LiteralPath $savePath) {{ Remove-Item -LiteralPath $savePath -Force }}
+$bitmap.Save($savePath, [System.Drawing.Imaging.ImageFormat]::$imageFormat)
+$bitmap.Dispose()
+Remove-Item -LiteralPath $temp -Force
+"#,
+        raw = ps_single_quote(&raw_device_id),
+        destination = ps_single_quote(destination),
+        image_format = image_format,
+        dpi = options.dpi,
+        color_intent = color_intent,
+    );
+    run_powershell(&script)?;
+    Ok(())
+}
+
+fn scanner_rows() -> AppResult<Vec<WiaScanner>> {
     let script = r#"
 $manager = New-Object -ComObject WIA.DeviceManager
 $items = @()
@@ -53,22 +153,15 @@ foreach ($info in $manager.DeviceInfos) {
 $items | ConvertTo-Json -Compress
 "#;
     let output = run_powershell(script)?;
-    let rows: Vec<WiaScanner> = parse_json_array(&output)?;
-    Ok(rows
+    parse_json_array(&output)
+}
+
+fn find_raw_scanner_id(scanner_id: &str) -> AppResult<String> {
+    scanner_rows()?
         .into_iter()
-        .filter_map(|row| {
-            let raw_device_id = row.device_id?;
-            let device_id = opaque_id("scanner", &raw_device_id);
-            Some(ScannerDevice {
-                name: row.name.unwrap_or_else(|| device_id.clone()),
-                device_id,
-                manufacturer: row.manufacturer,
-                connection_type: row.connection_type,
-                is_available: true,
-                status: Some("Detected".to_owned()),
-            })
-        })
-        .collect())
+        .filter_map(|row| row.device_id)
+        .find(|raw| opaque_id("scanner", raw) == scanner_id)
+        .ok_or_else(|| AppError::Validation("Selected scanner is not available.".into()))
 }
 
 pub async fn list_printers() -> AppResult<Vec<PrinterDevice>> {
@@ -113,7 +206,13 @@ fn hex16(bytes: &[u8]) -> String {
 
 fn run_powershell(script: &str) -> AppResult<String> {
     let output = Command::new("powershell")
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
         .output()
         .map_err(|err| AppError::Validation(format!("Device detection failed: {err}")))?;
     if !output.status.success() {
@@ -125,6 +224,10 @@ fn run_powershell(script: &str) -> AppResult<String> {
         }));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+fn ps_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
 }
 
 fn parse_json_array<T: for<'de> Deserialize<'de>>(value: &str) -> AppResult<Vec<T>> {

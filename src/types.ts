@@ -231,3 +231,21 @@ export interface DeviceSettings {
   scan_default_output_format: 'pdf' | 'png' | 'jpg';
   device_detection_last_checked_at: string | null;
 }
+
+export interface ScannerCapabilities {
+  scanner_id: string;
+  is_available: boolean;
+  status: string;
+  supports_flatbed: boolean;
+  supports_adf: boolean;
+  supported_dpi: number[];
+  supported_color_modes: Array<'color' | 'grayscale' | 'black_white'>;
+  supported_output_formats: Array<'png' | 'jpg'>;
+}
+
+export interface ScanOptions {
+  dpi: number;
+  color_mode: 'color' | 'grayscale' | 'black_white';
+  output_format: 'png' | 'jpg';
+  source: 'flatbed' | 'adf';
+}

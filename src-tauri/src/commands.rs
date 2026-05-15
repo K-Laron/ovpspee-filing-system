@@ -8,7 +8,10 @@ use crate::{
         RestoreResult,
     },
     db::DbState,
-    devices::{self, DeviceSettings, DeviceSettingsInput, PrinterDevice, ScannerDevice},
+    devices::{
+        self, DeviceSettings, DeviceSettingsInput, PrinterDevice, ScanOptions, ScannerCapabilities,
+        ScannerDevice,
+    },
     documents::{
         self, AttachmentInput, AttachmentPreviewInfo, AttachmentPreviewPage, DocumentDetail,
         DocumentInput, DocumentItem, DocumentListFilter, StorageRoot,
@@ -862,6 +865,31 @@ pub async fn attach_scan_to_document(
     )
     .await
     .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_scanner_capabilities(
+    db: State<'_, DbState>,
+    session_id: String,
+    scanner_id: String,
+) -> Result<ScannerCapabilities, String> {
+    devices::get_scanner_capabilities(&db.pool, &session_id, &scanner_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn scan_to_intake(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    scanner_id: String,
+    options: ScanOptions,
+) -> Result<ScanIntakeItem, String> {
+    let storage = storage_root(&app)?;
+    devices::scan_to_intake(&db.pool, &storage, &session_id, &scanner_id, options)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
