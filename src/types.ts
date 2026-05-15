@@ -204,3 +204,30 @@ export interface RestoreResult {
   restart_required: boolean;
   message: string;
 }
+
+export interface ScannerDevice {
+  device_id: string;
+  name: string;
+  manufacturer: string | null;
+  connection_type: string | null;
+  is_available: boolean;
+  status: string | null;
+}
+
+export interface PrinterDevice {
+  printer_id: string;
+  name: string;
+  is_default: boolean;
+  status: string;
+  is_available: boolean;
+  is_network: boolean;
+}
+
+export interface DeviceSettings {
+  default_scanner_id: string | null;
+  default_printer_id: string | null;
+  scan_default_dpi: number;
+  scan_default_color_mode: 'color' | 'grayscale' | 'black_white';
+  scan_default_output_format: 'pdf' | 'png' | 'jpg';
+  device_detection_last_checked_at: string | null;
+}

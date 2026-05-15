@@ -8,13 +8,16 @@ import type {
   BackupSettings,
   BackupSummary,
   BackupValidation,
+  DeviceSettings,
   DocumentDetail,
   DocumentItem,
   DocumentStatus,
   FolderItem,
   OfficeItem,
+  PrinterDevice,
   ProfileItem,
   Role,
+  ScannerDevice,
   ScanIntakeItem,
   SessionPayload,
   RestoreResult,
@@ -422,3 +425,24 @@ export const restoreFromBackupFolder = (params: {
 
 export const runScheduledBackupCheck = (sessionId: string): Promise<BackupSummary | null> =>
   invoke('run_scheduled_backup_check', { sessionId });
+
+export const listScanners = (sessionId: string): Promise<ScannerDevice[]> =>
+  invoke('list_scanners', { sessionId });
+
+export const listPrinters = (sessionId: string): Promise<PrinterDevice[]> =>
+  invoke('list_printers', { sessionId });
+
+export const getDefaultPrinter = (sessionId: string): Promise<PrinterDevice | null> =>
+  invoke('get_default_printer', { sessionId });
+
+export const getDeviceSettings = (sessionId: string): Promise<DeviceSettings> =>
+  invoke('get_device_settings', { sessionId });
+
+export const updateDeviceSettings = (params: {
+  sessionId: string;
+  defaultScannerId: string | null;
+  defaultPrinterId: string | null;
+  scanDefaultDpi: number;
+  scanDefaultColorMode: DeviceSettings['scan_default_color_mode'];
+  scanDefaultOutputFormat: DeviceSettings['scan_default_output_format'];
+}): Promise<DeviceSettings> => invoke('update_device_settings', params);

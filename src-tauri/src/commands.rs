@@ -8,6 +8,7 @@ use crate::{
         RestoreResult,
     },
     db::DbState,
+    devices::{self, DeviceSettings, DeviceSettingsInput, PrinterDevice, ScannerDevice},
     documents::{
         self, AttachmentInput, AttachmentPreviewInfo, AttachmentPreviewPage, DocumentDetail,
         DocumentInput, DocumentItem, DocumentListFilter, StorageRoot,
@@ -1105,6 +1106,71 @@ pub async fn run_scheduled_backup_check(
     backup::run_scheduled_backup_check(&db.pool, &runtime, &session_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_scanners(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<ScannerDevice>, String> {
+    devices::list_scanners(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_printers(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<PrinterDevice>, String> {
+    devices::list_printers(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_default_printer(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Option<PrinterDevice>, String> {
+    devices::get_default_printer(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_device_settings(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<DeviceSettings, String> {
+    devices::get_device_settings(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_device_settings(
+    db: State<'_, DbState>,
+    session_id: String,
+    default_scanner_id: Option<String>,
+    default_printer_id: Option<String>,
+    scan_default_dpi: i64,
+    scan_default_color_mode: String,
+    scan_default_output_format: String,
+) -> Result<DeviceSettings, String> {
+    devices::update_device_settings(
+        &db.pool,
+        &session_id,
+        DeviceSettingsInput {
+            default_scanner_id,
+            default_printer_id,
+            scan_default_dpi,
+            scan_default_color_mode,
+            scan_default_output_format,
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {
