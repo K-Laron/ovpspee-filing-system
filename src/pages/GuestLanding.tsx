@@ -1,5 +1,5 @@
 import { save } from '@tauri-apps/plugin-dialog';
-import { Download, FileText, Folder, Printer, Search } from 'lucide-react';
+import { Download, FileText, Folder, Printer, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
@@ -30,6 +30,7 @@ export const GuestLanding = () => {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
+  const isGlobalSearch = search.trim().length > 0;
 
   const load = async () => {
     setCategories(await listPublicCategories());
@@ -38,11 +39,12 @@ export const GuestLanding = () => {
     setSelectedPrinterId((current) => current || nextPrinters.find((printer) => printer.is_default)?.printer_id || nextPrinters[0]?.printer_id || '');
     const rows = await listPublicDocuments({
       search: search || null,
-      categoryId: categoryId ? Number(categoryId) : null,
-      folderId: folderId ? Number(folderId) : null
+      categoryId: isGlobalSearch ? null : categoryId ? Number(categoryId) : null,
+      folderId: isGlobalSearch ? null : folderId ? Number(folderId) : null
     });
     setDocuments(rows);
     if (!detail && rows[0]) setDetail(await getPublicDocument(rows[0].document_id));
+    if (detail && !rows.some((row) => row.document_id === detail.document.document_id)) setDetail(null);
   };
 
   useEffect(() => {
@@ -59,7 +61,20 @@ export const GuestLanding = () => {
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
+    setDetail(null);
     void load().catch((err) => setMessage(String(err)));
+  };
+
+  const clearSearch = () => {
+    setSearch('');
+    setDetail(null);
+    void listPublicDocuments({
+      categoryId: categoryId ? Number(categoryId) : null,
+      folderId: folderId ? Number(folderId) : null
+    }).then(async (rows) => {
+      setDocuments(rows);
+      if (rows[0]) setDetail(await getPublicDocument(rows[0].document_id));
+    }).catch((err) => setMessage(String(err)));
   };
 
   const openDocument = async (documentId: number) => {
@@ -122,12 +137,18 @@ export const GuestLanding = () => {
           </div>
           <form className="flex min-w-[360px] items-end gap-2" onSubmit={submitSearch}>
             <label className="flex-1">
-              <span className="form-label">Search</span>
+              <span className="form-label">Search all public documents</span>
               <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </label>
             <button className="btn btn-primary" type="submit"><Search size={16} />Search</button>
+            {search && <button className="btn" onClick={clearSearch} type="button"><X size={16} />Clear</button>}
           </form>
         </div>
+        {isGlobalSearch && (
+          <p className="mt-3 rounded border border-border bg-background px-3 py-2 text-sm text-muted">
+            Searching all public documents. Category and folder filters are ignored while this search is active.
+          </p>
+        )}
       </div>
 
       {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}

@@ -9,11 +9,11 @@ export const AdminLayout = () => (
     navItems={[
       { label: 'Users', path: '/a/users', icon: Users },
       { label: 'Master Data', path: '/a/master-data', icon: Database },
-      { label: 'Trash', path: '/a/trash', icon: Trash2 },
-      { label: 'Profile', path: '/a/profile', icon: UserCircle },
       { label: 'Devices', path: '/a/devices', icon: Printer },
+      { label: 'Backup & Restore', path: '/a/backup-restore', icon: DatabaseBackup },
       { label: 'Audit Log', path: '/a/audit-log', icon: ClipboardList },
-      { label: 'Backup & Restore', path: '/a/backup-restore', icon: DatabaseBackup }
+      { label: 'Trash', path: '/a/trash', icon: Trash2 }
     ]}
+    profileItem={{ label: 'Profile', path: '/a/profile', icon: UserCircle }}
   />
 );

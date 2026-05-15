@@ -1,5 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
-import { LogOut } from 'lucide-react';
+import { LogOut, type LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
 import { logout } from '../../lib/invoke';
@@ -9,15 +8,23 @@ export interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  description?: string;
 }
 
 interface AppShellProps {
   title: string;
   subtitle: string;
   navItems: NavItem[];
+  profileItem?: NavItem;
 }
 
-export const AppShell = ({ title, subtitle, navItems }: AppShellProps) => {
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  [
+    'focus-ring flex items-center gap-3 rounded px-3 py-2 text-sm transition',
+    isActive ? 'bg-white/12 text-white shadow-inner' : 'text-white/75 hover:bg-white/8 hover:text-white'
+  ].join(' ');
+
+export const AppShell = ({ title, subtitle, navItems, profileItem }: AppShellProps) => {
   const navigate = useNavigate();
   const { displayName, sessionId, clearSession } = useSessionStore();
 
@@ -42,13 +49,9 @@ export const AppShell = ({ title, subtitle, navItems }: AppShellProps) => {
         <nav className="flex-1 space-y-1 p-3">
           {navItems.map((item) => (
             <NavLink
-              className={({ isActive }) =>
-                [
-                  'focus-ring flex items-center gap-3 rounded px-3 py-2 text-sm transition',
-                  isActive ? 'bg-white/12 text-white shadow-inner' : 'text-white/75 hover:bg-white/8 hover:text-white'
-                ].join(' ')
-              }
+              className={navClass}
               key={item.path}
+              title={item.description ?? item.label}
               to={item.path}
             >
               <item.icon size={17} />
@@ -58,8 +61,18 @@ export const AppShell = ({ title, subtitle, navItems }: AppShellProps) => {
         </nav>
         <div className="border-t border-white/10 p-3">
           <p className="mb-2 truncate px-3 text-xs text-white/60">{displayName}</p>
+          {profileItem && (
+            <NavLink
+              className={navClass}
+              title={profileItem.description ?? profileItem.label}
+              to={profileItem.path}
+            >
+              <profileItem.icon size={17} />
+              {profileItem.label}
+            </NavLink>
+          )}
           <button
-            className="focus-ring flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
+            className="focus-ring mt-1 flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
             onClick={handleLogout}
             type="button"
           >

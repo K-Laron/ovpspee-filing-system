@@ -305,7 +305,7 @@ export const ScanIntake = () => {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Scan Intake</h1>
-          <p className="mt-1 text-sm text-muted">Import scanned PDF/image files, then file them as documents.</p>
+          <p className="mt-1 text-sm text-muted">Use Scan Intake for scanned/imported files that still need to be reviewed and filed.</p>
         </div>
         <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(String(err)))} type="button">
           <RefreshCw size={16} />Refresh

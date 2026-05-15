@@ -121,7 +121,7 @@ export const AddDocument = () => {
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Add Document</h1>
-          <p className="mt-1 text-sm text-muted">File metadata and copy attachments into app storage.</p>
+          <p className="mt-1 text-sm text-muted">Use Add Document to create an official document record with metadata and attachments.</p>
         </div>
         <FilePlus className="text-primary" size={28} />
       </div>
