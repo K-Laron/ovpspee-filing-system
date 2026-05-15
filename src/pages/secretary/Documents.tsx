@@ -1,9 +1,11 @@
-import { open } from '@tauri-apps/plugin-dialog';
-import { Edit3, ExternalLink, Eye, EyeOff, MoveRight, Paperclip, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { Download, Edit3, ExternalLink, Eye, EyeOff, MoveRight, Paperclip, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
+import { AttachmentPreview } from '../../components/AttachmentPreview';
 import {
   addAttachment,
+  exportDocumentPdf,
   getAttachmentFilePath,
   getDocument,
   listDocumentOffices,
@@ -57,6 +59,8 @@ export const Documents = () => {
   const [pendingAttachmentPaths, setPendingAttachmentPaths] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [view, setView] = useState<'active' | 'trash'>('active');
+  const [exporting, setExporting] = useState(false);
+  const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
 
   const loadLookups = async () => {
     if (!sessionId) return;
@@ -107,6 +111,7 @@ export const Documents = () => {
     setMoveFolders(await listPublicFolders(nextDetail.document.category_id));
     setEditing(false);
     setMoving(false);
+    setPreviewAttachmentId(nextDetail.attachments[0]?.attachment_id ?? null);
   };
 
   useEffect(() => {
@@ -240,6 +245,29 @@ export const Documents = () => {
     await loadDocuments();
   };
 
+  const exportPdf = async () => {
+    if (!sessionId || !detail || exporting) return;
+    setExporting(true);
+    setMessage('');
+    try {
+      const outputPath = await save({
+        defaultPath: `${safeFileName(detail.document.document_name)}.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
+      });
+      if (!outputPath) return;
+      const savedPath = await exportDocumentPdf({
+        sessionId,
+        documentId: detail.document.document_id,
+        outputPath
+      });
+      setMessage(`Exported PDF: ${savedPath}`);
+    } catch (err) {
+      setMessage(String(err));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const isTrashView = view === 'trash';
 
   return (
@@ -336,6 +364,7 @@ export const Documents = () => {
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   {!isTrashView && <button className="btn" onClick={() => setEditing(!editing)} type="button"><Edit3 size={16} />Edit</button>}
+                  {!isTrashView && <button className="btn btn-primary" disabled={exporting} onClick={() => void exportPdf()} type="button"><Download size={16} />{exporting ? 'Exporting...' : 'Export PDF'}</button>}
                   {!isTrashView && <button className="btn" onClick={() => setMoving(!moving)} type="button"><MoveRight size={16} />Move</button>}
                   {!isTrashView && (
                     <button className="btn" onClick={() => void toggleHidden().catch((err) => setMessage(String(err)))} type="button">
@@ -399,6 +428,7 @@ export const Documents = () => {
                     <div className="flex items-center justify-between rounded border border-border p-3 text-sm" key={file.attachment_id}>
                       <div><p className="font-medium text-secondary">{file.original_file_name}</p><p className="text-xs text-muted">{Math.ceil(file.file_size_bytes / 1024)} KB</p></div>
                       <div className="flex gap-2">
+                        <button className="icon-btn" title="Preview attachment" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button"><Eye size={15} /></button>
                         <button className="icon-btn" title="Show file path" onClick={() => void showPath(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><ExternalLink size={15} /></button>
                         {!isTrashView && <button className="icon-btn" title="Remove attachment" onClick={() => void remove(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><Trash2 size={15} /></button>}
                       </div>
@@ -434,6 +464,13 @@ export const Documents = () => {
                     </div>
                   )}
                 </div>}
+                <div className="mt-4">
+                  <AttachmentPreview
+                    attachment={detail.attachments.find((file) => file.attachment_id === previewAttachmentId) ?? detail.attachments[0] ?? null}
+                    onError={(error) => setMessage(error)}
+                    sessionId={sessionId}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -442,3 +479,5 @@ export const Documents = () => {
     </section>
   );
 };
+
+const safeFileName = (value: string) => value.replace(/[<>:"/\\|?*]+/g, '-').slice(0, 80) || 'document';

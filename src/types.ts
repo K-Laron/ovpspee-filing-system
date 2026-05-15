@@ -148,3 +148,21 @@ export interface AuditRetentionSettings {
   max_months: number;
   cleanup_deferred: boolean;
 }
+
+export interface AttachmentPreviewInfo {
+  attachment_id: number;
+  document_id: number;
+  original_file_name: string;
+  mime_type: string;
+  file_size_bytes: number;
+  preview_kind: 'Pdf' | 'Image' | 'Unsupported';
+  page_count: number | null;
+  file_exists: boolean;
+  message: string;
+}
+
+export interface AttachmentPreviewPage {
+  info: AttachmentPreviewInfo;
+  page_number: number;
+  file_path: string | null;
+}

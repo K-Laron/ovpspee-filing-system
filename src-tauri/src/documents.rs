@@ -1,11 +1,13 @@
 use std::{
     ffi::OsStr,
     fs,
+    io::Write,
     path::{Component, Path, PathBuf},
 };
 
 use chrono::{NaiveDate, SecondsFormat, Utc};
 use serde::Serialize;
+use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
@@ -133,6 +135,26 @@ pub struct AttachmentItem {
 pub struct DocumentDetail {
     pub document: DocumentItem,
     pub attachments: Vec<AttachmentItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AttachmentPreviewInfo {
+    pub attachment_id: i64,
+    pub document_id: i64,
+    pub original_file_name: String,
+    pub mime_type: String,
+    pub file_size_bytes: i64,
+    pub preview_kind: String,
+    pub page_count: Option<i64>,
+    pub file_exists: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AttachmentPreviewPage {
+    pub info: AttachmentPreviewInfo,
+    pub page_number: i64,
+    pub file_path: Option<String>,
 }
 
 pub async fn create_document(
@@ -691,6 +713,132 @@ pub async fn get_attachment_file_path(
         .into_owned())
 }
 
+pub async fn get_attachment_preview_info(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: Option<&str>,
+    attachment_id: i64,
+) -> AppResult<AttachmentPreviewInfo> {
+    let row = attachment_access_row(pool, session_id, attachment_id).await?;
+    let path = storage.resolve_checked(&row.stored_relative_path)?;
+    Ok(preview_info_from_row(
+        row.attachment_id,
+        row.document_id,
+        row.original_file_name,
+        row.mime_type,
+        row.file_size_bytes,
+        &path,
+    ))
+}
+
+pub async fn get_attachment_preview_page(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: Option<&str>,
+    attachment_id: i64,
+    page_number: Option<i64>,
+) -> AppResult<AttachmentPreviewPage> {
+    let row = attachment_access_row(pool, session_id, attachment_id).await?;
+    let path = storage.resolve_checked(&row.stored_relative_path)?;
+    let info = preview_info_from_row(
+        row.attachment_id,
+        row.document_id,
+        row.original_file_name,
+        row.mime_type,
+        row.file_size_bytes,
+        &path,
+    );
+    let requested = page_number.unwrap_or(1).max(1);
+    let max_page = info.page_count.unwrap_or(1).max(1);
+    if requested > max_page {
+        return Err(AppError::Validation("Preview page is out of range.".into()));
+    }
+    let file_path = if info.file_exists && info.preview_kind != "Unsupported" {
+        Some(path.to_string_lossy().into_owned())
+    } else {
+        None
+    };
+    Ok(AttachmentPreviewPage {
+        info,
+        page_number: requested,
+        file_path,
+    })
+}
+
+pub async fn export_document_pdf(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: Option<&str>,
+    document_id: i64,
+    output_path: &str,
+) -> AppResult<String> {
+    let actor = if let Some(session_id) = session_id {
+        let session = require_session(pool, session_id).await?;
+        if session.role != "Secretary" && session.role != "Admin" {
+            return Err(AppError::Unauthorized);
+        }
+        ExportActor::User {
+            user_id: session.user_id,
+            role: session.role,
+        }
+    } else {
+        ExportActor::PublicViewer
+    };
+    let detail = get_document_internal(pool, document_id, false).await?;
+    match &actor {
+        ExportActor::PublicViewer => {
+            if detail.document.is_hidden
+                || detail.document.is_trashed
+                || detail.document.status == "Confidential"
+            {
+                return Err(AppError::Unauthorized);
+            }
+        }
+        ExportActor::User { role, .. } if role == "Secretary" || role == "Admin" => {
+            if detail.document.is_trashed {
+                return Err(AppError::Validation(
+                    "Trashed documents cannot be exported from normal document detail.".into(),
+                ));
+            }
+        }
+        _ => return Err(AppError::Unauthorized),
+    }
+    let output = validate_pdf_output_path(output_path)?;
+    let generated_at = now_text();
+    let exported_by = match &actor {
+        ExportActor::PublicViewer => "Staff/Head Viewer".to_owned(),
+        ExportActor::User { role, user_id } => format!("{role} user #{user_id}"),
+    };
+    let mut pages = export_pages(&detail, storage, &generated_at, &exported_by)?;
+    if pages.is_empty() {
+        pages.push(vec!["No export content.".to_owned()]);
+    }
+    let pdf = build_simple_pdf(&pages);
+    fs::write(&output, pdf)?;
+    if let ExportActor::User { user_id, .. } = actor {
+        write_audit_log(
+            pool,
+            "EXPORT",
+            Some("document"),
+            Some(document_id),
+            "Exported document PDF",
+            Some(user_id),
+        )
+        .await?;
+    } else {
+        write_audit_log(
+            pool,
+            "EXPORT",
+            Some("document"),
+            Some(document_id),
+            "Exported public document PDF",
+            None,
+        )
+        .await?;
+    }
+    Ok(output.to_string_lossy().into_owned())
+}
+
 pub async fn list_public_categories(pool: &DbPool) -> AppResult<Vec<CategoryItem>> {
     let rows = sqlx::query!(
         "SELECT c.category_id, c.category_name, c.description, c.color_code, c.icon, c.is_system, c.is_active,
@@ -1008,6 +1156,329 @@ async fn get_document_internal(
         },
         attachments,
     })
+}
+
+struct AttachmentAccessRow {
+    attachment_id: i64,
+    document_id: i64,
+    original_file_name: String,
+    stored_relative_path: String,
+    mime_type: String,
+    file_size_bytes: i64,
+}
+
+enum ExportActor {
+    PublicViewer,
+    User { user_id: i64, role: String },
+}
+
+async fn attachment_access_row(
+    pool: &DbPool,
+    session_id: Option<&str>,
+    attachment_id: i64,
+) -> AppResult<AttachmentAccessRow> {
+    let row = sqlx::query(
+        "SELECT a.attachment_id, a.document_id,
+            a.original_file_name, a.stored_relative_path, a.mime_type, a.file_size_bytes,
+            d.is_hidden, d.is_trashed, d.status
+         FROM attachment a
+         JOIN document d ON d.document_id = a.document_id
+         WHERE a.attachment_id = ?"
+    )
+    .bind(attachment_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Attachment not found.".into()))?;
+    if let Some(session_id) = session_id {
+        let session = require_session(pool, session_id).await?;
+        if session.role != "Secretary" && session.role != "Admin" {
+            return Err(AppError::Unauthorized);
+        }
+    } else if row.get::<i64, _>("is_hidden") == 1
+        || row.get::<i64, _>("is_trashed") == 1
+        || row.get::<String, _>("status") == "Confidential"
+    {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(AttachmentAccessRow {
+        attachment_id: row.get("attachment_id"),
+        document_id: row.get("document_id"),
+        original_file_name: row.get("original_file_name"),
+        stored_relative_path: row.get("stored_relative_path"),
+        mime_type: row.get("mime_type"),
+        file_size_bytes: row.get("file_size_bytes"),
+    })
+}
+
+fn preview_info_from_row(
+    attachment_id: i64,
+    document_id: i64,
+    original_file_name: String,
+    mime_type: String,
+    file_size_bytes: i64,
+    path: &Path,
+) -> AttachmentPreviewInfo {
+    let file_exists = path.is_file();
+    let preview_kind = preview_kind(&mime_type).to_owned();
+    let page_count = if file_exists && preview_kind == "Pdf" {
+        estimate_pdf_page_count(path)
+    } else if file_exists && preview_kind == "Image" {
+        Some(1)
+    } else {
+        None
+    };
+    let message = if !file_exists {
+        "Attachment file is unavailable.".to_owned()
+    } else if preview_kind == "Unsupported" {
+        "Preview is not supported for this file type.".to_owned()
+    } else {
+        "Preview available.".to_owned()
+    };
+    AttachmentPreviewInfo {
+        attachment_id,
+        document_id,
+        original_file_name,
+        mime_type,
+        file_size_bytes,
+        preview_kind,
+        page_count,
+        file_exists,
+        message,
+    }
+}
+
+fn preview_kind(mime_type: &str) -> &'static str {
+    if mime_type == "application/pdf" {
+        "Pdf"
+    } else if mime_type.starts_with("image/") {
+        "Image"
+    } else {
+        "Unsupported"
+    }
+}
+
+fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
+    let bytes = fs::read(path).ok()?;
+    let text = String::from_utf8_lossy(&bytes);
+    let count = text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
+    Some(count.max(1))
+}
+
+fn validate_pdf_output_path(output_path: &str) -> AppResult<PathBuf> {
+    let path = PathBuf::from(output_path);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|part| matches!(part, Component::ParentDir))
+    {
+        return Err(AppError::Validation("Invalid export path.".into()));
+    }
+    if path
+        .extension()
+        .and_then(OsStr::to_str)
+        .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+        != Some(true)
+    {
+        return Err(AppError::Validation("Export path must end in .pdf.".into()));
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| AppError::Validation("Invalid export path.".into()))?;
+    if !parent.is_dir() {
+        return Err(AppError::Validation("Export folder does not exist.".into()));
+    }
+    Ok(path)
+}
+
+fn export_pages(
+    detail: &DocumentDetail,
+    storage: &StorageRoot,
+    generated_at: &str,
+    exported_by: &str,
+) -> AppResult<Vec<Vec<String>>> {
+    let doc = &detail.document;
+    let mut pages = vec![vec![
+        "UNIVERSITY OF EASTERN PHILIPPINES (UEP)".to_owned(),
+        "Office of the Vice President for Student and Public External Engagement".to_owned(),
+        "OVPSPEE Filing & Tracking System".to_owned(),
+        String::new(),
+        format!("Document: {}", doc.document_name),
+        format!("Category: {}", doc.category_name),
+        format!("Folder: {}", doc.folder_name.as_deref().unwrap_or("Category root")),
+        format!("Sender Office: {}", doc.office_name.as_deref().unwrap_or("Not specified")),
+        format!("Date Received: {}", doc.date_received),
+        format!("Date Filed: {}", doc.date_added),
+        format!("Status: {}", doc.status),
+        format!("Generated At: {generated_at}"),
+        format!("Exported By: {exported_by}"),
+        String::new(),
+        "Remarks".to_owned(),
+    ]];
+    pages[0].extend(wrap_text(doc.remarks.as_deref().unwrap_or("No remarks."), 86));
+    pages[0].extend([
+        String::new(),
+        "Certification".to_owned(),
+        "This PDF was generated by the OVPSPEE Filing & Tracking System as a system copy of the stored record.".to_owned(),
+        "Final certification wording and letterhead assets are pending client confirmation.".to_owned(),
+    ]);
+
+    let mut attachment_page = vec![
+        "Attachment Manifest".to_owned(),
+        "Attachments are listed in stored sort order. Rendered pages are included where supported by the bundled exporter.".to_owned(),
+        String::new(),
+    ];
+    for attachment in &detail.attachments {
+        let path = storage.resolve_checked(&attachment.stored_relative_path)?;
+        let file_state = if path.is_file() {
+            "available"
+        } else {
+            "file unavailable"
+        };
+        let preview = preview_info_from_row(
+            attachment.attachment_id,
+            attachment.document_id,
+            attachment.original_file_name.clone(),
+            attachment.mime_type.clone(),
+            attachment.file_size_bytes,
+            &path,
+        );
+        attachment_page.push(format!(
+            "{}. {} ({}, {} bytes) - {}",
+            attachment.sort_order,
+            attachment.original_file_name,
+            attachment.mime_type,
+            attachment.file_size_bytes,
+            file_state
+        ));
+        match preview.preview_kind.as_str() {
+            "Pdf" => attachment_page.push(format!(
+                "   PDF attachment detected; {} page(s) estimated. Full PDF page rasterization deferred.",
+                preview.page_count.unwrap_or(1)
+            )),
+            "Image" => attachment_page.push(
+                "   Image attachment detected; image preview available in the app. Inline image rendering deferred."
+                    .to_owned(),
+            ),
+            _ => attachment_page.push(
+                "   Unsupported for inline PDF rendering; file remains stored in the system.".to_owned(),
+            ),
+        }
+    }
+    if detail.attachments.is_empty() {
+        attachment_page.push("No attachments.".to_owned());
+    }
+    pages.push(attachment_page);
+    Ok(pages)
+}
+
+fn build_simple_pdf(pages: &[Vec<String>]) -> Vec<u8> {
+    let total_pages = pages.len();
+    let mut objects: Vec<Vec<u8>> = Vec::new();
+    let catalog_id = 1;
+    let pages_id = 2;
+    let font_id = 3;
+    let first_page_id = 4;
+    let kids = (0..total_pages)
+        .map(|index| format!("{} 0 R", first_page_id + (index * 2)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    objects.push(format!("<< /Type /Catalog /Pages {pages_id} 0 R >>").into_bytes());
+    objects.push(format!("<< /Type /Pages /Kids [{kids}] /Count {total_pages} >>").into_bytes());
+    objects.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec());
+    for (index, lines) in pages.iter().enumerate() {
+        let page_id = first_page_id + (index * 2);
+        let content_id = page_id + 1;
+        objects.push(
+            format!(
+                "<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>"
+            )
+            .into_bytes(),
+        );
+        let stream = page_stream(lines, index + 1, total_pages);
+        objects.push(
+            format!(
+                "<< /Length {} >>\nstream\n{}endstream",
+                stream.as_bytes().len(),
+                stream
+            )
+            .into_bytes(),
+        );
+    }
+
+    let mut output = Vec::new();
+    output.extend_from_slice(b"%PDF-1.4\n");
+    let mut offsets = Vec::new();
+    for (index, object) in objects.iter().enumerate() {
+        offsets.push(output.len());
+        let _ = writeln!(output, "{} 0 obj", index + 1);
+        output.extend_from_slice(object);
+        output.extend_from_slice(b"\nendobj\n");
+    }
+    let xref_offset = output.len();
+    let _ = writeln!(output, "xref\n0 {}", objects.len() + 1);
+    output.extend_from_slice(b"0000000000 65535 f \n");
+    for offset in offsets {
+        let _ = writeln!(output, "{offset:010} 00000 n ");
+    }
+    let _ = write!(
+        output,
+        "trailer\n<< /Size {} /Root {catalog_id} 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n",
+        objects.len() + 1
+    );
+    output
+}
+
+fn page_stream(lines: &[String], page_number: usize, total_pages: usize) -> String {
+    let mut stream = String::new();
+    stream.push_str("BT\n/F1 11 Tf\n14 TL\n72 730 Td\n");
+    for (index, line) in lines.iter().flat_map(|line| wrap_text(line, 90)).take(43).enumerate() {
+        if index == 0 {
+            stream.push_str(&format!("({}) Tj\n", pdf_escape(&line)));
+        } else {
+            stream.push_str(&format!("T* ({}) Tj\n", pdf_escape(&line)));
+        }
+    }
+    stream.push_str("ET\n");
+    stream.push_str("BT\n/F1 9 Tf\n72 42 Td\n");
+    stream.push_str(&format!(
+        "({}) Tj\n",
+        pdf_escape("System-generated copy. Verify against OVPSPEE Filing & Tracking System records.")
+    ));
+    stream.push_str(&format!(
+        "430 0 Td (PAGE {} of {}) Tj\n",
+        page_number, total_pages
+    ));
+    stream.push_str("ET\n");
+    stream
+}
+
+fn wrap_text(value: &str, width: usize) -> Vec<String> {
+    if value.is_empty() {
+        return vec![String::new()];
+    }
+    let mut lines = Vec::new();
+    for raw in value.lines() {
+        let mut current = String::new();
+        for word in raw.split_whitespace() {
+            if !current.is_empty() && current.len() + word.len() + 1 > width {
+                lines.push(current);
+                current = String::new();
+            }
+            if !current.is_empty() {
+                current.push(' ');
+            }
+            current.push_str(word);
+        }
+        lines.push(current);
+    }
+    lines
+}
+
+fn pdf_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('(', "\\(")
+        .replace(')', "\\)")
 }
 
 async fn ensure_document_exists(pool: &DbPool, document_id: i64) -> AppResult<()> {

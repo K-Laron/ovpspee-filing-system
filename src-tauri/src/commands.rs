@@ -5,8 +5,8 @@ use crate::{
     auth::{self, SessionPayload},
     db::DbState,
     documents::{
-        self, AttachmentInput, DocumentDetail, DocumentInput, DocumentItem, DocumentListFilter,
-        StorageRoot,
+        self, AttachmentInput, AttachmentPreviewInfo, AttachmentPreviewPage, DocumentDetail,
+        DocumentInput, DocumentItem, DocumentListFilter, StorageRoot,
     },
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
@@ -631,6 +631,59 @@ pub async fn get_attachment_file_path(
     documents::get_attachment_file_path(&db.pool, &storage, session_id.as_deref(), attachment_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_attachment_preview_info(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+    attachment_id: i64,
+) -> Result<AttachmentPreviewInfo, String> {
+    let storage = storage_root(&app)?;
+    documents::get_attachment_preview_info(&db.pool, &storage, session_id.as_deref(), attachment_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_attachment_preview_page(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+    attachment_id: i64,
+    page_number: Option<i64>,
+) -> Result<AttachmentPreviewPage, String> {
+    let storage = storage_root(&app)?;
+    documents::get_attachment_preview_page(
+        &db.pool,
+        &storage,
+        session_id.as_deref(),
+        attachment_id,
+        page_number,
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn export_document_pdf(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+    document_id: i64,
+    output_path: String,
+) -> Result<String, String> {
+    let storage = storage_root(&app)?;
+    documents::export_document_pdf(
+        &db.pool,
+        &storage,
+        session_id.as_deref(),
+        document_id,
+        &output_path,
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

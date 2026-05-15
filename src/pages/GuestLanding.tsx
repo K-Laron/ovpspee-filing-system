@@ -1,7 +1,10 @@
-import { FileText, Folder, Search } from 'lucide-react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { Download, FileText, Folder, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
+import { AttachmentPreview } from '../components/AttachmentPreview';
 import {
+  exportDocumentPdf,
   getAttachmentFilePath,
   getPublicDocument,
   listPublicCategories,
@@ -19,6 +22,8 @@ export const GuestLanding = () => {
   const [categoryId, setCategoryId] = useState('');
   const [folderId, setFolderId] = useState('');
   const [message, setMessage] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
 
   const load = async () => {
     setCategories(await listPublicCategories());
@@ -54,6 +59,29 @@ export const GuestLanding = () => {
 
   const showPath = async (attachmentId: number) => {
     setMessage(await getAttachmentFilePath(attachmentId));
+  };
+
+  const exportPdf = async () => {
+    if (!detail || exporting) return;
+    setExporting(true);
+    setMessage('');
+    try {
+      const outputPath = await save({
+        defaultPath: `${safeFileName(detail.document.document_name)}.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
+      });
+      if (!outputPath) return;
+      const savedPath = await exportDocumentPdf({
+        documentId: detail.document.document_id,
+        outputPath,
+        sessionId: null
+      });
+      setMessage(`Exported PDF: ${savedPath}`);
+    } catch (err) {
+      setMessage(String(err));
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -137,11 +165,15 @@ export const GuestLanding = () => {
             <div>
               <div className="mb-4 flex items-start gap-3">
                 <FileText className="mt-1 text-primary" size={24} />
-                <div>
+                <div className="min-w-0 flex-1">
                   <h2 className="text-xl font-bold text-secondary">{detail.document.document_name}</h2>
                   <p className="text-sm text-muted">{detail.document.category_name}{detail.document.folder_name ? ` / ${detail.document.folder_name}` : ''}</p>
                   <p className="mt-2 inline-flex rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{detail.document.status}</p>
                 </div>
+                <button className="btn btn-primary" disabled={exporting} onClick={() => void exportPdf()} type="button">
+                  <Download size={16} />
+                  {exporting ? 'Exporting...' : 'Export PDF'}
+                </button>
               </div>
               <dl className="grid gap-3 text-sm md:grid-cols-2">
                 <div><dt className="text-muted">Date received</dt><dd className="font-medium text-secondary">{detail.document.date_received}</dd></div>
@@ -152,11 +184,17 @@ export const GuestLanding = () => {
                 <h3 className="mb-3 font-semibold text-secondary">Attachments</h3>
                 <div className="space-y-2">
                   {detail.attachments.map((file) => (
-                    <button className="flex w-full items-center justify-between rounded border border-border p-3 text-left text-sm hover:bg-background" key={file.attachment_id} onClick={() => void showPath(file.attachment_id).catch((err) => setMessage(String(err)))} type="button">
-                      <span>{file.original_file_name}</span>
-                      <span className="text-xs text-muted">Show path</span>
-                    </button>
+                    <div className="flex items-center justify-between gap-2 rounded border border-border p-3 text-sm" key={file.attachment_id}>
+                      <button className="min-w-0 flex-1 truncate text-left font-medium text-secondary hover:text-primary" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button">{file.original_file_name}</button>
+                      <button className="text-xs text-muted hover:text-secondary" onClick={() => void showPath(file.attachment_id).catch((err) => setMessage(String(err)))} type="button">Show path</button>
+                    </div>
                   ))}
+                </div>
+                <div className="mt-4">
+                  <AttachmentPreview
+                    attachment={detail.attachments.find((file) => file.attachment_id === previewAttachmentId) ?? detail.attachments[0] ?? null}
+                    onError={(error) => setMessage(error)}
+                  />
                 </div>
               </div>
             </div>
@@ -166,3 +204,5 @@ export const GuestLanding = () => {
     </section>
   );
 };
+
+const safeFileName = (value: string) => value.replace(/[<>:"/\\|?*]+/g, '-').slice(0, 80) || 'document';

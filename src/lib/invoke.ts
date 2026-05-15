@@ -3,6 +3,8 @@ import type {
   CategoryItem,
   AuditLogPage,
   AuditRetentionSettings,
+  AttachmentPreviewInfo,
+  AttachmentPreviewPage,
   DocumentDetail,
   DocumentItem,
   DocumentStatus,
@@ -252,6 +254,24 @@ export const getAttachmentFilePath = (
   attachmentId: number,
   sessionId: string | null = null
 ): Promise<string> => invoke('get_attachment_file_path', { attachmentId, sessionId });
+
+export const getAttachmentPreviewInfo = (
+  attachmentId: number,
+  sessionId: string | null = null
+): Promise<AttachmentPreviewInfo> =>
+  invoke('get_attachment_preview_info', { attachmentId, sessionId });
+
+export const getAttachmentPreviewPage = (params: {
+  attachmentId: number;
+  sessionId?: string | null;
+  pageNumber?: number | null;
+}): Promise<AttachmentPreviewPage> => invoke('get_attachment_preview_page', params);
+
+export const exportDocumentPdf = (params: {
+  documentId: number;
+  outputPath: string;
+  sessionId?: string | null;
+}): Promise<string> => invoke('export_document_pdf', params);
 
 export const listPublicCategories = (): Promise<CategoryItem[]> => invoke('list_public_categories');
 

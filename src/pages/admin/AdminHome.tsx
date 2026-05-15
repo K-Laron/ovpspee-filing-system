@@ -8,7 +8,7 @@ export const AdminHome = () => (
       <Shield className="mb-3 text-primary" size={28} />
       <h2 className="font-semibold text-secondary">Later admin features</h2>
       <p className="mt-1 text-sm text-muted">
-        Audit log browsing, backup tools, and deployment packaging are deferred to later slices.
+        Audit log browsing is available. Backup tools and deployment packaging remain deferred to later slices.
       </p>
     </div>
   </section>
