@@ -7,6 +7,7 @@ pub mod devices;
 pub mod documents;
 pub mod error;
 pub mod master_data;
+pub mod printing;
 pub mod scan_intake;
 pub mod users;
 
@@ -100,7 +101,9 @@ pub fn run() {
             commands::list_printers,
             commands::get_default_printer,
             commands::get_device_settings,
-            commands::update_device_settings
+            commands::update_device_settings,
+            commands::list_print_printers,
+            commands::print_document_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running OVPSPEE Filing System");

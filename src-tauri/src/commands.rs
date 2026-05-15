@@ -19,6 +19,7 @@ use crate::{
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
+    printing::{self, PrintOptions, PrintResult},
     scan_intake::{self, ScanIntakeItem},
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
 };
@@ -1196,6 +1197,38 @@ pub async fn update_device_settings(
             scan_default_color_mode,
             scan_default_output_format,
         },
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_print_printers(
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+) -> Result<Vec<PrinterDevice>, String> {
+    printing::list_print_printers(&db.pool, session_id.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn print_document_pdf(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: Option<String>,
+    document_id: i64,
+    printer_id: String,
+    copies: i64,
+) -> Result<PrintResult, String> {
+    let storage = storage_root(&app)?;
+    printing::print_document_pdf(
+        &db.pool,
+        &storage,
+        session_id.as_deref(),
+        document_id,
+        &printer_id,
+        PrintOptions { copies },
     )
     .await
     .map_err(|err| err.to_string())

@@ -1,5 +1,5 @@
 import { save } from '@tauri-apps/plugin-dialog';
-import { Download, FileText, Folder, Search } from 'lucide-react';
+import { Download, FileText, Folder, Printer, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
@@ -7,26 +7,35 @@ import {
   exportDocumentPdf,
   getAttachmentFilePath,
   getPublicDocument,
+  listPrintPrinters,
   listPublicCategories,
   listPublicDocuments,
-  listPublicFolders
+  listPublicFolders,
+  printDocumentPdf
 } from '../lib/invoke';
-import type { CategoryItem, DocumentDetail, DocumentItem, FolderItem } from '../types';
+import type { CategoryItem, DocumentDetail, DocumentItem, FolderItem, PrinterDevice } from '../types';
 
 export const GuestLanding = () => {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [printers, setPrinters] = useState<PrinterDevice[]>([]);
+  const [selectedPrinterId, setSelectedPrinterId] = useState('');
+  const [copies, setCopies] = useState(1);
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [folderId, setFolderId] = useState('');
   const [message, setMessage] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
 
   const load = async () => {
     setCategories(await listPublicCategories());
+    const nextPrinters = await listPrintPrinters(null);
+    setPrinters(nextPrinters);
+    setSelectedPrinterId((current) => current || nextPrinters.find((printer) => printer.is_default)?.printer_id || nextPrinters[0]?.printer_id || '');
     const rows = await listPublicDocuments({
       search: search || null,
       categoryId: categoryId ? Number(categoryId) : null,
@@ -81,6 +90,25 @@ export const GuestLanding = () => {
       setMessage(String(err));
     } finally {
       setExporting(false);
+    }
+  };
+
+  const printPdf = async () => {
+    if (!detail || !selectedPrinterId || printing) return;
+    setPrinting(true);
+    setMessage('');
+    try {
+      const result = await printDocumentPdf({
+        sessionId: null,
+        documentId: detail.document.document_id,
+        printerId: selectedPrinterId,
+        copies
+      });
+      setMessage(`Print submitted to ${result.printer_name}.`);
+    } catch (err) {
+      setMessage(String(err));
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -180,6 +208,22 @@ export const GuestLanding = () => {
                 <div><dt className="text-muted">Sender office</dt><dd className="font-medium text-secondary">{detail.document.office_name ?? 'Not specified'}</dd></div>
                 <div className="md:col-span-2"><dt className="text-muted">Remarks</dt><dd className="font-medium text-secondary">{detail.document.remarks ?? 'No remarks'}</dd></div>
               </dl>
+              <div className="mt-4 grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_100px_auto]">
+                <label>
+                  <span className="form-label">Printer</span>
+                  <select className="input" value={selectedPrinterId} onChange={(e) => setSelectedPrinterId(e.target.value)}>
+                    <option value="">Select printer</option>
+                    {printers.map((printer) => <option key={printer.printer_id} value={printer.printer_id}>{printer.name}{printer.is_default ? ' (Windows default)' : ''}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="form-label">Copies</span>
+                  <input className="input" min={1} max={20} type="number" value={copies} onChange={(e) => setCopies(Number(e.target.value))} />
+                </label>
+                <button className="btn btn-primary self-end" disabled={printing || !selectedPrinterId} onClick={() => void printPdf()} type="button">
+                  <Printer size={16} />{printing ? 'Printing...' : 'Print PDF'}
+                </button>
+              </div>
               <div className="mt-5 border-t border-border pt-4">
                 <h3 className="mb-3 font-semibold text-secondary">Attachments</h3>
                 <div className="space-y-2">

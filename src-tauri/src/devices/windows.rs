@@ -189,6 +189,84 @@ Get-CimInstance Win32_Printer |
         .collect())
 }
 
+pub async fn print_pdf(pdf_path: &Path, printer_name: &str, copies: i64) -> AppResult<()> {
+    let pdf_path = pdf_path
+        .to_str()
+        .ok_or_else(|| AppError::Validation("Print source path is not valid.".into()))?;
+    let script = format!(
+        r#"
+$ErrorActionPreference = 'Stop'
+$pdf = {pdf}
+$printer = {printer}
+$copies = {copies}
+if ($pdf.StartsWith('\\?\')) {{ $pdf = $pdf.Substring(4) }}
+if (!(Test-Path -LiteralPath $pdf)) {{ throw 'Print source is unavailable.' }}
+function Invoke-EdgePdfPrint($sourcePdf, $targetPrinter) {{
+  $edge = @(
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+    "${{env:ProgramFiles(x86)}}\Microsoft\Edge\Application\msedge.exe",
+    "${{env:ProgramFiles(x86)}}\Microsoft\EdgeCore\*\msedge.exe",
+    "${{env:ProgramFiles(x86)}}\Microsoft\EdgeWebView\Application\*\msedge.exe"
+  ) | ForEach-Object {{ Get-ChildItem -Path $_ -ErrorAction SilentlyContinue }} |
+      Sort-Object FullName -Descending |
+      Select-Object -First 1
+  if ($null -eq $edge) {{ throw 'PDF print handler is unavailable. Install or configure a local PDF printer handler.' }}
+  $oldDefault = (Get-CimInstance Win32_Printer | Where-Object {{ $_.Default }} | Select-Object -First 1 -ExpandProperty Name)
+  $network = New-Object -ComObject WScript.Network
+  try {{
+    $network.SetDefaultPrinter($targetPrinter)
+    $fileUrl = ([System.Uri]::new($sourcePdf)).AbsoluteUri
+    $html = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), 'html')
+    $markup = @"
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>OVPSPEE Print</title></head>
+<body style="margin:0">
+  <embed src="$fileUrl" type="application/pdf" style="width:100vw;height:100vh;border:0" />
+  <script>setTimeout(function(){{ window.print(); }}, 1200);</script>
+</body>
+</html>
+"@
+    Set-Content -LiteralPath $html -Value $markup -Encoding UTF8
+    $process = Start-Process -FilePath $edge.FullName -ArgumentList @('--kiosk-printing', '--new-window', ([System.Uri]::new($html)).AbsoluteUri) -PassThru
+    Start-Sleep -Seconds 10
+    if ($null -ne $process -and -not $process.HasExited) {{
+      $process.CloseMainWindow() | Out-Null
+      Start-Sleep -Seconds 1
+      if (-not $process.HasExited) {{ $process.Kill() }}
+    }}
+    Remove-Item -LiteralPath $html -Force -ErrorAction SilentlyContinue
+  }} finally {{
+    if ($oldDefault) {{ $network.SetDefaultPrinter($oldDefault) }}
+  }}
+}}
+for ($i = 0; $i -lt $copies; $i++) {{
+  try {{
+    $process = Start-Process -FilePath $pdf -Verb PrintTo -ArgumentList $printer -PassThru
+    if ($null -ne $process) {{
+      $process.WaitForExit(30000) | Out-Null
+    }}
+  }} catch {{
+    Invoke-EdgePdfPrint $pdf $printer
+  }}
+}}
+"#,
+        pdf = ps_single_quote(pdf_path),
+        printer = ps_single_quote(printer_name),
+        copies = copies,
+    );
+    run_powershell(&script).map_err(|err| match err {
+        AppError::Validation(message) if message.contains("PDF print handler is unavailable") => {
+            AppError::Validation(
+                "PDF print handler is unavailable. Install or configure a local PDF printer handler."
+                    .into(),
+            )
+        }
+        other => other,
+    })?;
+    Ok(())
+}
+
 fn opaque_id(prefix: &str, value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());

@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[cfg(target_os = "windows")]
-mod windows;
+pub mod windows;
 
 pub mod mock;
 

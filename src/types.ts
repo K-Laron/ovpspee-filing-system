@@ -223,6 +223,13 @@ export interface PrinterDevice {
   is_network: boolean;
 }
 
+export interface PrintResult {
+  document_id: number;
+  printer_name: string;
+  copies: number;
+  status: string;
+}
+
 export interface DeviceSettings {
   default_scanner_id: string | null;
   default_printer_id: string | null;

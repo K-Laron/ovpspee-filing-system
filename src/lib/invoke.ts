@@ -15,6 +15,7 @@ import type {
   FolderItem,
   OfficeItem,
   PrinterDevice,
+  PrintResult,
   ProfileItem,
   Role,
   ScanOptions,
@@ -448,6 +449,16 @@ export const updateDeviceSettings = (params: {
   scanDefaultColorMode: DeviceSettings['scan_default_color_mode'];
   scanDefaultOutputFormat: DeviceSettings['scan_default_output_format'];
 }): Promise<DeviceSettings> => invoke('update_device_settings', params);
+
+export const listPrintPrinters = (sessionId: string | null): Promise<PrinterDevice[]> =>
+  invoke('list_print_printers', { sessionId });
+
+export const printDocumentPdf = (params: {
+  sessionId: string | null;
+  documentId: number;
+  printerId: string;
+  copies: number;
+}): Promise<PrintResult> => invoke('print_document_pdf', params);
 
 export const getScannerCapabilities = (params: {
   sessionId: string;
