@@ -1,5 +1,4 @@
 import { FormEvent, useState } from 'react';
-import { LogIn } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { getErrorMessage } from '../lib/errors';
@@ -36,9 +35,7 @@ export const Login = () => {
     <div className="flex h-screen items-center justify-center bg-background p-6">
       <form className="w-full max-w-sm rounded border border-border bg-surface p-6 shadow-sm" onSubmit={handleSubmit}>
         <div className="mb-6">
-          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded bg-primary text-white">
-            <LogIn size={23} />
-          </div>
+          <img alt="UEP logo" className="mb-3 h-14 w-14 rounded-full bg-white object-contain p-1 shadow-sm" src="/uep-logo.png" />
           <h1 className="text-xl font-bold text-secondary">Login</h1>
           <p className="text-sm text-muted">Admin and Secretary accounts only.</p>
         </div>

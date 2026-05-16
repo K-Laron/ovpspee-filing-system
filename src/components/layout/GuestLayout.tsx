@@ -5,9 +5,7 @@ export const GuestLayout = () => (
   <div className="flex h-screen flex-col bg-background">
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-secondary px-6 text-white">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded bg-primary font-bold">
-          U
-        </div>
+        <img alt="UEP logo" className="h-10 w-10 rounded-full bg-white object-contain p-1" src="/uep-logo.png" />
         <div>
           <p className="text-sm font-semibold leading-tight">OVPSPEE Filing and Tracking System</p>
           <p className="text-xs text-white/70">Staff/Head Viewer</p>

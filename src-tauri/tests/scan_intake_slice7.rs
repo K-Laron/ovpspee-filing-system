@@ -15,11 +15,12 @@ use ovpspee_filing_system::{
         create_category, create_folder, create_office, CategoryInput, FolderInput, OfficeInput,
     },
     scan_intake::{
-        attach_scan_to_document, file_scan_as_document, import_scan_files, list_scan_intake,
-        remove_scan_intake,
+        attach_scan_to_document, file_scan_as_document, get_scan_intake_preview_page,
+        import_scan_files, list_scan_intake, remove_scan_intake,
     },
     users::{create_user, UserInput},
 };
+use sqlx::Row;
 use uuid::Uuid;
 
 struct Fixture {
@@ -137,6 +138,12 @@ fn write_pdf(dir: &Path, name: &str) -> PathBuf {
 fn write_png(dir: &Path, name: &str) -> PathBuf {
     let path = dir.join(name);
     fs::write(&path, b"\x89PNG\r\n\x1A\nscan").expect("png");
+    path
+}
+
+fn write_txt(dir: &Path, name: &str) -> PathBuf {
+    let path = dir.join(name);
+    fs::write(&path, b"pending intake text preview").expect("txt");
     path
 }
 
@@ -457,4 +464,151 @@ async fn removing_pending_scan_hides_it_and_preserves_recoverable_file() {
         .is_empty());
     assert!(stored_path.exists());
     assert_eq!(audit_count(&fx.pool, "Removed scan intake file").await, 1);
+}
+
+#[tokio::test]
+async fn secretary_can_preview_pending_intake_metadata_without_absolute_paths() {
+    let fx = fixture().await;
+    let pdf = write_pdf(&fx.source_dir, "preview.pdf");
+    let png = write_png(&fx.source_dir, "preview.png");
+    let ids = import_scan_files(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        vec![
+            pdf.to_string_lossy().into_owned(),
+            png.to_string_lossy().into_owned(),
+        ],
+    )
+    .await
+    .expect("import scans");
+
+    let pdf_preview =
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.secretary, ids[0], Some(1))
+            .await
+            .expect("pdf preview");
+    assert_eq!(pdf_preview.info.preview_kind, "Pdf");
+    assert!(pdf_preview.info.file_exists);
+    assert!(pdf_preview
+        .preview_data_url
+        .as_deref()
+        .expect("pdf data")
+        .starts_with("data:application/pdf;base64,"));
+
+    let image_preview =
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.secretary, ids[1], Some(1))
+            .await
+            .expect("image preview");
+    assert_eq!(image_preview.info.preview_kind, "Image");
+    assert!(image_preview
+        .preview_data_url
+        .as_deref()
+        .expect("image data")
+        .starts_with("data:image/png;base64,"));
+    let serialized = serde_json::to_string(&image_preview).expect("json");
+    assert!(!serialized.contains(&fx.source_dir.to_string_lossy().to_string()));
+}
+
+#[tokio::test]
+async fn scan_intake_preview_rejects_admin_viewer_and_path_traversal() {
+    let fx = fixture().await;
+    let png = write_png(&fx.source_dir, "secure-preview.png");
+    let ids = import_scan_files(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        vec![png.to_string_lossy().into_owned()],
+    )
+    .await
+    .expect("import scan");
+
+    assert!(
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.admin, ids[0], Some(1))
+            .await
+            .is_err()
+    );
+    assert!(
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, "", ids[0], Some(1))
+            .await
+            .is_err()
+    );
+
+    sqlx::query(
+        "UPDATE scan_intake SET stored_relative_path = '../escape.png' WHERE scan_intake_id = ?",
+    )
+    .bind(ids[0])
+    .execute(&fx.pool)
+    .await
+    .expect("poison path");
+    assert!(
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.secretary, ids[0], Some(1))
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn scan_intake_preview_handles_unsupported_missing_and_text_safely() {
+    let fx = fixture().await;
+    let tiff = fx.source_dir.join("unsupported.tiff");
+    fs::write(&tiff, b"II*\0scan").expect("tiff");
+    let ids = import_scan_files(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        vec![tiff.to_string_lossy().into_owned()],
+    )
+    .await
+    .expect("import unsupported");
+    let unsupported =
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.secretary, ids[0], Some(1))
+            .await
+            .expect("unsupported preview");
+    assert_eq!(unsupported.info.preview_kind, "Unsupported");
+    assert!(unsupported.preview_data_url.is_none());
+
+    let stored =
+        sqlx::query("SELECT stored_relative_path FROM scan_intake WHERE scan_intake_id = ?")
+            .bind(ids[0])
+            .fetch_one(&fx.pool)
+            .await
+            .expect("stored")
+            .get::<String, _>("stored_relative_path");
+    fs::remove_file(fx.storage.resolve_relative(&stored)).expect("remove stored");
+    let missing =
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.secretary, ids[0], Some(1))
+            .await
+            .expect("missing preview");
+    assert!(!missing.info.file_exists);
+
+    let txt = write_txt(&fx.source_dir, "pending.txt");
+    let relative = "intake/pending-text.txt";
+    fs::copy(
+        &txt,
+        fx.storage.resolve_checked(relative).expect("stored txt"),
+    )
+    .expect("copy txt");
+    sqlx::query(
+        "INSERT INTO scan_intake
+         (original_file_name, stored_relative_path, mime_type, file_size_bytes, status, created_by, created_at, updated_at)
+         VALUES ('pending.txt', ?, 'text/plain', 27, 'Pending', 1, '2026-05-16T00:00:00Z', '2026-05-16T00:00:00Z')",
+    )
+    .bind(relative)
+    .execute(&fx.pool)
+    .await
+    .expect("insert txt");
+    let txt_id = sqlx::query("SELECT MAX(scan_intake_id) AS id FROM scan_intake")
+        .fetch_one(&fx.pool)
+        .await
+        .expect("txt id")
+        .get::<i64, _>("id");
+    let text_preview =
+        get_scan_intake_preview_page(&fx.pool, &fx.storage, &fx.secretary, txt_id, Some(1))
+            .await
+            .expect("text preview");
+    assert_eq!(text_preview.info.preview_kind, "Text");
+    assert_eq!(
+        text_preview.text_content.as_deref(),
+        Some("pending intake text preview")
+    );
 }

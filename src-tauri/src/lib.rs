@@ -75,6 +75,7 @@ pub fn run() {
             commands::import_scan_files,
             commands::list_scan_intake,
             commands::get_scan_intake,
+            commands::get_scan_intake_preview_page,
             commands::update_scan_intake_notes,
             commands::remove_scan_intake,
             commands::file_scan_as_document,

@@ -40,9 +40,11 @@ export const AppShell = ({ title, subtitle, navItems, profileItem }: AppShellPro
     <div className="flex h-screen overflow-hidden bg-background">
       <aside className="flex w-60 shrink-0 flex-col bg-secondary text-white">
         <div className="border-b border-white/10 p-4">
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-primary text-lg font-bold">
-            O
-          </div>
+          <img
+            alt="UEP logo"
+            className="mb-3 h-12 w-12 rounded-full bg-white object-contain p-1 shadow-sm"
+            src="/uep-logo.png"
+          />
           <p className="text-sm font-semibold">{title}</p>
           <p className="text-xs text-white/60">{subtitle}</p>
         </div>

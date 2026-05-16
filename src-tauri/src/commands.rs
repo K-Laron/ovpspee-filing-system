@@ -20,7 +20,7 @@ use crate::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
     printing::{self, PrintOptions, PrintResult},
-    scan_intake::{self, ScanIntakeItem},
+    scan_intake::{self, ScanIntakeItem, ScanIntakePreviewPage},
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
 };
 
@@ -789,6 +789,26 @@ pub async fn get_scan_intake(
     scan_intake::get_scan_intake(&db.pool, &session_id, scan_intake_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_scan_intake_preview_page(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    scan_intake_id: i64,
+    page_number: Option<i64>,
+) -> Result<ScanIntakePreviewPage, String> {
+    let storage = storage_root(&app)?;
+    scan_intake::get_scan_intake_preview_page(
+        &db.pool,
+        &storage,
+        &session_id,
+        scan_intake_id,
+        page_number,
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

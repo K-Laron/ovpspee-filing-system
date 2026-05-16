@@ -1,5 +1,5 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { FileScan, Link2, RefreshCw, Save, ScanLine, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileScan, FileText, Link2, RefreshCw, Save, ScanLine, Trash2, Upload, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import {
   attachScanToDocument,
   fileScanAsDocument,
   importScanFiles,
+  getScanIntakePreviewPage,
   getDeviceSettings,
   getScannerCapabilities,
   listDocumentOffices,
@@ -27,6 +28,7 @@ import type {
   FolderItem,
   OfficeItem,
   ScanIntakeItem,
+  ScanIntakePreviewPage,
   ScanOptions,
   ScannerCapabilities,
   ScannerDevice
@@ -50,12 +52,110 @@ const emptyForm = {
   status: 'Filed' as DocumentStatus
 };
 
+interface ScanIntakePreviewProps {
+  item: ScanIntakeItem | null;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+  page: number;
+  preview: ScanIntakePreviewPage | null;
+}
+
+const ScanIntakePreview = ({ item, loading, onPageChange, page, preview }: ScanIntakePreviewProps) => {
+  if (!item) {
+    return (
+      <div className="rounded border border-border bg-surface p-5 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Eye size={18} className="text-primary" />
+          <h2 className="font-semibold text-secondary">Pending Preview</h2>
+        </div>
+        <p className="rounded border border-dashed border-border p-4 text-sm text-muted">Select a pending scan/import to preview before filing.</p>
+      </div>
+    );
+  }
+
+  const info = preview?.info;
+  const maxPage = info?.page_count ?? 1;
+  const canPage = info?.preview_kind === 'Pdf' && maxPage > 1;
+  const kind = info?.preview_kind ?? 'Loading';
+
+  return (
+    <div className="space-y-3 rounded border border-border bg-surface p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Eye size={18} className="text-primary" />
+            <h2 className="font-semibold text-secondary">Pending Preview</h2>
+          </div>
+          <p className="mt-1 truncate text-sm font-medium text-secondary">{item.original_file_name}</p>
+          <p className="text-xs text-muted">
+            {kind} · {info?.extension ?? extensionFromName(item.original_file_name)} · {item.mime_type} · {sizeLabel(item.file_size_bytes)}
+          </p>
+        </div>
+        <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{kind}</span>
+      </div>
+
+      {canPage && (
+        <div className="flex items-center gap-2">
+          <button className="icon-btn" disabled={loading || page <= 1} onClick={() => onPageChange(page - 1)} title="Previous page" type="button">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="text-xs font-semibold text-secondary">PAGE {page} of {maxPage}</span>
+          <button className="icon-btn" disabled={loading || page >= maxPage} onClick={() => onPageChange(page + 1)} title="Next page" type="button">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
+
+      {loading && <div className="rounded border border-border bg-background p-4 text-sm text-muted">Loading preview...</div>}
+      {!loading && info && !info.file_exists && (
+        <div className="rounded border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+          <div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />File unavailable</div>
+          <p className="mt-1">{info.message}</p>
+        </div>
+      )}
+      {!loading && info?.file_exists && info.preview_kind === 'Image' && preview?.preview_data_url && (
+        <div className="max-h-[26rem] overflow-auto rounded border border-border bg-white p-3">
+          <img alt={item.original_file_name} className="mx-auto max-h-[24rem] max-w-full object-contain" src={preview.preview_data_url} />
+        </div>
+      )}
+      {!loading && info?.file_exists && info.preview_kind === 'Pdf' && preview?.preview_data_url && (
+        <iframe className="h-[28rem] w-full rounded border border-border bg-white" src={`${preview.preview_data_url}#page=${page}`} title={item.original_file_name} />
+      )}
+      {!loading && preview && info?.file_exists && info.preview_kind === 'Text' && (
+        <div className="rounded border border-border bg-white">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm font-semibold text-secondary">
+            <FileText size={16} />Text preview
+          </div>
+          {preview.text_content ? (
+            <pre className="max-h-[24rem] overflow-auto whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-secondary">{preview.text_content}</pre>
+          ) : (
+            <div className="p-4 text-sm text-muted">{info.message}</div>
+          )}
+          {preview.text_truncated && <p className="border-t border-border px-3 py-2 text-xs text-muted">Preview capped for safety.</p>}
+        </div>
+      )}
+      {!loading && info?.file_exists && info.preview_kind === 'Unsupported' && (
+        <div className="rounded border border-border bg-background p-4 text-sm text-secondary">
+          <div className="mb-2 flex items-center gap-2 font-semibold"><Eye size={16} />Preview not available for this file type</div>
+          <p>{info.message}</p>
+          <dl className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
+            <div><dt className="font-semibold text-secondary">Type</dt><dd>{info.extension.toUpperCase()}</dd></div>
+            <div><dt className="font-semibold text-secondary">MIME</dt><dd>{info.mime_type}</dd></div>
+            <div><dt className="font-semibold text-secondary">Size</dt><dd>{sizeLabel(info.file_size_bytes)}</dd></div>
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const fileNameFromPath = (path: string) => path.split(/[\\/]/).pop() ?? path;
 const normalizeSelectedPaths = (selected: string | string[] | null) => {
   if (!selected) return [];
   return Array.isArray(selected) ? selected : [selected];
 };
 const sizeLabel = (bytes: number) => `${Math.ceil(bytes / 1024)} KB`;
+const extensionFromName = (name: string) => name.split('.').pop()?.toLowerCase() ?? 'file';
 
 export const ScanIntake = () => {
   const navigate = useNavigate();
@@ -82,6 +182,9 @@ export const ScanIntake = () => {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
+  const [preview, setPreview] = useState<ScanIntakePreviewPage | null>(null);
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.scan_intake_id)),
@@ -120,10 +223,11 @@ export const ScanIntake = () => {
   };
 
   const loadIntake = async () => {
-    if (!sessionId) return;
+    if (!sessionId) return [];
     const rows = await listScanIntake(sessionId);
     setItems(rows);
     setSelectedIds((current) => current.filter((id) => rows.some((row) => row.scan_intake_id === id)));
+    return rows;
   };
 
   useEffect(() => {
@@ -162,13 +266,31 @@ export const ScanIntake = () => {
       .catch((err) => setMessage(String(err)));
   }, [form.categoryId]);
 
+  const loadPreview = async (scanIntakeId: number, nextPage = 1) => {
+    if (!sessionId) return;
+    setPreviewLoading(true);
+    try {
+      const next = await getScanIntakePreviewPage({ sessionId, scanIntakeId, pageNumber: nextPage });
+      setPreview(next);
+      setPreviewPage(next.page_number);
+    } catch (err) {
+      setPreview(null);
+      setMessage(String(err));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   useEffect(() => {
     const firstSelected = selectedItems[0];
     if (!firstSelected) {
       setNotesDraft('');
+      setPreview(null);
       return;
     }
     setNotesDraft(firstSelected.notes ?? '');
+    setPreviewPage(1);
+    void loadPreview(firstSelected.scan_intake_id, 1);
     if (!form.documentName) {
       setForm((current) => ({ ...current, documentName: firstSelected.original_file_name.replace(/\.[^.]+$/, '') }));
     }
@@ -189,10 +311,13 @@ export const ScanIntake = () => {
     setBusy(true);
     setMessage('');
     try {
-      await importScanFiles({ sessionId, sourcePaths: selectedPaths });
+      const importedIds = await importScanFiles({ sessionId, sourcePaths: selectedPaths });
       setSelectedPaths([]);
       setMessage('Scan file(s) imported.');
       await loadIntake();
+      if (importedIds.length) {
+        setSelectedIds([Math.max(...importedIds)]);
+      }
     } catch (err) {
       setMessage(String(err));
     } finally {
@@ -205,13 +330,14 @@ export const ScanIntake = () => {
     setScanBusy(true);
     setMessage('Scanner capture started...');
     try {
-      await scanToIntake({
+      const item = await scanToIntake({
         sessionId,
         scannerId: selectedScannerId,
         options: scanOptions
       });
       setMessage('Scanner capture added to pending intake.');
       await loadIntake();
+      setSelectedIds([item.scan_intake_id]);
     } catch (err) {
       setMessage(String(err));
     } finally {
@@ -220,7 +346,7 @@ export const ScanIntake = () => {
   };
 
   const toggleSelected = (id: number) => {
-    setSelectedIds((current) => current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]);
+    setSelectedIds((current) => current.includes(id) ? current.filter((itemId) => itemId !== id) : [id, ...current]);
   };
 
   const saveNotes = async () => {
@@ -305,7 +431,7 @@ export const ScanIntake = () => {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Scan Intake</h1>
-          <p className="mt-1 text-sm text-muted">Use Scan Intake for scanned/imported files that still need to be reviewed and filed.</p>
+          <p className="mt-1 text-sm text-muted">Review scanned/imported files here before filing them as official documents.</p>
         </div>
         <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(String(err)))} type="button">
           <RefreshCw size={16} />Refresh
@@ -407,7 +533,7 @@ export const ScanIntake = () => {
                 <div className="flex items-center justify-between gap-3 rounded border border-border p-3 text-sm" key={sourcePath}>
                   <div className="min-w-0">
                     <p className="truncate font-medium text-secondary">{fileNameFromPath(sourcePath)}</p>
-                    <p className="truncate text-xs text-muted">{sourcePath}</p>
+                    <p className="truncate text-xs text-muted">Ready to import</p>
                   </div>
                   <button className="icon-btn shrink-0" onClick={() => setSelectedPaths((current) => current.filter((path) => path !== sourcePath))} title="Remove selected file" type="button">
                     <X size={15} />
@@ -437,8 +563,11 @@ export const ScanIntake = () => {
                     type="checkbox"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-secondary">{item.original_file_name}</span>
-                    <span className="block text-xs text-muted">{item.mime_type} · {sizeLabel(item.file_size_bytes)}{item.is_large ? ' · Large file' : ''}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-medium text-secondary">{item.original_file_name}</span>
+                      <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{extensionFromName(item.original_file_name).toUpperCase()}</span>
+                    </span>
+                    <span className="block text-xs text-muted">{item.status} · {item.created_at} · {item.mime_type} · {sizeLabel(item.file_size_bytes)}{item.is_large ? ' · Large file' : ''}</span>
                     {item.notes && <span className="mt-1 block text-xs text-muted">{item.notes}</span>}
                   </span>
                 </label>
@@ -448,6 +577,14 @@ export const ScanIntake = () => {
         </div>
 
         <div className="space-y-5">
+          <ScanIntakePreview
+            item={selectedItems[0] ?? null}
+            loading={previewLoading}
+            onPageChange={(nextPage) => selectedItems[0] && void loadPreview(selectedItems[0].scan_intake_id, nextPage)}
+            page={previewPage}
+            preview={preview}
+          />
+
           <form className="rounded border border-border bg-surface p-5 shadow-sm" onSubmit={fileAsDocument}>
             <div className="mb-4 flex items-center gap-2">
               <Save size={18} className="text-primary" />

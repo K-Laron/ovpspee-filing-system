@@ -122,6 +122,27 @@ export interface ScanIntakeItem {
   filed_document_id: number | null;
 }
 
+export interface ScanIntakePreviewInfo {
+  scan_intake_id: number;
+  original_file_name: string;
+  extension: string;
+  mime_type: string;
+  file_size_bytes: number;
+  preview_kind: 'Pdf' | 'Image' | 'Text' | 'Unsupported';
+  page_count: number | null;
+  file_exists: boolean;
+  supported: boolean;
+  message: string;
+}
+
+export interface ScanIntakePreviewPage {
+  info: ScanIntakePreviewInfo;
+  page_number: number;
+  preview_data_url: string | null;
+  text_content: string | null;
+  text_truncated: boolean;
+}
+
 export interface AuditLogEntry {
   id: number;
   action: string;

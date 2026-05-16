@@ -14,6 +14,9 @@ use crate::{
 };
 
 const LARGE_SCAN_WARNING_BYTES: i64 = 262_144_000;
+const MAX_SCAN_PREVIEW_BYTES: i64 = 2_097_152;
+const MAX_SCAN_TEXT_PREVIEW_BYTES: i64 = 262_144;
+const MAX_SCAN_TEXT_PREVIEW_CHARS: usize = 16_384;
 const SCAN_EXTENSIONS: &[&str] = &["pdf", "jpg", "jpeg", "png", "tif", "tiff"];
 
 #[derive(Debug, Clone, Serialize)]
@@ -31,6 +34,29 @@ pub struct ScanIntakeItem {
     pub created_at: String,
     pub updated_at: String,
     pub filed_document_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ScanIntakePreviewInfo {
+    pub scan_intake_id: i64,
+    pub original_file_name: String,
+    pub extension: String,
+    pub mime_type: String,
+    pub file_size_bytes: i64,
+    pub preview_kind: String,
+    pub page_count: Option<i64>,
+    pub file_exists: bool,
+    pub supported: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ScanIntakePreviewPage {
+    pub info: ScanIntakePreviewInfo,
+    pub page_number: i64,
+    pub preview_data_url: Option<String>,
+    pub text_content: Option<String>,
+    pub text_truncated: bool,
 }
 
 pub async fn import_scan_files(
@@ -165,6 +191,45 @@ pub async fn get_scan_intake(
 ) -> AppResult<ScanIntakeItem> {
     require_scan_user(pool, session_id).await?;
     fetch_scan(pool, scan_intake_id).await
+}
+
+pub async fn get_scan_intake_preview_page(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: &str,
+    scan_intake_id: i64,
+    page_number: Option<i64>,
+) -> AppResult<ScanIntakePreviewPage> {
+    require_scan_user(pool, session_id).await?;
+    let scan = fetch_scan(pool, scan_intake_id).await?;
+    if scan.status != "Pending" || scan.is_deleted {
+        return Err(AppError::NotFound("Pending scan not found.".into()));
+    }
+    let path = storage.resolve_checked(&scan.stored_relative_path)?;
+    let info = scan_preview_info(&scan, &path);
+    let requested = page_number.unwrap_or(1).max(1);
+    let max_page = info.page_count.unwrap_or(1).max(1);
+    if requested > max_page {
+        return Err(AppError::Validation("Preview page is out of range.".into()));
+    }
+    let preview_data_url =
+        if info.file_exists && matches!(info.preview_kind.as_str(), "Pdf" | "Image") {
+            read_preview_data_url(&path, &info.mime_type, info.file_size_bytes)?
+        } else {
+            None
+        };
+    let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
+        read_text_preview(&path, info.file_size_bytes)?
+    } else {
+        (None, false)
+    };
+    Ok(ScanIntakePreviewPage {
+        info,
+        page_number: requested,
+        preview_data_url,
+        text_content,
+        text_truncated,
+    })
 }
 
 pub async fn update_scan_intake_notes(
@@ -461,6 +526,131 @@ fn scan_extension(path: &PathBuf) -> AppResult<String> {
             "Scan file type is not allowed.".into(),
         ))
     }
+}
+
+fn scan_preview_info(scan: &ScanIntakeItem, path: &std::path::Path) -> ScanIntakePreviewInfo {
+    let file_exists = path.is_file();
+    let preview_kind = scan_preview_kind(&scan.mime_type).to_owned();
+    let supported = preview_kind != "Unsupported";
+    let page_count = if file_exists && preview_kind == "Pdf" {
+        estimate_pdf_page_count(path)
+    } else if file_exists && preview_kind == "Image" {
+        Some(1)
+    } else {
+        None
+    };
+    let message = if !file_exists {
+        "Pending scan file is unavailable.".to_owned()
+    } else if matches!(preview_kind.as_str(), "Pdf" | "Image")
+        && scan.file_size_bytes > MAX_SCAN_PREVIEW_BYTES
+    {
+        "Preview is unavailable because this pending file is too large.".to_owned()
+    } else if preview_kind == "Text" && scan.file_size_bytes > MAX_SCAN_TEXT_PREVIEW_BYTES {
+        "Text preview is unavailable because this pending file is too large.".to_owned()
+    } else if preview_kind == "Unsupported" {
+        "Preview not available for this scan file type.".to_owned()
+    } else {
+        "Preview available.".to_owned()
+    };
+    ScanIntakePreviewInfo {
+        scan_intake_id: scan.scan_intake_id,
+        original_file_name: scan.original_file_name.clone(),
+        extension: path
+            .extension()
+            .and_then(OsStr::to_str)
+            .unwrap_or("unknown")
+            .to_ascii_lowercase(),
+        mime_type: scan.mime_type.clone(),
+        file_size_bytes: scan.file_size_bytes,
+        preview_kind,
+        page_count,
+        file_exists,
+        supported,
+        message,
+    }
+}
+
+fn scan_preview_kind(mime_type: &str) -> &'static str {
+    if mime_type == "application/pdf" {
+        "Pdf"
+    } else if matches!(mime_type, "image/png" | "image/jpeg") {
+        "Image"
+    } else if mime_type == "text/plain" {
+        "Text"
+    } else {
+        "Unsupported"
+    }
+}
+
+fn read_preview_data_url(
+    path: &std::path::Path,
+    mime_type: &str,
+    file_size: i64,
+) -> AppResult<Option<String>> {
+    if file_size > MAX_SCAN_PREVIEW_BYTES {
+        return Ok(None);
+    }
+    let bytes = fs::read(path)?;
+    Ok(Some(format!(
+        "data:{mime_type};base64,{}",
+        encode_base64(&bytes)
+    )))
+}
+
+fn read_text_preview(
+    path: &std::path::Path,
+    file_size_bytes: i64,
+) -> AppResult<(Option<String>, bool)> {
+    if file_size_bytes > MAX_SCAN_TEXT_PREVIEW_BYTES {
+        return Ok((None, true));
+    }
+    let bytes = fs::read(path)?;
+    let text = String::from_utf8(bytes).map_err(|_| {
+        AppError::Validation("Text preview is available only for UTF-8 text files.".into())
+    })?;
+    let mut truncated = false;
+    let mut preview = String::new();
+    for (index, ch) in text.chars().enumerate() {
+        if index >= MAX_SCAN_TEXT_PREVIEW_CHARS {
+            truncated = true;
+            break;
+        }
+        preview.push(ch);
+    }
+    Ok((Some(preview), truncated))
+}
+
+fn estimate_pdf_page_count(path: &std::path::Path) -> Option<i64> {
+    fs::read(path).ok().map(|bytes| {
+        let count = bytes
+            .windows(5)
+            .filter(|window| *window == b"/Page")
+            .count() as i64;
+        count.max(1)
+    })
+}
+
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0];
+        let second = *chunk.get(1).unwrap_or(&0);
+        let third = *chunk.get(2).unwrap_or(&0);
+        output.push(TABLE[(first >> 2) as usize] as char);
+        output.push(TABLE[(((first & 0b0000_0011) << 4) | (second >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            output.push(TABLE[(((second & 0b0000_1111) << 2) | (third >> 6)) as usize] as char);
+        } else {
+            output.push('=');
+        }
+        if chunk.len() > 2 {
+            output.push(TABLE[(third & 0b0011_1111) as usize] as char);
+        } else {
+            output.push('=');
+        }
+    }
+    output
 }
 
 async fn require_scan_user(

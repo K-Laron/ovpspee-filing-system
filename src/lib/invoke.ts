@@ -22,6 +22,7 @@ import type {
   ScannerCapabilities,
   ScannerDevice,
   ScanIntakeItem,
+  ScanIntakePreviewPage,
   SessionPayload,
   RestoreResult,
   UserItem
@@ -315,6 +316,12 @@ export const getScanIntake = (
   sessionId: string,
   scanIntakeId: number
 ): Promise<ScanIntakeItem> => invoke('get_scan_intake', { sessionId, scanIntakeId });
+
+export const getScanIntakePreviewPage = (params: {
+  sessionId: string;
+  scanIntakeId: number;
+  pageNumber?: number | null;
+}): Promise<ScanIntakePreviewPage> => invoke('get_scan_intake_preview_page', params);
 
 export const updateScanIntakeNotes = (params: {
   sessionId: string;
