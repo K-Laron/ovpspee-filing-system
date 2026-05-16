@@ -421,3 +421,205 @@ async fn attachment_preview_rejects_path_traversal() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn text_attachment_preview_returns_capped_safe_text() {
+    let fx = fixture().await;
+    let id = create_doc(&fx, "Text Preview", "Filed").await;
+    let txt = source(
+        &fx,
+        "notes.txt",
+        b"Line one\nLine two\nThis is safe UTF-8 text for preview.",
+    );
+    let attachment_id = add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        id,
+        AttachmentInput {
+            source_path: txt.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("txt attachment");
+
+    let page = get_attachment_preview_page(
+        &fx.pool,
+        &fx.storage,
+        Some(&fx.secretary),
+        attachment_id,
+        Some(1),
+    )
+    .await
+    .expect("text preview");
+
+    assert_eq!(page.info.preview_kind, "Text");
+    assert_eq!(page.info.extension, "txt");
+    assert!(page.info.supported);
+    assert!(page.file_path.is_none());
+    assert!(page
+        .text_content
+        .as_deref()
+        .expect("text")
+        .contains("Line two"));
+    assert!(!page.text_truncated);
+}
+
+#[tokio::test]
+async fn large_text_preview_is_rejected_safely_without_content() {
+    let fx = fixture().await;
+    let id = create_doc(&fx, "Large Text Preview", "Filed").await;
+    let large_text = vec![b'a'; 300_000];
+    let txt = source(&fx, "large.txt", &large_text);
+    let attachment_id = add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        id,
+        AttachmentInput {
+            source_path: txt.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("large txt attachment");
+
+    let page = get_attachment_preview_page(
+        &fx.pool,
+        &fx.storage,
+        Some(&fx.secretary),
+        attachment_id,
+        Some(1),
+    )
+    .await
+    .expect("large text preview state");
+
+    assert_eq!(page.info.preview_kind, "Text");
+    assert!(page.info.message.contains("too large"));
+    assert!(page.text_content.is_none());
+    assert!(page.text_truncated);
+    assert!(page.file_path.is_none());
+}
+
+#[tokio::test]
+async fn unsupported_office_and_missing_files_return_safe_preview_metadata() {
+    let fx = fixture().await;
+    let id = create_doc(&fx, "Unsupported Preview", "Filed").await;
+    let docx = source(&fx, "brief.docx", b"PK\x03\x04docx-placeholder");
+    let docx_id = add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        id,
+        AttachmentInput {
+            source_path: docx.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("docx attachment");
+
+    let info = get_attachment_preview_info(&fx.pool, &fx.storage, Some(&fx.secretary), docx_id)
+        .await
+        .expect("unsupported info");
+    assert_eq!(info.preview_kind, "Unsupported");
+    assert_eq!(info.extension, "docx");
+    assert!(!info.supported);
+    assert!(info.message.contains("Preview not available"));
+
+    let stored = sqlx::query("SELECT stored_relative_path FROM attachment WHERE attachment_id = ?")
+        .bind(docx_id)
+        .fetch_one(&fx.pool)
+        .await
+        .expect("stored")
+        .get::<String, _>("stored_relative_path");
+    fs::remove_file(fx.storage.resolve_relative(&stored)).expect("remove stored");
+    let missing = get_attachment_preview_info(&fx.pool, &fx.storage, Some(&fx.secretary), docx_id)
+        .await
+        .expect("missing info");
+    assert!(!missing.file_exists);
+    assert!(missing.message.contains("unavailable"));
+}
+
+#[tokio::test]
+async fn public_preview_blocks_confidential_and_trashed_attachments() {
+    let fx = fixture().await;
+    let confidential = create_doc(&fx, "Confidential Preview", "Confidential").await;
+    let trashed = create_doc(&fx, "Trashed Preview", "Filed").await;
+    trash_document(&fx.pool, &fx.secretary, trashed)
+        .await
+        .expect("trash");
+    let txt = source(&fx, "blocked.txt", b"blocked");
+    let confidential_attachment = add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        confidential,
+        AttachmentInput {
+            source_path: txt.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("confidential attachment");
+    let trashed_attachment = add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        trashed,
+        AttachmentInput {
+            source_path: txt.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("trashed attachment");
+
+    assert!(
+        get_attachment_preview_info(&fx.pool, &fx.storage, None, confidential_attachment)
+            .await
+            .is_err()
+    );
+    assert!(
+        get_attachment_preview_info(&fx.pool, &fx.storage, None, trashed_attachment)
+            .await
+            .is_err()
+    );
+    assert!(get_attachment_preview_info(
+        &fx.pool,
+        &fx.storage,
+        Some(&fx.secretary),
+        confidential_attachment
+    )
+    .await
+    .is_ok());
+}
+
+#[tokio::test]
+async fn preview_info_does_not_serialize_absolute_paths() {
+    let fx = fixture().await;
+    let id = create_doc(&fx, "Safe DTO Preview", "Filed").await;
+    let txt = source(&fx, "safe-dto.txt", b"safe");
+    let attachment_id = add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        id,
+        AttachmentInput {
+            source_path: txt.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("txt attachment");
+
+    let info =
+        get_attachment_preview_info(&fx.pool, &fx.storage, Some(&fx.secretary), attachment_id)
+            .await
+            .expect("info");
+    let json = serde_json::to_string(&info).expect("json");
+
+    assert!(!json.contains(fx.root.path().to_string_lossy().as_ref()));
+    assert!(!json.contains("\\\\"));
+}

@@ -5,7 +5,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { AttachmentPreview } from '../components/AttachmentPreview';
 import {
   exportDocumentPdf,
-  getAttachmentFilePath,
   getPublicDocument,
   listPrintPrinters,
   listPublicCategories,
@@ -79,10 +78,6 @@ export const GuestLanding = () => {
 
   const openDocument = async (documentId: number) => {
     setDetail(await getPublicDocument(documentId));
-  };
-
-  const showPath = async (attachmentId: number) => {
-    setMessage(await getAttachmentFilePath(attachmentId));
   };
 
   const exportPdf = async () => {
@@ -251,7 +246,6 @@ export const GuestLanding = () => {
                   {detail.attachments.map((file) => (
                     <div className="flex items-center justify-between gap-2 rounded border border-border p-3 text-sm" key={file.attachment_id}>
                       <button className="min-w-0 flex-1 truncate text-left font-medium text-secondary hover:text-primary" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button">{file.original_file_name}</button>
-                      <button className="text-xs text-muted hover:text-secondary" onClick={() => void showPath(file.attachment_id).catch((err) => setMessage(String(err)))} type="button">Show path</button>
                     </div>
                   ))}
                 </div>

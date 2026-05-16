@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileText, Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { getAttachmentPreviewPage } from '../lib/invoke';
@@ -55,14 +55,18 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
   const maxPage = info?.page_count ?? 1;
   const canPage = info?.preview_kind === 'Pdf' && maxPage > 1;
   const fileUrl = preview?.file_path ? convertFileSrc(preview.file_path) : null;
+  const kindLabel = info?.preview_kind ?? 'Loading';
 
   return (
     <div className="space-y-3 rounded border border-border bg-background p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-secondary">{attachment.original_file_name}</p>
-          <p className="text-xs text-muted">{info?.mime_type ?? attachment.mime_type} · {Math.ceil(attachment.file_size_bytes / 1024)} KB</p>
+          <p className="text-xs text-muted">
+            {kindLabel} · {info?.extension ?? extensionFromName(attachment.original_file_name)} · {info?.mime_type ?? attachment.mime_type} · {formatBytes(attachment.file_size_bytes)}
+          </p>
         </div>
+        <span className="rounded bg-surface px-2 py-1 text-xs font-semibold text-secondary">{kindLabel}</span>
         <div className="flex items-center gap-2">
           {canPage && (
             <>
@@ -80,6 +84,22 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
 
       {loading && <div className="rounded border border-border bg-surface p-4 text-sm text-muted">Loading preview...</div>}
       {!loading && info && !info.file_exists && <Unavailable message={info.message} />}
+      {!loading && preview && info?.file_exists && info.preview_kind === 'Text' && (
+        <div className="rounded border border-border bg-white">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm font-semibold text-secondary">
+            <FileText size={16} />
+            Text preview
+          </div>
+          {preview.text_content ? (
+            <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-secondary">{preview.text_content}</pre>
+          ) : (
+            <div className="p-4 text-sm text-muted">{info.message}</div>
+          )}
+          {preview.text_truncated && (
+            <p className="border-t border-border px-3 py-2 text-xs text-muted">Preview is capped for safety. Use the existing access action if more content is needed.</p>
+          )}
+        </div>
+      )}
       {!loading && info?.file_exists && info.preview_kind === 'Image' && fileUrl && (
         <div className="max-h-[34rem] overflow-auto rounded border border-border bg-white p-3">
           <img alt={attachment.original_file_name} className="mx-auto max-h-[32rem] max-w-full object-contain" src={fileUrl} />
@@ -90,9 +110,14 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
       )}
       {!loading && info?.file_exists && info.preview_kind === 'Unsupported' && (
         <div className="rounded border border-border bg-surface p-4 text-sm text-secondary">
-          <div className="mb-2 flex items-center gap-2 font-semibold"><Eye size={16} />Unsupported preview</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold"><Eye size={16} />Preview not available for this file type</div>
           <p>{info.message}</p>
-          <p className="mt-2 text-xs text-muted">Stored file remains accessible through the system attachment record.</p>
+          <dl className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
+            <div><dt className="font-semibold text-secondary">Type</dt><dd>{info.extension.toUpperCase()}</dd></div>
+            <div><dt className="font-semibold text-secondary">MIME</dt><dd>{info.mime_type}</dd></div>
+            <div><dt className="font-semibold text-secondary">Size</dt><dd>{formatBytes(info.file_size_bytes)}</dd></div>
+          </dl>
+          <p className="mt-3 flex items-center gap-2 text-xs text-muted"><Info size={14} />Use the existing safe access action to open the stored attachment, if permitted.</p>
         </div>
       )}
     </div>
@@ -101,6 +126,15 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
 
 const Unavailable = ({ message }: { message: string }) => (
   <div className="rounded border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-    {message}
+    <div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />File unavailable</div>
+    <p className="mt-1">{message}</p>
   </div>
 );
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const extensionFromName = (name: string) => name.split('.').pop()?.toLowerCase() ?? 'unknown';

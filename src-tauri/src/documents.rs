@@ -19,6 +19,8 @@ use crate::{
 };
 
 pub(crate) const MAX_ATTACHMENT_BYTES: u64 = 1_073_741_824;
+const MAX_TEXT_PREVIEW_BYTES: i64 = 262_144;
+const MAX_TEXT_PREVIEW_CHARS: usize = 16_384;
 
 const ALLOWED_EXTENSIONS: &[&str] = &[
     "pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png", "tif", "tiff", "txt",
@@ -142,11 +144,13 @@ pub struct AttachmentPreviewInfo {
     pub attachment_id: i64,
     pub document_id: i64,
     pub original_file_name: String,
+    pub extension: String,
     pub mime_type: String,
     pub file_size_bytes: i64,
     pub preview_kind: String,
     pub page_count: Option<i64>,
     pub file_exists: bool,
+    pub supported: bool,
     pub message: String,
 }
 
@@ -155,6 +159,8 @@ pub struct AttachmentPreviewPage {
     pub info: AttachmentPreviewInfo,
     pub page_number: i64,
     pub file_path: Option<String>,
+    pub text_content: Option<String>,
+    pub text_truncated: bool,
 }
 
 pub async fn create_document(
@@ -753,7 +759,12 @@ pub async fn get_attachment_preview_page(
     if requested > max_page {
         return Err(AppError::Validation("Preview page is out of range.".into()));
     }
-    let file_path = if info.file_exists && info.preview_kind != "Unsupported" {
+    let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
+        read_text_preview(&path, info.file_size_bytes)?
+    } else {
+        (None, false)
+    };
+    let file_path = if info.file_exists && matches!(info.preview_kind.as_str(), "Pdf" | "Image") {
         Some(path.to_string_lossy().into_owned())
     } else {
         None
@@ -762,6 +773,8 @@ pub async fn get_attachment_preview_page(
         info,
         page_number: requested,
         file_path,
+        text_content,
+        text_truncated,
     })
 }
 
@@ -1220,6 +1233,7 @@ fn preview_info_from_row(
 ) -> AttachmentPreviewInfo {
     let file_exists = path.is_file();
     let preview_kind = preview_kind(&mime_type).to_owned();
+    let supported = preview_kind != "Unsupported";
     let page_count = if file_exists && preview_kind == "Pdf" {
         estimate_pdf_page_count(path)
     } else if file_exists && preview_kind == "Image" {
@@ -1229,8 +1243,10 @@ fn preview_info_from_row(
     };
     let message = if !file_exists {
         "Attachment file is unavailable.".to_owned()
+    } else if preview_kind == "Text" && file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+        "Text preview is unavailable because this file is too large. Use the safe access action instead.".to_owned()
     } else if preview_kind == "Unsupported" {
-        "Preview is not supported for this file type.".to_owned()
+        "Preview not available for this file type. Use the safe access action if you need to open it.".to_owned()
     } else {
         "Preview available.".to_owned()
     };
@@ -1238,11 +1254,13 @@ fn preview_info_from_row(
         attachment_id,
         document_id,
         original_file_name,
+        extension: extension_from_name(path, &mime_type),
         mime_type,
         file_size_bytes,
         preview_kind,
         page_count,
         file_exists,
+        supported,
         message,
     }
 }
@@ -1250,11 +1268,48 @@ fn preview_info_from_row(
 fn preview_kind(mime_type: &str) -> &'static str {
     if mime_type == "application/pdf" {
         "Pdf"
-    } else if mime_type.starts_with("image/") {
+    } else if matches!(mime_type, "image/png" | "image/jpeg") {
         "Image"
+    } else if mime_type == "text/plain" {
+        "Text"
     } else {
         "Unsupported"
     }
+}
+
+fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<String>, bool)> {
+    if file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+        return Ok((None, true));
+    }
+    let bytes = fs::read(path)?;
+    let text = String::from_utf8(bytes).map_err(|_| {
+        AppError::Validation("Text preview is available only for UTF-8 text files.".into())
+    })?;
+    let mut truncated = false;
+    let mut preview = String::new();
+    for (index, ch) in text.chars().enumerate() {
+        if index >= MAX_TEXT_PREVIEW_CHARS {
+            truncated = true;
+            break;
+        }
+        preview.push(ch);
+    }
+    Ok((Some(preview), truncated))
+}
+
+fn extension_from_name(path: &Path, mime_type: &str) -> String {
+    path.extension()
+        .and_then(OsStr::to_str)
+        .map(|ext| ext.to_ascii_lowercase())
+        .unwrap_or_else(|| {
+            if mime_type == "application/pdf" {
+                "pdf".to_owned()
+            } else if mime_type == "text/plain" {
+                "txt".to_owned()
+            } else {
+                "unknown".to_owned()
+            }
+        })
 }
 
 fn estimate_pdf_page_count(path: &Path) -> Option<i64> {

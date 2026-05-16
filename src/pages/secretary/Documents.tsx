@@ -1,12 +1,11 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { Download, Edit3, ExternalLink, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
+import { Download, Edit3, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
 import {
   addAttachment,
   exportDocumentPdf,
-  getAttachmentFilePath,
   getDocument,
   listPrintPrinters,
   listDocumentOffices,
@@ -189,12 +188,6 @@ export const Documents = () => {
     await removeAttachment({ sessionId, attachmentId });
     setMessage('Attachment removed.');
     await openDetail(detail.document.document_id);
-  };
-
-  const showPath = async (attachmentId: number) => {
-    if (!sessionId) return;
-    const path = await getAttachmentFilePath(attachmentId, sessionId);
-    setMessage(path);
   };
 
   const toggleHidden = async () => {
@@ -477,7 +470,6 @@ export const Documents = () => {
                       <div><p className="font-medium text-secondary">{file.original_file_name}</p><p className="text-xs text-muted">{Math.ceil(file.file_size_bytes / 1024)} KB</p></div>
                       <div className="flex gap-2">
                         <button className="icon-btn" title="Preview attachment" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button"><Eye size={15} /></button>
-                        <button className="icon-btn" title="Show file path" onClick={() => void showPath(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><ExternalLink size={15} /></button>
                         {!isTrashView && <button className="icon-btn" title="Remove attachment" onClick={() => void remove(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><Trash2 size={15} /></button>}
                       </div>
                     </div>
