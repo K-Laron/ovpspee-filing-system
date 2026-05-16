@@ -1,5 +1,6 @@
 use std::{fs, path::PathBuf};
 
+use image::{ImageFormat, Rgb, RgbImage};
 use ovpspee_filing_system::{
     auth::{authenticate_user, create_first_admin},
     db::{create_test_pool, DbPool},
@@ -132,6 +133,14 @@ fn source(fx: &Fixture, name: &str, bytes: &[u8]) -> PathBuf {
     path
 }
 
+fn image_source(fx: &Fixture, name: &str, format: ImageFormat, color: [u8; 3]) -> PathBuf {
+    let path = fx.root.path().join("source").join(name);
+    fs::create_dir_all(path.parent().expect("parent")).expect("source parent");
+    let image = RgbImage::from_pixel(24, 16, Rgb(color));
+    image.save_with_format(&path, format).expect("image source");
+    path
+}
+
 #[tokio::test]
 async fn public_viewer_can_export_visible_document_with_metadata() {
     let fx = fixture().await;
@@ -221,7 +230,7 @@ async fn export_handles_pdf_image_unsupported_and_missing_attachments() {
         "two-page.pdf",
         b"%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n2 0 obj << /Type /Page >> endobj\n",
     );
-    let png = source(&fx, "image.png", b"\x89PNG\r\n\x1a\nslice9");
+    let png = image_source(&fx, "image.png", ImageFormat::Png, [220, 40, 40]);
     let txt = source(&fx, "notes.txt", b"plain text");
     add_attachment(
         &fx.pool,
@@ -275,8 +284,61 @@ async fn export_handles_pdf_image_unsupported_and_missing_attachments() {
 
     assert!(text.contains("Attachment Manifest"));
     assert!(text.contains("two-page.pdf"));
-    assert!(text.contains("Image attachment detected"));
+    assert!(text.contains("Rendered inline as Attachment 2: image.png"));
+    assert!(text.contains("Attachment 2: image.png"));
     assert!(text.contains("file unavailable"));
+    assert!(!text.contains(&fx.root.path().to_string_lossy().to_string()));
+}
+
+#[tokio::test]
+async fn export_renders_png_and_jpeg_inline_in_sort_order() {
+    let fx = fixture().await;
+    let id = create_doc(&fx, "Inline Images", "Filed").await;
+    let png = image_source(&fx, "first.png", ImageFormat::Png, [20, 120, 220]);
+    let jpeg = image_source(&fx, "second.jpg", ImageFormat::Jpeg, [20, 180, 80]);
+
+    add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        id,
+        AttachmentInput {
+            source_path: jpeg.to_string_lossy().into_owned(),
+            sort_order: Some(2),
+        },
+    )
+    .await
+    .expect("jpeg attachment");
+    add_attachment(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        id,
+        AttachmentInput {
+            source_path: png.to_string_lossy().into_owned(),
+            sort_order: Some(1),
+        },
+    )
+    .await
+    .expect("png attachment");
+
+    let output = out(&fx, "inline-images.pdf");
+    export_document_pdf(&fx.pool, &fx.storage, Some(&fx.secretary), id, &output)
+        .await
+        .expect("export");
+    let bytes = fs::read(&output).expect("pdf");
+    assert!(bytes.len() > 1_000);
+    let text = String::from_utf8_lossy(&bytes).to_string();
+    let first = text.find("Attachment 1: first.png").expect("first marker");
+    let second = text
+        .find("Attachment 2: second.jpg")
+        .expect("second marker");
+    assert!(first < second);
+    assert!(text.contains("PAGE 2 of 4"));
+    assert!(text.contains("PAGE 3 of 4"));
+    assert!(text.contains("Rendered inline as Attachment 1: first.png"));
+    assert!(text.contains("Rendered inline as Attachment 2: second.jpg"));
+    assert!(!text.contains(&fx.root.path().to_string_lossy().to_string()));
 }
 
 #[tokio::test]
