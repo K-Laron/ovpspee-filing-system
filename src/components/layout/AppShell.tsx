@@ -42,7 +42,7 @@ export const AppShell = ({ title, subtitle, navItems, profileItem }: AppShellPro
         <div className="border-b border-white/10 p-4">
           <img
             alt="UEP logo"
-            className="mb-3 h-12 w-12 rounded-full bg-white object-contain p-1 shadow-sm"
+            className="mb-3 h-12 w-12 object-contain drop-shadow-sm"
             src="/uep-logo.png"
           />
           <p className="text-sm font-semibold">{title}</p>
