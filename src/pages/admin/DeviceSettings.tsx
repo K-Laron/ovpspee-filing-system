@@ -1,6 +1,7 @@
 import { RefreshCw, Save, ScanLine, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { EmptyState } from '../../components/EmptyState';
 import {
   getDefaultPrinter,
   getDeviceSettings,
@@ -8,18 +9,16 @@ import {
   listScanners,
   updateDeviceSettings
 } from '../../lib/invoke';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DeviceSettings, PrinterDevice, ScannerDevice } from '../../types';
-
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
 
 const defaultSettings: DeviceSettings = {
   default_scanner_id: null,
   default_printer_id: null,
   scan_default_dpi: 300,
   scan_default_color_mode: 'color',
-  scan_default_output_format: 'pdf',
+  scan_default_output_format: 'png',
   device_detection_last_checked_at: null
 };
 
@@ -50,7 +49,7 @@ export const DeviceSettingsPage = () => {
       setPrinters(nextPrinters);
       setMessage('Device detection refreshed.');
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not detect devices.'));
+      setMessage(getUserErrorMessage(err, 'Could not detect devices.'));
     } finally {
       setLoading(false);
     }
@@ -76,7 +75,7 @@ export const DeviceSettingsPage = () => {
       setSettings(updated);
       setMessage('Device defaults saved.');
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not save device defaults.'));
+      setMessage(getUserErrorMessage(err, 'Could not save device defaults.'));
     } finally {
       setSaving(false);
     }
@@ -117,7 +116,12 @@ export const DeviceSettingsPage = () => {
             <h2 className="text-lg font-semibold text-secondary">Scanner Detection</h2>
           </div>
           {scanners.length === 0 ? (
-            <p className="rounded border border-dashed border-border p-4 text-sm text-muted">No scanner detected.</p>
+            <EmptyState
+              actionLabel="Refresh Devices"
+              message="Connect and turn on the scanner, then refresh detection before choosing a default."
+              onAction={() => void load()}
+              title="No scanner detected"
+            />
           ) : (
             <div className="space-y-3">
               {scanners.map((scanner) => (
@@ -177,10 +181,10 @@ export const DeviceSettingsPage = () => {
                 value={settings.scan_default_output_format}
                 onChange={(event) => setSettings((current) => ({ ...current, scan_default_output_format: event.target.value as DeviceSettings['scan_default_output_format'] }))}
               >
-                <option value="pdf">PDF</option>
                 <option value="png">PNG</option>
                 <option value="jpg">JPG</option>
               </select>
+              <p className="mt-1 text-xs text-muted">PDF files can be imported in Scan Intake. Direct scanner capture saves image files.</p>
             </label>
           </div>
         </div>
@@ -191,7 +195,12 @@ export const DeviceSettingsPage = () => {
             <h2 className="text-lg font-semibold text-secondary">Printer Detection</h2>
           </div>
           {printers.length === 0 ? (
-            <p className="rounded border border-dashed border-border p-4 text-sm text-muted">No printer detected.</p>
+            <EmptyState
+              actionLabel="Refresh Devices"
+              message="Connect or wake the printer, then refresh detection before choosing a default."
+              onAction={() => void load()}
+              title="No printer detected"
+            />
           ) : (
             <div className="space-y-3">
               {printers.map((printer) => (

@@ -3,6 +3,8 @@ import { Download, FileText, Folder, Printer, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
+import { EmptyState } from '../components/EmptyState';
+import { formatDateOnly } from '../lib/dates';
 import {
   exportDocumentPdf,
   getPublicDocument,
@@ -12,6 +14,7 @@ import {
   listPublicFolders,
   printDocumentPdf
 } from '../lib/invoke';
+import { getUserErrorMessage } from '../lib/errors';
 import type { CategoryItem, DocumentDetail, DocumentItem, FolderItem, PrinterDevice } from '../types';
 
 export const GuestLanding = () => {
@@ -47,7 +50,7 @@ export const GuestLanding = () => {
   };
 
   useEffect(() => {
-    void load().catch((err) => setMessage(String(err)));
+    void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, []);
 
   const selectCategory = async (id: number) => {
@@ -61,7 +64,7 @@ export const GuestLanding = () => {
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
     setDetail(null);
-    void load().catch((err) => setMessage(String(err)));
+    void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   };
 
   const clearSearch = () => {
@@ -73,7 +76,7 @@ export const GuestLanding = () => {
     }).then(async (rows) => {
       setDocuments(rows);
       if (rows[0]) setDetail(await getPublicDocument(rows[0].document_id));
-    }).catch((err) => setMessage(String(err)));
+    }).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   };
 
   const openDocument = async (documentId: number) => {
@@ -97,7 +100,7 @@ export const GuestLanding = () => {
       });
       setMessage(`Exported PDF: ${savedPath}`);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not export the PDF. Choose another save location and try again.'));
     } finally {
       setExporting(false);
     }
@@ -116,7 +119,7 @@ export const GuestLanding = () => {
       });
       setMessage(`Print submitted to ${result.printer_name}.`);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not print the document. Check the selected printer and try again.'));
     } finally {
       setPrinting(false);
     }
@@ -157,7 +160,7 @@ export const GuestLanding = () => {
                 <button
                   className={`flex w-full items-center justify-between rounded border px-3 py-2 text-left text-sm ${categoryId === String(category.category_id) ? 'border-primary bg-red-50 text-secondary' : 'border-border bg-white text-muted hover:bg-background'}`}
                   key={category.category_id}
-                  onClick={() => void selectCategory(category.category_id).catch((err) => setMessage(String(err)))}
+                  onClick={() => void selectCategory(category.category_id).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))}
                   type="button"
                 >
                   <span className="flex items-center gap-2"><Folder size={15} />{category.category_name}</span>
@@ -175,7 +178,7 @@ export const GuestLanding = () => {
                 key={folder.folder_id}
                 onClick={() => {
                   setFolderId(String(folder.folder_id));
-                  void listPublicDocuments({ search: search || null, categoryId: Number(categoryId), folderId: folder.folder_id }).then(setDocuments).catch((err) => setMessage(String(err)));
+                  void listPublicDocuments({ search: search || null, categoryId: Number(categoryId), folderId: folder.folder_id }).then(setDocuments).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
                 }}
                 type="button"
               >
@@ -192,20 +195,35 @@ export const GuestLanding = () => {
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr className="cursor-pointer border-b border-border hover:bg-background" key={doc.document_id} onClick={() => void openDocument(doc.document_id).catch((err) => setMessage(String(err)))}>
+                <tr className="cursor-pointer border-b border-border hover:bg-background" key={doc.document_id} onClick={() => void openDocument(doc.document_id).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))}>
                   <td className="p-3">
                     <p className="font-semibold text-secondary">{doc.document_name}</p>
                     <p className="text-xs text-muted"><span className="rounded bg-background px-2 py-0.5 text-[11px] font-semibold text-secondary">{doc.status}</span> · {doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</p>
                   </td>
-                  <td className="p-3 text-muted">{doc.date_received}</td>
+                  <td className="p-3 text-muted">{formatDateOnly(doc.date_received)}</td>
                 </tr>
               ))}
+              {documents.length === 0 && (
+                <tr>
+                  <td className="p-4" colSpan={2}>
+                    <EmptyState
+                      message="Try another search term, choose a different category, or return to the category root."
+                      title="No public documents found"
+                    />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="rounded border border-border bg-surface p-5 shadow-sm">
-          {!detail ? <p className="text-sm text-muted">Select document.</p> : (
+          {!detail ? (
+            <EmptyState
+              message="Choose a document from the list to view details, attachments, export, and print actions."
+              title="No document selected"
+            />
+          ) : (
             <div>
               <div className="mb-4 flex items-start gap-3">
                 <FileText className="mt-1 text-primary" size={24} />
@@ -220,7 +238,7 @@ export const GuestLanding = () => {
                 </button>
               </div>
               <dl className="grid gap-3 text-sm md:grid-cols-2">
-                <div><dt className="text-muted">Date received</dt><dd className="font-medium text-secondary">{detail.document.date_received}</dd></div>
+                <div><dt className="text-muted">Date received</dt><dd className="font-medium text-secondary">{formatDateOnly(detail.document.date_received)}</dd></div>
                 <div><dt className="text-muted">Sender office</dt><dd className="font-medium text-secondary">{detail.document.office_name ?? 'Not specified'}</dd></div>
                 <div className="md:col-span-2"><dt className="text-muted">Remarks</dt><dd className="font-medium text-secondary">{detail.document.remarks ?? 'No remarks'}</dd></div>
               </dl>

@@ -418,7 +418,7 @@ fn validate_settings(input: DeviceSettingsInput) -> AppResult<DeviceSettingsInpu
             "Scan color mode is not supported.".into(),
         ));
     }
-    if !["pdf", "png", "jpg"].contains(&input.scan_default_output_format.as_str()) {
+    if !["png", "jpg"].contains(&input.scan_default_output_format.as_str()) {
         return Err(AppError::Validation(
             "Scan output format is not supported.".into(),
         ));
@@ -514,7 +514,7 @@ async fn read_settings(pool: &DbPool) -> AppResult<DeviceSettings> {
         .parse::<i64>()
         .unwrap_or(300);
     let color_mode = get_setting(pool, "scan_default_color_mode", "color").await?;
-    let output_format = get_setting(pool, "scan_default_output_format", "pdf").await?;
+    let output_format = get_setting(pool, "scan_default_output_format", "png").await?;
     let last_checked = get_optional_setting(pool, "device_detection_last_checked_at").await?;
     Ok(DeviceSettings {
         default_scanner_id,
@@ -531,10 +531,10 @@ async fn read_settings(pool: &DbPool) -> AppResult<DeviceSettings> {
         } else {
             "color".to_owned()
         },
-        scan_default_output_format: if ["pdf", "png", "jpg"].contains(&output_format.as_str()) {
+        scan_default_output_format: if ["png", "jpg"].contains(&output_format.as_str()) {
             output_format
         } else {
-            "pdf".to_owned()
+            "png".to_owned()
         },
         device_detection_last_checked_at: last_checked,
     })

@@ -79,7 +79,7 @@ fn input() -> DeviceSettingsInput {
         default_printer_id: Some("printer-main".to_owned()),
         scan_default_dpi: 300,
         scan_default_color_mode: "color".to_owned(),
-        scan_default_output_format: "pdf".to_owned(),
+        scan_default_output_format: "png".to_owned(),
     }
 }
 
@@ -207,7 +207,7 @@ async fn invalid_dpi_color_output_and_device_ids_are_rejected() {
     );
 
     let mut bad = input();
-    bad.scan_default_output_format = "bmp".to_owned();
+    bad.scan_default_output_format = "pdf".to_owned();
     assert!(
         update_device_settings_with_provider(&fx.pool, &fx.admin, bad, &fx.provider)
             .await
@@ -221,6 +221,23 @@ async fn invalid_dpi_color_output_and_device_ids_are_rejected() {
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn legacy_pdf_scan_default_reads_as_png() {
+    let fx = fixture().await;
+    sqlx::query(
+        "INSERT INTO settings (key, value, updated_at) VALUES ('scan_default_output_format', 'pdf', '2026-05-18T00:00:00Z')",
+    )
+    .execute(&fx.pool)
+    .await
+    .expect("legacy setting");
+
+    let settings = get_device_settings(&fx.pool, &fx.admin)
+        .await
+        .expect("settings");
+
+    assert_eq!(settings.scan_default_output_format, "png");
 }
 
 #[tokio::test]
