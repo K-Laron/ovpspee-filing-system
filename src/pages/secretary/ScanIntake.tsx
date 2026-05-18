@@ -1,8 +1,12 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileScan, FileText, Link2, RefreshCw, Save, ScanLine, Trash2, Upload, X } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { EmptyState } from '../../components/EmptyState';
+import { formatDateInputValue, formatDateTime } from '../../lib/dates';
 import {
   attachScanToDocument,
   fileScanAsDocument,
@@ -20,6 +24,7 @@ import {
   scanToIntake,
   updateScanIntakeNotes
 } from '../../lib/invoke';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   CategoryItem,
@@ -34,7 +39,7 @@ import type {
   ScannerDevice
 } from '../../types';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = formatDateInputValue();
 const scanFilters = [
   {
     name: 'Scanned PDF and image files',
@@ -68,7 +73,10 @@ const ScanIntakePreview = ({ item, loading, onPageChange, page, preview }: ScanI
           <Eye size={18} className="text-primary" />
           <h2 className="font-semibold text-secondary">Pending Preview</h2>
         </div>
-        <p className="rounded border border-dashed border-border p-4 text-sm text-muted">Select a pending scan/import to preview before filing.</p>
+        <EmptyState
+          message="Choose one pending scan or imported file to preview details and available actions."
+          title="No pending scan selected"
+        />
       </div>
     );
   }
@@ -157,6 +165,14 @@ const normalizeSelectedPaths = (selected: string | string[] | null) => {
 const sizeLabel = (bytes: number) => `${Math.ceil(bytes / 1024)} KB`;
 const extensionFromName = (name: string) => name.split('.').pop()?.toLowerCase() ?? 'file';
 
+interface ConfirmAction {
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  requiredText?: string;
+  onConfirm: () => Promise<void>;
+}
+
 export const ScanIntake = () => {
   const navigate = useNavigate();
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -185,6 +201,7 @@ export const ScanIntake = () => {
   const [preview, setPreview] = useState<ScanIntakePreviewPage | null>(null);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.scan_intake_id)),
@@ -218,6 +235,7 @@ export const ScanIntake = () => {
       ...current,
       dpi: settings.scan_default_dpi,
       color_mode: settings.scan_default_color_mode,
+      // Direct scanner capture currently supports image output. Imported scan files may still be PDFs.
       output_format: settings.scan_default_output_format === 'jpg' ? 'jpg' : 'png'
     }));
   };
@@ -231,7 +249,7 @@ export const ScanIntake = () => {
   };
 
   useEffect(() => {
-    void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(String(err)));
+    void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.')));
   }, [sessionId]);
 
   useEffect(() => {
@@ -251,7 +269,7 @@ export const ScanIntake = () => {
       })
       .catch((err) => {
         setScannerCapabilities(null);
-        setMessage(String(err));
+        setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.'));
       });
   }, [sessionId, selectedScannerId]);
 
@@ -263,7 +281,7 @@ export const ScanIntake = () => {
     }
     void listPublicFolders(categoryId)
       .then(setFolders)
-      .catch((err) => setMessage(String(err)));
+      .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [form.categoryId]);
 
   const loadPreview = async (scanIntakeId: number, nextPage = 1) => {
@@ -275,7 +293,7 @@ export const ScanIntake = () => {
       setPreviewPage(next.page_number);
     } catch (err) {
       setPreview(null);
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not preview this attachment.'));
     } finally {
       setPreviewLoading(false);
     }
@@ -319,9 +337,33 @@ export const ScanIntake = () => {
         setSelectedIds([Math.max(...importedIds)]);
       }
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.'));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const confirmRemoveSelected = () => {
+    const count = selectedIds.length;
+    if (count === 0) return;
+    setConfirmAction({
+      title: 'Remove pending scan?',
+      body: count === 1
+        ? 'Remove 1 selected pending scan from active intake.'
+        : `Remove ${count} selected pending scans from active intake.`,
+      confirmLabel: count === 1 ? 'Remove Pending Scan' : 'Remove Pending Scans',
+      onConfirm: removeSelected
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    try {
+      await confirmAction.onConfirm();
+    } catch (err) {
+      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+    } finally {
+      setConfirmAction(null);
     }
   };
 
@@ -339,7 +381,7 @@ export const ScanIntake = () => {
       await loadIntake();
       setSelectedIds([item.scan_intake_id]);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.'));
     } finally {
       setScanBusy(false);
     }
@@ -372,7 +414,7 @@ export const ScanIntake = () => {
       setMessage('Pending scan removed from active intake.');
       await loadIntake();
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not remove the selected item.'));
     } finally {
       setBusy(false);
     }
@@ -399,7 +441,7 @@ export const ScanIntake = () => {
       setForm(emptyForm);
       navigate(`/s/documents?created=${documentId}`, { replace: false });
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.'));
     } finally {
       setBusy(false);
     }
@@ -420,7 +462,7 @@ export const ScanIntake = () => {
       setMessage('Scan file(s) attached to document.');
       await Promise.all([loadIntake(), loadLookups()]);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.'));
     } finally {
       setBusy(false);
     }
@@ -428,12 +470,23 @@ export const ScanIntake = () => {
 
   return (
     <section className="space-y-5">
+      {confirmAction && (
+        <ConfirmDialog
+          body={confirmAction.body}
+          confirmLabel={confirmAction.confirmLabel}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => handleConfirmAction()}
+          requiredText={confirmAction.requiredText}
+          title={confirmAction.title}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Scan Intake</h1>
           <p className="mt-1 text-sm text-muted">Review scanned/imported files here before filing them as official documents.</p>
         </div>
-        <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(String(err)))} type="button">
+        <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.')))} type="button">
           <RefreshCw size={16} />Refresh
         </button>
       </div>
@@ -460,12 +513,17 @@ export const ScanIntake = () => {
                     ))}
                   </select>
                 </label>
-                <button className="btn" onClick={() => void loadScanners().catch((err) => setMessage(String(err)))} type="button">
+                <button className="btn" onClick={() => void loadScanners().catch((err) => setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.')))} type="button">
                   <RefreshCw size={16} />Refresh
                 </button>
               </div>
               {scanners.length === 0 ? (
-                <p className="rounded border border-dashed border-border p-3 text-sm text-muted">No scanner detected.</p>
+                <EmptyState
+                  actionLabel="Refresh Devices"
+                  message="Connect and turn on the scanner, then refresh detection before scanning to intake."
+                  onAction={() => void loadScanners().catch((err) => setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.')))}
+                  title="No scanner detected"
+                />
               ) : (
                 <div className="rounded border border-border p-3 text-sm">
                   <p className="font-medium text-secondary">
@@ -513,7 +571,7 @@ export const ScanIntake = () => {
               >
                 <ScanLine size={16} />{scanBusy ? 'Scanning...' : 'Scan to Intake'}
               </button>
-              <p className="text-xs text-muted">Flatbed single-page capture. PNG/JPG supported for MVP; PDF batching stays deferred.</p>
+              <p className="text-xs text-muted">Flatbed single-page capture is available. For multiple pages, import a prepared PDF or image file.</p>
             </div>
           </div>
 
@@ -522,13 +580,18 @@ export const ScanIntake = () => {
               <FileScan size={18} className="text-primary" />
               <h2 className="font-semibold text-secondary">Import Scans</h2>
             </div>
-            <button className="btn w-full justify-center" onClick={() => void chooseFiles().catch((err) => setMessage(String(err)))} type="button">
+            <button className="btn w-full justify-center" onClick={() => void chooseFiles().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))} type="button">
               <Upload size={16} />Choose Files
             </button>
             <p className="mt-2 text-xs text-muted">Allowed: PDF, JPG, PNG, TIFF. Max 1 GB each; files above 250 MB are marked large.</p>
             <div className="mt-4 space-y-2">
               {selectedPaths.length === 0 ? (
-                <p className="rounded border border-dashed border-border p-3 text-sm text-muted">No scan files selected.</p>
+                <EmptyState
+                  actionLabel="Choose Files"
+                  message="Choose PDF or image scan files to stage them before importing into pending intake."
+                  onAction={() => void chooseFiles().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))}
+                  title="No scan files selected"
+                />
               ) : selectedPaths.map((sourcePath) => (
                 <div className="flex items-center justify-between gap-3 rounded border border-border p-3 text-sm" key={sourcePath}>
                   <div className="min-w-0">
@@ -553,7 +616,12 @@ export const ScanIntake = () => {
             </div>
             <div className="divide-y divide-border">
               {items.length === 0 ? (
-                <p className="p-4 text-sm text-muted">No pending scan intake files.</p>
+                <div className="p-4">
+                  <EmptyState
+                    message="Scan directly from a detected scanner or import prepared PDF/image files to start filing."
+                    title="No pending scan intake files"
+                  />
+                </div>
               ) : items.map((item) => (
                 <label className="flex cursor-pointer gap-3 p-4 hover:bg-background" key={item.scan_intake_id}>
                   <input
@@ -567,7 +635,7 @@ export const ScanIntake = () => {
                       <span className="truncate font-medium text-secondary">{item.original_file_name}</span>
                       <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{extensionFromName(item.original_file_name).toUpperCase()}</span>
                     </span>
-                    <span className="block text-xs text-muted">{item.status} · {item.created_at} · {item.mime_type} · {sizeLabel(item.file_size_bytes)}{item.is_large ? ' · Large file' : ''}</span>
+                    <span className="block text-xs text-muted">{item.status} · {formatDateTime(item.created_at)} · {item.mime_type} · {sizeLabel(item.file_size_bytes)}{item.is_large ? ' · Large file' : ''}</span>
                     {item.notes && <span className="mt-1 block text-xs text-muted">{item.notes}</span>}
                   </span>
                 </label>
@@ -661,17 +729,20 @@ export const ScanIntake = () => {
           <div className="rounded border border-border bg-surface p-5 shadow-sm">
             <h2 className="mb-4 font-semibold text-secondary">Selected Scan Metadata</h2>
             {selectedItems.length !== 1 ? (
-              <p className="text-sm text-muted">Select one pending scan to edit notes.</p>
+              <EmptyState
+                message="Choose exactly one pending scan to view its filename and edit intake notes."
+                title="No scan selected"
+              />
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-secondary">{selectedItems[0].original_file_name}</p>
                 <textarea className="input min-h-24" value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} />
-                <button className="btn" onClick={() => void saveNotes().catch((err) => setMessage(String(err)))} type="button">
+                <button className="btn" onClick={() => void saveNotes().catch((err) => setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.')))} type="button">
                   <Save size={16} />Save Notes
                 </button>
               </div>
             )}
-            <button className="btn mt-4" disabled={busy || selectedIds.length === 0} onClick={() => void removeSelected()} type="button">
+            <button className="btn mt-4" disabled={busy || selectedIds.length === 0} onClick={confirmRemoveSelected} type="button">
               <Trash2 size={16} />Remove Pending
             </button>
           </div>

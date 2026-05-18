@@ -260,7 +260,7 @@ export interface DeviceSettings {
   default_printer_id: string | null;
   scan_default_dpi: number;
   scan_default_color_mode: 'color' | 'grayscale' | 'black_white';
-  scan_default_output_format: 'pdf' | 'png' | 'jpg';
+  scan_default_output_format: 'png' | 'jpg';
   device_detection_last_checked_at: string | null;
 }
 

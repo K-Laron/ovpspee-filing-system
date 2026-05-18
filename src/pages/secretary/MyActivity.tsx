@@ -2,7 +2,8 @@ import { RefreshCw, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { listMyActivity, listMyActivityEventTypes } from '../../lib/invoke';
-import { getErrorMessage } from '../../lib/errors';
+import { formatDateTime } from '../../lib/dates';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { AuditLogEntry } from '../../types';
 
@@ -40,7 +41,7 @@ export const MyActivity = () => {
       setEntries(page.entries);
       setOffset(page.offset);
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not load activity.'));
+      setMessage(getUserErrorMessage(err, 'Could not load activity.'));
     } finally {
       setLoading(false);
     }
@@ -48,7 +49,7 @@ export const MyActivity = () => {
 
   useEffect(() => {
     if (!sessionId) return;
-    void listMyActivityEventTypes(sessionId).then(setEventTypes).catch((err) => setMessage(getErrorMessage(err, 'Could not load activity filters.')));
+    void listMyActivityEventTypes(sessionId).then(setEventTypes).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
     void load(0);
   }, [sessionId]);
 
@@ -120,7 +121,7 @@ export const MyActivity = () => {
             {!loading && entries.length === 0 && <tr><td className="p-4 text-center text-muted" colSpan={4}>No activity records.</td></tr>}
             {!loading && entries.map((entry) => (
               <tr key={entry.id}>
-                <td className="p-3 text-xs text-muted">{formatDate(entry.created_at)}</td>
+                <td className="p-3 text-xs text-muted">{formatDateTime(entry.created_at)}</td>
                 <td className="p-3"><span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{entry.action}</span></td>
                 <td className="p-3 text-xs text-muted">{entry.entity_type ?? '-'}{entry.entity_id ? ` #${entry.entity_id}` : ''}</td>
                 <td className="p-3 text-secondary">{entry.summary}</td>
@@ -142,9 +143,4 @@ export const MyActivity = () => {
 const nullable = (value: string) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
-};
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };

@@ -7,7 +7,8 @@ import {
   listAuditLogs,
   updateAuditRetentionSettings
 } from '../../lib/invoke';
-import { getErrorMessage } from '../../lib/errors';
+import { formatDateTime } from '../../lib/dates';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { AuditLogEntry, AuditRetentionSettings } from '../../types';
 
@@ -49,7 +50,7 @@ export const AuditLog = () => {
       setEntries(page.entries);
       setOffset(page.offset);
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not load audit logs.'));
+      setMessage(getUserErrorMessage(err, 'Could not load audit logs.'));
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export const AuditLog = () => {
   };
 
   useEffect(() => {
-    void loadLookups().catch((err) => setMessage(getErrorMessage(err, 'Could not load audit settings.')));
+    void loadLookups().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load audit settings.')));
     void load(0);
   }, [sessionId]);
 
@@ -89,7 +90,7 @@ export const AuditLog = () => {
       await loadLookups();
       await load(0);
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not update audit retention.'));
+      setMessage(getUserErrorMessage(err, 'Could not update audit retention.'));
     }
   };
 
@@ -151,7 +152,7 @@ export const AuditLog = () => {
         </label>
         <button className="btn btn-primary" onClick={() => void saveRetention()} type="button"><Save size={16} />Save</button>
         <p className="pb-2 text-sm text-muted">
-          Default 36. Allowed {retention?.min_months ?? 24}-{retention?.max_months ?? 36}. Cleanup enforcement deferred.
+          Records are kept for {retentionDraft || retention?.retention_months || 36} months. Allowed range: {retention?.min_months ?? 24}-{retention?.max_months ?? 36} months.
         </p>
       </section>
 
@@ -180,7 +181,7 @@ const AuditTable = ({ entries, loading }: { entries: AuditLogEntry[]; loading: b
         {!loading && entries.length === 0 && <tr><td className="p-4 text-center text-muted" colSpan={5}>No audit records.</td></tr>}
         {!loading && entries.map((entry) => (
           <tr key={entry.id}>
-            <td className="p-3 text-xs text-muted">{formatDate(entry.created_at)}</td>
+            <td className="p-3 text-xs text-muted">{formatDateTime(entry.created_at)}</td>
             <td className="p-3"><span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{entry.action}</span></td>
             <td className="p-3">
               <p className="truncate font-medium text-secondary">{entry.actor_display_name ?? 'System'}</p>
@@ -206,9 +207,4 @@ const Pager = ({ count, limit, offset, onPage }: { count: number; limit: number;
 const nullable = (value: string) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
-};
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };

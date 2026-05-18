@@ -3,6 +3,8 @@ import { AlertTriangle, FilePlus, Paperclip, Save, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { EmptyState } from '../../components/EmptyState';
+import { formatDateInputValue } from '../../lib/dates';
 import {
   addAttachment,
   createDocument,
@@ -10,10 +12,11 @@ import {
   listPublicCategories,
   listPublicFolders
 } from '../../lib/invoke';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentStatus, FolderItem, OfficeItem } from '../../types';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = formatDateInputValue();
 const emptyForm = {
   documentName: '',
   categoryId: '',
@@ -56,7 +59,7 @@ export const AddDocument = () => {
         setCategories(nextCategories);
         setOffices(nextOffices);
       })
-      .catch((err) => setMessage(String(err)));
+      .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [sessionId]);
 
   useEffect(() => {
@@ -67,7 +70,7 @@ export const AddDocument = () => {
     }
     void listPublicFolders(categoryId)
       .then(setFolders)
-      .catch((err) => setMessage(String(err)));
+      .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [form.categoryId]);
 
   const selectedStatus = form.status;
@@ -110,7 +113,7 @@ export const AddDocument = () => {
       }
       navigate(`/s/documents?created=${documentId}`, { replace: true });
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.'));
     } finally {
       setSaving(false);
     }
@@ -186,14 +189,19 @@ export const AddDocument = () => {
             <Paperclip size={18} className="text-primary" />
             <h2 className="font-semibold text-secondary">Attachments</h2>
           </div>
-          <button className="btn w-full justify-center" onClick={() => void chooseAttachments().catch((err) => setMessage(String(err)))} type="button">
+          <button className="btn w-full justify-center" onClick={() => void chooseAttachments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))} type="button">
             <Paperclip size={16} />
             Choose Files
           </button>
           <p className="mt-2 text-xs text-muted">Allowed: PDF, DOC/DOCX, XLS/XLSX, JPG, PNG, TIFF, TXT. Max 1 GB each; backend rejects unsupported or oversized files.</p>
           <div className="mt-4 space-y-2">
             {attachmentList.length === 0 ? (
-              <p className="rounded border border-dashed border-border p-3 text-sm text-muted">No attachments selected.</p>
+              <EmptyState
+                actionLabel="Choose Files"
+                message="Choose PDF, Office, image, or text files to attach to this document."
+                onAction={() => void chooseAttachments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))}
+                title="No attachments selected"
+              />
             ) : attachmentList.map((sourcePath) => (
               <div className="flex items-center justify-between gap-3 rounded border border-border p-3 text-sm" key={sourcePath}>
                 <div className="min-w-0">

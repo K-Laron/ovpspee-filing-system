@@ -2,6 +2,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileText, Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { getUserErrorMessage } from '../lib/errors';
 import { getAttachmentPreviewPage } from '../lib/invoke';
 import type { AttachmentItem, AttachmentPreviewPage } from '../types';
 
@@ -32,7 +33,7 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
       setPageNumber(next.page_number);
     } catch (err) {
       setPreview(null);
-      onError(String(err));
+      onError(getUserErrorMessage(err, 'Could not preview this attachment.'));
     } finally {
       setLoading(false);
     }

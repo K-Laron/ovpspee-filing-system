@@ -1,15 +1,28 @@
 import { RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { formatDateOnly } from '../../lib/dates';
+import { getUserErrorMessage } from '../../lib/errors';
 import { emptyTrash, listTrashDocuments, purgeDocument } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DocumentItem } from '../../types';
+
+interface ConfirmAction {
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  requiredText?: string;
+  onConfirm: () => Promise<void>;
+}
 
 export const TrashManagement = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const loadTrash = async () => {
     if (!sessionId) return;
@@ -17,7 +30,7 @@ export const TrashManagement = () => {
   };
 
   useEffect(() => {
-    void loadTrash().catch((err) => setMessage(String(err)));
+    void loadTrash().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [sessionId]);
 
   const purgeOne = async (documentId: number) => {
@@ -28,7 +41,7 @@ export const TrashManagement = () => {
       setMessage('Document purged.');
       await loadTrash();
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not purge document.'));
     } finally {
       setBusy(false);
     }
@@ -42,25 +55,67 @@ export const TrashManagement = () => {
       setMessage(`${count} document(s) purged.`);
       await loadTrash();
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not empty Trash.'));
     } finally {
       setBusy(false);
     }
   };
 
+  const confirmPurgeOne = (doc: DocumentItem) => {
+    setConfirmAction({
+      title: 'Purge document permanently?',
+      body: <>Purge <strong>{doc.document_name}</strong> permanently. This cannot be undone.</>,
+      confirmLabel: 'Purge Document',
+      requiredText: 'PURGE',
+      onConfirm: () => purgeOne(doc.document_id)
+    });
+  };
+
+  const confirmPurgeAll = () => {
+    setConfirmAction({
+      title: 'Empty Trash permanently?',
+      body: `Purge ${documents.length} document(s) permanently. This cannot be undone.`,
+      confirmLabel: 'Empty Trash',
+      requiredText: 'PURGE',
+      onConfirm: purgeAll
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    try {
+      await confirmAction.onConfirm();
+    } catch (err) {
+      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+    } finally {
+      setConfirmAction(null);
+    }
+  };
+
   return (
     <section className="space-y-5">
+      {confirmAction && (
+        <ConfirmDialog
+          body={confirmAction.body}
+          confirmLabel={confirmAction.confirmLabel}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => handleConfirmAction()}
+          requiredText={confirmAction.requiredText}
+          title={confirmAction.title}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Trash Management</h1>
           <p className="mt-1 text-sm text-muted">Permanent purge controls for IT Staff.</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn" onClick={() => void loadTrash().catch((err) => setMessage(String(err)))} type="button">
+          <button className="btn" onClick={() => void loadTrash().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))} type="button">
             <RefreshCw size={16} />
             Refresh
           </button>
-          <button className="btn btn-primary" disabled={busy || documents.length === 0} onClick={() => void purgeAll()} type="button">
+          <button className="btn btn-primary" disabled={busy || documents.length === 0} onClick={confirmPurgeAll} type="button">
             <Trash2 size={16} />
             Empty Trash
           </button>
@@ -87,9 +142,9 @@ export const TrashManagement = () => {
                   <p className="text-xs text-muted">{doc.status} · {doc.attachment_count} file(s)</p>
                 </td>
                 <td className="p-3 text-muted">{doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</td>
-                <td className="p-3 text-muted">{doc.date_received}</td>
+                <td className="p-3 text-muted">{formatDateOnly(doc.date_received)}</td>
                 <td className="p-3">
-                  <button className="btn" disabled={busy} onClick={() => void purgeOne(doc.document_id)} type="button">
+                  <button className="btn" disabled={busy} onClick={() => confirmPurgeOne(doc)} type="button">
                     <Trash2 size={16} />
                     Purge
                   </button>

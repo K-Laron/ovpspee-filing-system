@@ -2,7 +2,8 @@ import { KeyRound, RefreshCw, Save } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { changeMyPassword, getMyProfile, updateMyProfile } from '../lib/invoke';
-import { getErrorMessage } from '../lib/errors';
+import { getUserErrorMessage } from '../lib/errors';
+import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
 import { useSessionStore } from '../store/sessionStore';
 import type { ProfileItem } from '../types';
 
@@ -19,7 +20,7 @@ export const Profile = () => {
   const { sessionId, setSession } = useSessionStore();
   const [profile, setProfile] = useState<ProfileItem | null>(null);
   const [form, setForm] = useState(emptyProfile);
-  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' });
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -41,7 +42,7 @@ export const Profile = () => {
         address: next.address ?? ''
       });
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load profile.'));
+      setError(getUserErrorMessage(err, 'Could not load profile.'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ export const Profile = () => {
       });
       setNotice('Profile updated.');
     } catch (err) {
-      setError(getErrorMessage(err, 'Profile update failed.'));
+      setError(getUserErrorMessage(err, 'Profile update failed.'));
     } finally {
       setSaving(false);
     }
@@ -91,15 +92,21 @@ export const Profile = () => {
     setError('');
     setNotice('');
     try {
+      const validationError = validatePasswordPair(passwords.newPassword, passwords.confirmNewPassword);
+      if (validationError) {
+        setError(validationError);
+        setSaving(false);
+        return;
+      }
       await changeMyPassword({
         sessionId,
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword
       });
-      setPasswords({ currentPassword: '', newPassword: '' });
+      setPasswords({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
       setNotice('Password changed.');
     } catch (err) {
-      setError(getErrorMessage(err, 'Password change failed.'));
+      setError(getUserErrorMessage(err, 'Password change failed.'));
     } finally {
       setSaving(false);
     }
@@ -145,13 +152,15 @@ export const Profile = () => {
             </div>
             <p className="font-semibold text-secondary">{profile ? `${profile.first_name} ${profile.last_name}` : 'Loading...'}</p>
             <p className="text-sm text-muted">{profile?.email || 'No email'}</p>
-            <p className="mt-3 text-xs text-muted">Profile picture upload deferred until safe app-data file validation is added.</p>
+            <p className="mt-3 text-xs text-muted">Profile pictures are not available in this version.</p>
           </div>
 
           <form className="space-y-3 rounded border border-border bg-surface p-5" onSubmit={submitPassword}>
             <h2 className="text-base font-semibold text-secondary">Change Password</h2>
             <TextField label="Current password" type="password" value={passwords.currentPassword} onChange={(value) => setPasswords({ ...passwords, currentPassword: value })} required />
             <TextField label="New password" type="password" value={passwords.newPassword} onChange={(value) => setPasswords({ ...passwords, newPassword: value })} required />
+            <TextField label="Confirm new password" type="password" value={passwords.confirmNewPassword} onChange={(value) => setPasswords({ ...passwords, confirmNewPassword: value })} required />
+            <p className="text-xs text-muted">{passwordRulesText}</p>
             <button className="focus-ring inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-secondary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={saving} type="submit">
               <KeyRound size={16} />
               Change Password

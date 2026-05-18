@@ -1,7 +1,11 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Archive, DatabaseBackup, FolderOpen, RefreshCw, RotateCcw, Save, ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { EmptyState } from '../../components/EmptyState';
+import { formatDateTime } from '../../lib/dates';
 import {
   createBackup,
   exportBackupArchive,
@@ -12,9 +16,17 @@ import {
   updateBackupSettings,
   validateBackupArchive
 } from '../../lib/invoke';
-import { getErrorMessage } from '../../lib/errors';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { BackupSettings, BackupSummary } from '../../types';
+
+interface ConfirmAction {
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  requiredText?: string;
+  onConfirm: () => Promise<void>;
+}
 
 export const BackupRestore = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -27,6 +39,7 @@ export const BackupRestore = () => {
   const [selected, setSelected] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const load = async () => {
     if (!sessionId) return;
@@ -44,7 +57,7 @@ export const BackupRestore = () => {
   };
 
   useEffect(() => {
-    void load().catch((err) => setMessage(getErrorMessage(err, 'Could not load backup settings.')));
+    void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load backup settings.')));
   }, [sessionId]);
 
   const chooseDestination = async () => {
@@ -67,21 +80,21 @@ export const BackupRestore = () => {
       setMessage('Backup settings saved.');
       await load();
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not save backup settings.'));
+      setMessage(getUserErrorMessage(err, 'Could not save backup settings.'));
     } finally {
       setBusy(false);
     }
   };
 
   const createNow = async () => {
-    if (!sessionId) return;
+    if (!sessionId || busy) return;
     setBusy(true);
     try {
       const backup = await createBackup(sessionId);
       setMessage(`Backup created: ${backup.backup_name}`);
       await load();
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not create backup.'));
+      setMessage(getUserErrorMessage(err, 'Could not create backup.'));
     } finally {
       setBusy(false);
     }
@@ -99,7 +112,7 @@ export const BackupRestore = () => {
       const path = await exportBackupArchive({ sessionId, backupName: selected, outputPath });
       setMessage(`Portable backup exported: ${path}`);
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not export portable backup.'));
+      setMessage(getUserErrorMessage(err, 'Could not export backup.'));
     } finally {
       setBusy(false);
     }
@@ -120,7 +133,7 @@ export const BackupRestore = () => {
       setMessage(`Imported valid backup: ${validation.backup_name}`);
       await load();
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not import backup archive.'));
+      setMessage(getUserErrorMessage(err, 'Could not restore backup.'));
     } finally {
       setBusy(false);
     }
@@ -128,30 +141,58 @@ export const BackupRestore = () => {
 
   const restore = async (backupName: string) => {
     if (!sessionId || busy) return;
-    const confirmed = window.confirm(
-      'Restore will replace current data. A pre-restore safety backup will be created first. Continue?'
-    );
-    if (!confirmed) return;
     setBusy(true);
     try {
       const result = await restoreFromBackup({ sessionId, backupName });
       setMessage(`${result.message} Safety backup: ${result.pre_restore_backup_name}`);
       await load();
     } catch (err) {
-      setMessage(getErrorMessage(err, 'Could not restore backup.'));
+      setMessage(getUserErrorMessage(err, 'Could not restore backup.'));
     } finally {
       setBusy(false);
     }
   };
 
+  const confirmRestore = (backupName: string) => {
+    setConfirmAction({
+      title: 'Restore backup?',
+      body: <>Restore <strong>{backupName}</strong>. Current data will be replaced, and a safety backup will be created first.</>,
+      confirmLabel: 'Restore Backup',
+      requiredText: backupName,
+      onConfirm: () => restore(backupName)
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    try {
+      await confirmAction.onConfirm();
+    } catch (err) {
+      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+    } finally {
+      setConfirmAction(null);
+    }
+  };
+
   return (
     <section className="space-y-5">
+      {confirmAction && (
+        <ConfirmDialog
+          body={confirmAction.body}
+          confirmLabel={confirmAction.confirmLabel}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => handleConfirmAction()}
+          requiredText={confirmAction.requiredText}
+          title={confirmAction.title}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Backup & Restore</h1>
           <p className="mt-1 text-sm text-muted">Admin-only data protection and portability.</p>
         </div>
-        <button className="btn" onClick={() => void load().catch((err) => setMessage(String(err)))} type="button">
+        <button className="btn" onClick={() => void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load backup settings.')))} type="button">
           <RefreshCw size={16} />
           Refresh
         </button>
@@ -223,7 +264,7 @@ export const BackupRestore = () => {
               <FolderOpen size={16} />
               Import Archive
             </button>
-            <button className="btn btn-primary" disabled={busy || !selected} onClick={() => void restore(selected)} type="button">
+            <button className="btn btn-primary" disabled={busy || !selected} onClick={() => confirmRestore(selected)} type="button">
               <RotateCcw size={16} />
               Restore Selected
             </button>
@@ -243,11 +284,11 @@ export const BackupRestore = () => {
                   <p className="font-semibold text-secondary">{backup.backup_name}</p>
                   <p className="text-xs text-muted">{backup.backup_path}</p>
                 </td>
-                <td className="p-3 text-muted">{formatDate(backup.created_at)}</td>
+                <td className="p-3 text-muted">{formatDateTime(backup.created_at)}</td>
                 <td className="p-3 text-muted">{formatBytes(backup.total_bytes)}</td>
                 <td className="p-3">{backup.is_valid ? 'Valid' : 'Invalid'} · {backup.file_count} file(s)</td>
                 <td className="p-3">
-                  <button className="btn" disabled={busy} onClick={() => void restore(backup.backup_name)} type="button">
+                  <button className="btn" disabled={busy} onClick={() => confirmRestore(backup.backup_name)} type="button">
                     <RotateCcw size={16} />
                     Restore
                   </button>
@@ -255,7 +296,16 @@ export const BackupRestore = () => {
               </tr>
             ))}
             {history.length === 0 && (
-              <tr><td className="p-4 text-sm text-muted" colSpan={5}>No backups found.</td></tr>
+              <tr>
+                <td className="p-4" colSpan={5}>
+                  <EmptyState
+                    actionLabel="Create Backup Now"
+                    message="Create a backup before making major changes or testing restore workflows."
+                    onAction={() => void createNow()}
+                    title="No backups found"
+                  />
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -263,8 +313,6 @@ export const BackupRestore = () => {
     </section>
   );
 };
-
-const formatDate = (value: string) => value ? new Date(value).toLocaleString() : 'Unknown';
 
 const formatBytes = (value: number) => {
   if (value < 1024) return `${value} B`;

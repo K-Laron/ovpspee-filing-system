@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { getErrorMessage } from '../lib/errors';
+import { getUserErrorMessage } from '../lib/errors';
 import { login } from '../lib/invoke';
 import { useSessionStore } from '../store/sessionStore';
 
@@ -25,7 +25,7 @@ export const Login = () => {
       setSession(session);
       navigate(session.role === 'Admin' ? '/a' : '/s', { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'Login failed.'));
+      setError(getUserErrorMessage(err, 'Login failed.'));
     } finally {
       setSubmitting(false);
     }

@@ -3,7 +3,8 @@ import { ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { firstRunSetup, login } from '../lib/invoke';
-import { getErrorMessage } from '../lib/errors';
+import { getUserErrorMessage } from '../lib/errors';
+import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
 import { useSessionStore } from '../store/sessionStore';
 
 export const FirstRunSetup = () => {
@@ -19,6 +20,13 @@ export const FirstRunSetup = () => {
     const data = new FormData(event.currentTarget);
     const username = String(data.get('username') ?? '');
     const password = String(data.get('password') ?? '');
+    const confirmPassword = String(data.get('confirmPassword') ?? '');
+    const validationError = validatePasswordPair(password, confirmPassword);
+    if (validationError) {
+      setError(validationError);
+      setSubmitting(false);
+      return;
+    }
 
     try {
       await firstRunSetup({
@@ -31,7 +39,7 @@ export const FirstRunSetup = () => {
       setSession(session);
       navigate('/a', { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'First-run setup failed.'));
+      setError(getUserErrorMessage(err, 'First-run setup failed.'));
     } finally {
       setSubmitting(false);
     }
@@ -54,8 +62,9 @@ export const FirstRunSetup = () => {
           <Field label="Last name" name="lastName" autoComplete="family-name" />
           <Field label="Username" name="username" autoComplete="username" />
           <Field label="Password" name="password" type="password" autoComplete="new-password" />
+          <Field label="Confirm password" name="confirmPassword" type="password" autoComplete="new-password" />
         </div>
-        <p className="mt-3 text-xs text-muted">Minimum 8 characters, 1 number, 1 special character.</p>
+        <p className="mt-3 text-xs text-muted">{passwordRulesText}</p>
         {error && <p className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <button
           className="focus-ring mt-6 w-full rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"

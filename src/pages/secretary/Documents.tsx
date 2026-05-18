@@ -1,8 +1,11 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Download, Edit3, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { formatDateOnly } from '../../lib/dates';
 import {
   addAttachment,
   exportDocumentPdf,
@@ -22,6 +25,7 @@ import {
   updateDocument,
   printDocumentPdf
 } from '../../lib/invoke';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentDetail, DocumentItem, DocumentStatus, FolderItem, OfficeItem, PrinterDevice } from '../../types';
 
@@ -38,6 +42,14 @@ const normalizeSelectedPaths = (selected: string | string[] | null) => {
   if (!selected) return [];
   return Array.isArray(selected) ? selected : [selected];
 };
+
+interface ConfirmAction {
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  requiredText?: string;
+  onConfirm: () => Promise<void>;
+}
 
 export const Documents = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -66,6 +78,7 @@ export const Documents = () => {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const loadLookups = async () => {
     if (!sessionId) return;
@@ -126,16 +139,16 @@ export const Documents = () => {
   };
 
   useEffect(() => {
-    void loadLookups().catch((err) => setMessage(String(err)));
+    void loadLookups().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load document lists. Please refresh and try again.')));
   }, [sessionId]);
 
   useEffect(() => {
-    void loadDocuments().catch((err) => setMessage(String(err)));
+    void loadDocuments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [sessionId, view]);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
-    void loadDocuments().catch((err) => setMessage(String(err)));
+    void loadDocuments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   };
 
   const saveEdit = async () => {
@@ -267,7 +280,7 @@ export const Documents = () => {
       });
       setMessage(`Exported PDF: ${savedPath}`);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not export the PDF. Choose another save location and try again.'));
     } finally {
       setExporting(false);
     }
@@ -286,9 +299,39 @@ export const Documents = () => {
       });
       setMessage(`Print submitted to ${result.printer_name}.`);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getUserErrorMessage(err, 'Could not print the document. Check the selected printer and try again.'));
     } finally {
       setPrinting(false);
+    }
+  };
+
+  const confirmMoveToTrash = () => {
+    if (!detail) return;
+    setConfirmAction({
+      title: 'Move document to Trash?',
+      body: <>Move <strong>{detail.document.document_name}</strong> to Trash. It can be restored from Trash later.</>,
+      confirmLabel: 'Move to Trash',
+      onConfirm: moveToTrash
+    });
+  };
+
+  const confirmRemoveAttachment = (attachmentId: number, fileName: string) => {
+    setConfirmAction({
+      title: 'Remove attachment?',
+      body: <>Remove <strong>{fileName}</strong>. The document record will remain.</>,
+      confirmLabel: 'Remove Attachment',
+      onConfirm: () => remove(attachmentId)
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    try {
+      await confirmAction.onConfirm();
+    } catch (err) {
+      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+    } finally {
+      setConfirmAction(null);
     }
   };
 
@@ -296,6 +339,17 @@ export const Documents = () => {
 
   return (
     <section className="space-y-5">
+      {confirmAction && (
+        <ConfirmDialog
+          body={confirmAction.body}
+          confirmLabel={confirmAction.confirmLabel}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => handleConfirmAction()}
+          requiredText={confirmAction.requiredText}
+          title={confirmAction.title}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Documents</h1>
@@ -366,7 +420,7 @@ export const Documents = () => {
                     </p>
                   </td>
                   <td className="p-3 text-muted">{doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</td>
-                  <td className="p-3 text-muted">{doc.date_received}</td>
+                  <td className="p-3 text-muted">{formatDateOnly(doc.date_received)}</td>
                 </tr>
               ))}
             </tbody>
@@ -391,13 +445,13 @@ export const Documents = () => {
                   {!isTrashView && <button className="btn btn-primary" disabled={exporting} onClick={() => void exportPdf()} type="button"><Download size={16} />{exporting ? 'Exporting...' : 'Export PDF'}</button>}
                   {!isTrashView && <button className="btn" onClick={() => setMoving(!moving)} type="button"><MoveRight size={16} />Move</button>}
                   {!isTrashView && (
-                    <button className="btn" onClick={() => void toggleHidden().catch((err) => setMessage(String(err)))} type="button">
+                    <button className="btn" onClick={() => void toggleHidden().catch((err) => setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.')))} type="button">
                       {detail.document.is_hidden ? <Eye size={16} /> : <EyeOff size={16} />}
                       {detail.document.is_hidden ? 'Unhide' : 'Hide'}
                     </button>
                   )}
-                  {!isTrashView && <button className="btn" onClick={() => void moveToTrash().catch((err) => setMessage(String(err)))} type="button"><Trash2 size={16} />Move to Trash</button>}
-                  {isTrashView && <button className="btn btn-primary" onClick={() => void restore().catch((err) => setMessage(String(err)))} type="button"><RotateCcw size={16} />Restore</button>}
+                  {!isTrashView && <button className="btn" onClick={confirmMoveToTrash} type="button"><Trash2 size={16} />Move to Trash</button>}
+                  {isTrashView && <button className="btn btn-primary" onClick={() => void restore().catch((err) => setMessage(getUserErrorMessage(err, 'Could not restore the document.')))} type="button"><RotateCcw size={16} />Restore</button>}
                 </div>
               </div>
 
@@ -415,7 +469,7 @@ export const Documents = () => {
                   <textarea className="input min-h-24" disabled={!editing || isTrashView} value={detail.document.remarks ?? ''} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, remarks: e.target.value } })} />
                 </label>
               </div>
-              {editing && !isTrashView && <button className="btn btn-primary" onClick={() => void saveEdit().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Changes</button>}
+              {editing && !isTrashView && <button className="btn btn-primary" onClick={() => void saveEdit().catch((err) => setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.')))} type="button"><Save size={16} />Save Changes</button>}
 
               {!isTrashView && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_110px_auto]">
                 <label>
@@ -437,7 +491,7 @@ export const Documents = () => {
               {!isTrashView && moving && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_1fr_auto]">
                 <label>
                   <span className="form-label">Move to category</span>
-                  <select className="input" value={moveCategoryId} onChange={(e) => void loadMoveFolders(e.target.value).catch((err) => setMessage(String(err)))}>
+                  <select className="input" value={moveCategoryId} onChange={(e) => void loadMoveFolders(e.target.value).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))}>
                     <option value="">Select category</option>
                     {categories.map((category) => <option key={category.category_id} value={category.category_id}>{category.category_name}</option>)}
                   </select>
@@ -449,7 +503,7 @@ export const Documents = () => {
                     {moveFolders.map((folder) => <option key={folder.folder_id} value={folder.folder_id}>{folder.folder_name}</option>)}
                   </select>
                 </label>
-                <button className="btn btn-primary self-end" onClick={() => void saveMove().catch((err) => setMessage(String(err)))} type="button"><MoveRight size={16} />Save Move</button>
+                <button className="btn btn-primary self-end" onClick={() => void saveMove().catch((err) => setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.')))} type="button"><MoveRight size={16} />Save Move</button>
               </div>}
 
               {!isTrashView && <div className="grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_auto]">
@@ -459,7 +513,7 @@ export const Documents = () => {
                     <option>Filed</option><option>Archived</option><option>Confidential</option><option>Other</option>
                   </select>
                 </label>
-                <button className="btn btn-primary self-end" onClick={() => void saveStatus().catch((err) => setMessage(String(err)))} type="button"><Save size={16} />Save Status</button>
+                <button className="btn btn-primary self-end" onClick={() => void saveStatus().catch((err) => setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.')))} type="button"><Save size={16} />Save Status</button>
               </div>}
 
               <div className="border-t border-border pt-4">
@@ -470,13 +524,13 @@ export const Documents = () => {
                       <div><p className="font-medium text-secondary">{file.original_file_name}</p><p className="text-xs text-muted">{Math.ceil(file.file_size_bytes / 1024)} KB</p></div>
                       <div className="flex gap-2">
                         <button className="icon-btn" title="Preview attachment" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button"><Eye size={15} /></button>
-                        {!isTrashView && <button className="icon-btn" title="Remove attachment" onClick={() => void remove(file.attachment_id).catch((err) => setMessage(String(err)))} type="button"><Trash2 size={15} /></button>}
+                        {!isTrashView && <button className="icon-btn" title="Remove attachment" onClick={() => confirmRemoveAttachment(file.attachment_id, file.original_file_name)} type="button"><Trash2 size={15} /></button>}
                       </div>
                     </div>
                   ))}
                 </div>
                 {!isTrashView && <div className="mt-3 space-y-3">
-                  <button className="btn" onClick={() => void chooseAttachments().catch((err) => setMessage(String(err)))} type="button">
+                  <button className="btn" onClick={() => void chooseAttachments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))} type="button">
                     <Paperclip size={16} />
                     Add Attachments
                   </button>
@@ -498,7 +552,7 @@ export const Documents = () => {
                           </button>
                         </div>
                       ))}
-                      <button className="btn btn-primary" onClick={() => void attach().catch((err) => setMessage(String(err)))} type="button">
+                      <button className="btn btn-primary" onClick={() => void attach().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))} type="button">
                         Save Selected Attachments
                       </button>
                     </div>

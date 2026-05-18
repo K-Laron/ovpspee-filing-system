@@ -13,7 +13,7 @@ import {
   updateFolder,
   updateOffice
 } from '../../lib/invoke';
-import { getErrorMessage } from '../../lib/errors';
+import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, FolderItem, OfficeItem } from '../../types';
 
@@ -125,7 +125,7 @@ export const MasterData = () => {
         if (first) setFolderForm((current) => ({ ...current, categoryId: String(first.category_id) }));
       }
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load master data.'));
+      setError(getUserErrorMessage(err, 'Could not load master data.'));
     } finally {
       setLoading(false);
     }
@@ -167,7 +167,7 @@ export const MasterData = () => {
       cancelCategoryEdit();
       await reload();
     } catch (err) {
-      setError(getErrorMessage(err, 'Category save failed.'));
+      setError(getUserErrorMessage(err, 'Category save failed.'));
     } finally {
       setSaving(false);
     }
@@ -201,7 +201,7 @@ export const MasterData = () => {
       cancelFolderEdit();
       await reload();
     } catch (err) {
-      setError(getErrorMessage(err, 'Folder save failed.'));
+      setError(getUserErrorMessage(err, 'Folder save failed.'));
     } finally {
       setSaving(false);
     }
@@ -232,7 +232,7 @@ export const MasterData = () => {
       cancelOfficeEdit();
       await reload();
     } catch (err) {
-      setError(getErrorMessage(err, 'Office save failed.'));
+      setError(getUserErrorMessage(err, 'Office save failed.'));
     } finally {
       setSaving(false);
     }
@@ -599,7 +599,7 @@ const DataTable = ({
         {!loading && rows.length === 0 && (
           <tr>
             <td className="px-4 py-6 text-center text-muted" colSpan={headers.length}>
-              No records match the current filters.
+              No records match the current filters. Reset filters or add a new record from the form on the right.
             </td>
           </tr>
         )}

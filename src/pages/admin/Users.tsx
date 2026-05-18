@@ -3,7 +3,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { adminResetPassword, createUser, listUsers, updateUser } from '../../lib/invoke';
-import { getErrorMessage } from '../../lib/errors';
+import { getUserErrorMessage } from '../../lib/errors';
+import { passwordRulesText, validatePasswordPair } from '../../lib/passwords';
 import { useSessionStore } from '../../store/sessionStore';
 import type { Role, UserItem } from '../../types';
 
@@ -16,7 +17,8 @@ const emptyForm = {
   email: '',
   contactNumber: '',
   address: '',
-  password: ''
+  password: '',
+  confirmPassword: ''
 };
 
 export const Users = () => {
@@ -28,6 +30,7 @@ export const Users = () => {
   const [isActive, setIsActive] = useState(true);
   const [resetTarget, setResetTarget] = useState<UserItem | null>(null);
   const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
@@ -40,7 +43,7 @@ export const Users = () => {
     try {
       setUsers(await listUsers(sessionId, search.trim() || null));
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load users.'));
+      setError(getUserErrorMessage(err, 'Could not load users.'));
     } finally {
       setLoading(false);
     }
@@ -72,13 +75,19 @@ export const Users = () => {
         await updateUser({ ...payload, userId: editing.user_id, isActive });
         setNotice('User updated.');
       } else {
+        const validationError = validatePasswordPair(form.password, form.confirmPassword);
+        if (validationError) {
+          setError(validationError);
+          setSaving(false);
+          return;
+        }
         await createUser({ ...payload, password: form.password });
         setNotice('User created.');
       }
       cancelEdit();
       await reload();
     } catch (err) {
-      setError(getErrorMessage(err, 'User save failed.'));
+      setError(getUserErrorMessage(err, 'User save failed.'));
     } finally {
       setSaving(false);
     }
@@ -91,6 +100,12 @@ export const Users = () => {
     setError('');
     setNotice('');
     try {
+      const validationError = validatePasswordPair(resetPassword, resetConfirmPassword);
+      if (validationError) {
+        setError(validationError);
+        setSaving(false);
+        return;
+      }
       await adminResetPassword({
         sessionId,
         userId: resetTarget.user_id,
@@ -99,8 +114,9 @@ export const Users = () => {
       setNotice('Password reset.');
       setResetTarget(null);
       setResetPassword('');
+      setResetConfirmPassword('');
     } catch (err) {
-      setError(getErrorMessage(err, 'Password reset failed.'));
+      setError(getUserErrorMessage(err, 'Password reset failed.'));
     } finally {
       setSaving(false);
     }
@@ -118,7 +134,8 @@ export const Users = () => {
       email: user.email ?? '',
       contactNumber: user.contact_number ?? '',
       address: user.address ?? '',
-      password: ''
+      password: '',
+      confirmPassword: ''
     });
   };
 
@@ -166,7 +183,13 @@ export const Users = () => {
             </thead>
             <tbody className="divide-y divide-border">
               {loading && <tr><td className="px-4 py-6 text-center text-muted" colSpan={5}>Loading...</td></tr>}
-              {!loading && users.length === 0 && <tr><td className="px-4 py-6 text-center text-muted" colSpan={5}>No users.</td></tr>}
+              {!loading && users.length === 0 && (
+                <tr>
+                  <td className="px-4 py-6 text-center text-muted" colSpan={5}>
+                    {search.trim() ? 'No users match the current search. Clear the search or try another name, username, or email.' : 'No users yet. Use the form on the right to create an Admin or Secretary account.'}
+                  </td>
+                </tr>
+              )}
               {!loading && users.map((user) => (
                 <tr key={user.user_id}>
                   <td className="px-4 py-3">
@@ -179,7 +202,7 @@ export const Users = () => {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <IconButton label="Edit user" onClick={() => editUser(user)}><Edit2 size={15} /></IconButton>
-                      <IconButton label="Reset password" onClick={() => setResetTarget(user)}><KeyRound size={15} /></IconButton>
+                      <IconButton label="Reset password" onClick={() => { setResetTarget(user); setResetPassword(''); setResetConfirmPassword(''); }}><KeyRound size={15} /></IconButton>
                     </div>
                   </td>
                 </tr>
@@ -205,7 +228,13 @@ export const Users = () => {
             <TextField label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
             <TextField label="Contact number" value={form.contactNumber} onChange={(value) => setForm({ ...form, contactNumber: value })} />
             <TextField label="Address" value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
-            {!editing && <TextField label="Password" type="password" value={form.password} onChange={(value) => setForm({ ...form, password: value })} required />}
+            {!editing && (
+              <div className="space-y-2">
+                <TextField label="Password" type="password" value={form.password} onChange={(value) => setForm({ ...form, password: value })} required />
+                <TextField label="Confirm password" type="password" value={form.confirmPassword} onChange={(value) => setForm({ ...form, confirmPassword: value })} required />
+                <p className="text-xs text-muted">{passwordRulesText}</p>
+              </div>
+            )}
             {editing && <label className="flex items-center gap-2 text-sm font-medium text-secondary"><input checked={isActive} className="h-4 w-4" onChange={(event) => setIsActive(event.target.checked)} type="checkbox" />Active</label>}
             <button className="focus-ring inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-primary px-3 text-sm font-semibold text-white hover:bg-secondary disabled:opacity-60" disabled={saving} type="submit">
               <Plus size={16} />
@@ -215,8 +244,10 @@ export const Users = () => {
 
           {resetTarget && (
             <form className="space-y-3 rounded border border-border bg-surface p-4" onSubmit={submitReset}>
-              <FormTitle editing label={`Reset ${resetTarget.username}`} onCancel={() => setResetTarget(null)} />
+              <FormTitle editing label={`Reset ${resetTarget.username}`} onCancel={() => { setResetTarget(null); setResetPassword(''); setResetConfirmPassword(''); }} />
               <TextField label="New password" type="password" value={resetPassword} onChange={setResetPassword} required />
+              <TextField label="Confirm new password" type="password" value={resetConfirmPassword} onChange={setResetConfirmPassword} required />
+              <p className="text-xs text-muted">{passwordRulesText}</p>
               <button className="focus-ring inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-secondary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={saving} type="submit">
                 <KeyRound size={16} />
                 Reset Password
