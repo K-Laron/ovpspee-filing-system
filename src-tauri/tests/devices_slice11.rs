@@ -238,6 +238,48 @@ async fn legacy_pdf_scan_default_reads_as_png() {
         .expect("settings");
 
     assert_eq!(settings.scan_default_output_format, "png");
+
+    let stored: String =
+        sqlx::query("SELECT value FROM settings WHERE key = 'scan_default_output_format'")
+            .fetch_one(&fx.pool)
+            .await
+            .expect("stored setting")
+            .get("value");
+    assert_eq!(stored, "png");
+}
+
+#[tokio::test]
+async fn missing_or_invalid_scan_default_is_written_as_png() {
+    let fx = fixture().await;
+    sqlx::query("DELETE FROM settings WHERE key = 'scan_default_output_format'")
+        .execute(&fx.pool)
+        .await
+        .expect("remove setting");
+
+    let settings = get_device_settings(&fx.pool, &fx.admin)
+        .await
+        .expect("missing setting");
+    assert_eq!(settings.scan_default_output_format, "png");
+
+    sqlx::query(
+        "UPDATE settings SET value = 'gif' WHERE key = 'scan_default_output_format'",
+    )
+    .execute(&fx.pool)
+    .await
+    .expect("invalid setting");
+
+    let settings = get_device_settings(&fx.pool, &fx.admin)
+        .await
+        .expect("invalid setting");
+    assert_eq!(settings.scan_default_output_format, "png");
+
+    let stored: String =
+        sqlx::query("SELECT value FROM settings WHERE key = 'scan_default_output_format'")
+            .fetch_one(&fx.pool)
+            .await
+            .expect("stored setting")
+            .get("value");
+    assert_eq!(stored, "png");
 }
 
 #[tokio::test]

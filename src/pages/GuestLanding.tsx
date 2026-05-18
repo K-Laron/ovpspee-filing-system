@@ -36,9 +36,19 @@ export const GuestLanding = () => {
 
   const load = async () => {
     setCategories(await listPublicCategories());
-    const nextPrinters = await listPrintPrinters(null);
-    setPrinters(nextPrinters);
-    setSelectedPrinterId((current) => current || nextPrinters.find((printer) => printer.is_default)?.printer_id || nextPrinters[0]?.printer_id || '');
+    try {
+      const nextPrinters = normalizePrinters(await listPrintPrinters(null));
+      setPrinters(nextPrinters);
+      setSelectedPrinterId((current) => (
+        nextPrinters.some((printer) => printer.printer_id === current)
+          ? current
+          : nextPrinters.find((printer) => printer.is_default)?.printer_id || nextPrinters[0]?.printer_id || ''
+      ));
+    } catch {
+      setPrinters([]);
+      setSelectedPrinterId('');
+      setMessage('Printers are not available right now. You can still view and export public documents.');
+    }
     const rows = await listPublicDocuments({
       search: search || null,
       categoryId: isGlobalSearch ? null : categoryId ? Number(categoryId) : null,
@@ -245,16 +255,19 @@ export const GuestLanding = () => {
               <div className="mt-4 grid gap-3 rounded border border-border bg-background p-4 md:grid-cols-[1fr_100px_auto]">
                 <label>
                   <span className="form-label">Printer</span>
-                  <select className="input" value={selectedPrinterId} onChange={(e) => setSelectedPrinterId(e.target.value)}>
+                  <select aria-label="Printer" className="input" disabled={printers.length === 0} value={selectedPrinterId} onChange={(e) => setSelectedPrinterId(e.target.value)}>
                     <option value="">Select printer</option>
                     {printers.map((printer) => <option key={printer.printer_id} value={printer.printer_id}>{printer.name}{printer.is_default ? ' (Windows default)' : ''}</option>)}
                   </select>
+                  {printers.length === 0 && (
+                    <p className="mt-1 text-xs text-muted">Printers are not available right now. You can still view and export public documents.</p>
+                  )}
                 </label>
                 <label>
                   <span className="form-label">Copies</span>
                   <input className="input" min={1} max={20} type="number" value={copies} onChange={(e) => setCopies(Number(e.target.value))} />
                 </label>
-                <button className="btn btn-primary self-end" disabled={printing || !selectedPrinterId} onClick={() => void printPdf()} type="button">
+                <button className="btn btn-primary self-end" disabled={printing || printers.length === 0 || !selectedPrinterId} onClick={() => void printPdf()} type="button">
                   <Printer size={16} />{printing ? 'Printing...' : 'Print PDF'}
                 </button>
               </div>
@@ -283,3 +296,5 @@ export const GuestLanding = () => {
 };
 
 const safeFileName = (value: string) => value.replace(/[<>:"/\\|?*]+/g, '-').slice(0, 80) || 'document';
+
+const normalizePrinters = (value: unknown): PrinterDevice[] => (Array.isArray(value) ? value : []);
