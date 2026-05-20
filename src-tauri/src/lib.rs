@@ -7,6 +7,8 @@ pub mod devices;
 pub mod documents;
 pub mod error;
 pub mod master_data;
+pub mod mobile_api;
+pub mod mobile_submissions;
 pub mod printing;
 pub mod scan_intake;
 pub mod users;
@@ -23,6 +25,19 @@ pub fn run() {
             let handle =
                 tauri::async_runtime::block_on(async move { connect_database(&db_path).await })
                     .map_err(|err| Box::<dyn std::error::Error>::from(err.to_string()))?;
+            if std::env::var("OVPSPEE_MOBILE_API_ENABLED").as_deref() == Ok("1") {
+                let api_pool = handle.clone();
+                let storage = documents::StorageRoot::new(app_data_dir.join("storage"))
+                    .map_err(|err| Box::<dyn std::error::Error>::from(err.to_string()))?;
+                tauri::async_runtime::spawn(async move {
+                    if mobile_api::serve(api_pool, storage, "0.0.0.0:1421")
+                        .await
+                        .is_err()
+                    {
+                        eprintln!("Mobile API stopped.");
+                    }
+                });
+            }
             app.manage(DbState { pool: handle });
             Ok(())
         })
@@ -72,6 +87,10 @@ pub fn run() {
             commands::list_public_documents,
             commands::get_public_document,
             commands::list_document_offices,
+            commands::list_mobile_submissions,
+            commands::get_mobile_submission,
+            commands::approve_mobile_submission,
+            commands::reject_mobile_submission,
             commands::import_scan_files,
             commands::list_scan_intake,
             commands::get_scan_intake,

@@ -12,6 +12,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 argon2 = "0.5"
+axum = { version = "0.8.9", features = ["multipart"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -22,6 +23,9 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 tauri = { version = "2", features = [] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio-util = "0.7"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 tauri-plugin-dialog = "2.7.1"
 sha2 = "0.10"

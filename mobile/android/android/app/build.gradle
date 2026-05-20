@@ -1,0 +1,32 @@
+plugins {
+    id("com.android.application")
+    id("com.facebook.react")
+}
+
+react {
+    autolinkLibrariesWithApp()
+}
+
+android {
+    namespace "com.ovpspeemobile"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.ovpspeemobile"
+        minSdkVersion 24
+        targetSdkVersion 36
+        versionCode 1
+        versionName "0.1.0"
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_SHARED_LINKER_FLAGS=-lc++_shared"
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("com.facebook.react:hermes-android")
+}

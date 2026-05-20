@@ -261,12 +261,10 @@ async fn missing_or_invalid_scan_default_is_written_as_png() {
         .expect("missing setting");
     assert_eq!(settings.scan_default_output_format, "png");
 
-    sqlx::query(
-        "UPDATE settings SET value = 'gif' WHERE key = 'scan_default_output_format'",
-    )
-    .execute(&fx.pool)
-    .await
-    .expect("invalid setting");
+    sqlx::query("UPDATE settings SET value = 'gif' WHERE key = 'scan_default_output_format'")
+        .execute(&fx.pool)
+        .await
+        .expect("invalid setting");
 
     let settings = get_device_settings(&fx.pool, &fx.admin)
         .await

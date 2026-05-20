@@ -68,6 +68,7 @@ export interface ProfileItem {
 }
 
 export type DocumentStatus = 'Filed' | 'Archived' | 'Confidential' | 'Other';
+export type MobileReviewStatus = 'Pending' | 'Approved' | 'Rejected' | 'Removed';
 
 export interface DocumentItem {
   document_id: number;
@@ -104,6 +105,46 @@ export interface AttachmentItem {
 export interface DocumentDetail {
   document: DocumentItem;
   attachments: AttachmentItem[];
+}
+
+export interface MobileSubmissionItem {
+  mobile_submission_id: number;
+  submitted_by: number;
+  submitter_name: string;
+  document_name: string;
+  category_id: number;
+  category_name: string;
+  folder_id: number | null;
+  folder_name: string | null;
+  office_id: number | null;
+  office_name: string | null;
+  date_received: string;
+  remarks: string | null;
+  status: DocumentStatus;
+  review_status: MobileReviewStatus;
+  rejection_reason: string | null;
+  review_notes: string | null;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  resulting_document_id: number | null;
+  attachment_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MobileSubmissionAttachmentItem {
+  mobile_submission_attachment_id: number;
+  mobile_submission_id: number;
+  original_file_name: string;
+  mime_type: string;
+  file_size_bytes: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface MobileSubmissionDetail {
+  submission: MobileSubmissionItem;
+  attachments: MobileSubmissionAttachmentItem[];
 }
 
 export interface ScanIntakeItem {

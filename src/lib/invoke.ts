@@ -13,6 +13,9 @@ import type {
   DocumentItem,
   DocumentStatus,
   FolderItem,
+  MobileReviewStatus,
+  MobileSubmissionDetail,
+  MobileSubmissionItem,
   OfficeItem,
   PrinterDevice,
   PrintResult,
@@ -477,3 +480,25 @@ export const scanToIntake = (params: {
   scannerId: string;
   options: ScanOptions;
 }): Promise<ScanIntakeItem> => invoke('scan_to_intake', params);
+
+export const listMobileSubmissions = (params: {
+  sessionId: string;
+  reviewStatus?: MobileReviewStatus | null;
+}): Promise<MobileSubmissionItem[]> => invoke('list_mobile_submissions', params);
+
+export const getMobileSubmission = (params: {
+  sessionId: string;
+  mobileSubmissionId: number;
+}): Promise<MobileSubmissionDetail> => invoke('get_mobile_submission', params);
+
+export const approveMobileSubmission = (params: {
+  sessionId: string;
+  mobileSubmissionId: number;
+  reviewNotes?: string | null;
+}): Promise<number> => invoke('approve_mobile_submission', params);
+
+export const rejectMobileSubmission = (params: {
+  sessionId: string;
+  mobileSubmissionId: number;
+  rejectionReason: string;
+}): Promise<void> => invoke('reject_mobile_submission', params);

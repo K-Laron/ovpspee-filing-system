@@ -19,6 +19,7 @@ import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
 import { AddDocument } from './pages/secretary/AddDocument';
 import { Documents } from './pages/secretary/Documents';
+import { MobileSubmissions } from './pages/secretary/MobileSubmissions';
 import { MyActivity } from './pages/secretary/MyActivity';
 import { ScanIntake } from './pages/secretary/ScanIntake';
 import { SecretaryHome } from './pages/secretary/SecretaryHome';
@@ -105,6 +106,7 @@ export const App = () => {
         <Route path="documents" element={<Documents />} />
         <Route path="documents/new" element={<AddDocument />} />
         <Route path="scan-intake" element={<ScanIntake />} />
+        <Route path="mobile-submissions" element={<MobileSubmissions />} />
         <Route path="devices" element={<DeviceSettingsPage />} />
         <Route path="my-activity" element={<MyActivity />} />
       </Route>

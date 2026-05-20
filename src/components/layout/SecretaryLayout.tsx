@@ -1,4 +1,4 @@
-import { Activity, FilePlus, Files, FileScan, LayoutDashboard, Printer, UserCircle } from 'lucide-react';
+import { Activity, FilePlus, Files, FileScan, LayoutDashboard, Printer, Smartphone, UserCircle } from 'lucide-react';
 
 import { AppShell } from './AppShell';
 
@@ -15,6 +15,12 @@ export const SecretaryLayout = () => (
         path: '/s/scan-intake',
         icon: FileScan,
         description: 'Use Scan Intake for scanned/imported files that still need to be reviewed and filed.'
+      },
+      {
+        label: 'Mobile Submissions',
+        path: '/s/mobile-submissions',
+        icon: Smartphone,
+        description: 'Review Android submissions before approving them as official documents.'
       },
       {
         label: 'Add Document',

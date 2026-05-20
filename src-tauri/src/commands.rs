@@ -19,6 +19,7 @@ use crate::{
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
+    mobile_submissions::{self, MobileSubmissionDetail, MobileSubmissionItem},
     printing::{self, PrintOptions, PrintResult},
     scan_intake::{self, ScanIntakeItem, ScanIntakePreviewPage},
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
@@ -755,6 +756,65 @@ pub async fn list_document_offices(
     documents::list_document_offices(&db.pool, &session_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_mobile_submissions(
+    db: State<'_, DbState>,
+    session_id: String,
+    review_status: Option<String>,
+) -> Result<Vec<MobileSubmissionItem>, String> {
+    mobile_submissions::list_mobile_submissions(&db.pool, &session_id, review_status)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mobile_submission(
+    db: State<'_, DbState>,
+    session_id: String,
+    mobile_submission_id: i64,
+) -> Result<MobileSubmissionDetail, String> {
+    mobile_submissions::get_mobile_submission(&db.pool, &session_id, mobile_submission_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn approve_mobile_submission(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    mobile_submission_id: i64,
+    review_notes: Option<String>,
+) -> Result<i64, String> {
+    let storage = storage_root(&app)?;
+    mobile_submissions::approve_mobile_submission(
+        &db.pool,
+        &storage,
+        &session_id,
+        mobile_submission_id,
+        review_notes,
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn reject_mobile_submission(
+    db: State<'_, DbState>,
+    session_id: String,
+    mobile_submission_id: i64,
+    rejection_reason: String,
+) -> Result<(), String> {
+    mobile_submissions::reject_mobile_submission(
+        &db.pool,
+        &session_id,
+        mobile_submission_id,
+        rejection_reason,
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
