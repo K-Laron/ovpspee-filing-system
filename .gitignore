@@ -9,3 +9,4 @@ dev_storage/
 .DS_Store
 .superpowers/
 .playwright-mcp/
+.worktrees/
