@@ -7,18 +7,19 @@
 
 ```powershell
 $env:OVPSPEE_MOBILE_API_ENABLED = "1"
-$env:OVPSPEE_MOBILE_DEVICE_TOKEN = "<office-issued-device-token>"
 ```
 
 3. Keep the desktop app open while Android devices submit documents.
-4. Open `Mobile Submissions` on the desktop and use the `Android Setup` panel for the LAN IP, setup link, and token status.
-5. Use the office PC LAN IP address and port `1421` in the Android app, for example:
+4. Open `Admin Console > Mobile Devices` and create one token per Android phone.
+5. Copy the generated Device ID and Device token to the phone immediately. The token is shown once.
+6. Open `Mobile Submissions` on the desktop and use the `Android Setup` panel for the LAN IP and setup link.
+7. Use the office PC LAN IP address and port `1421` in the Android app, for example:
 
 ```text
 http://192.168.1.20:1421
 ```
 
-6. Allow inbound office-network traffic to port `1421` only on the trusted office network.
+8. Allow inbound office-network traffic to port `1421` only on the trusted office network.
 
 Set a custom bind address when needed:
 
@@ -37,13 +38,13 @@ mobile/android/android/app/build/outputs/apk/debug/app-debug.apk
 Install it on an Android device connected to the same office network as the PC. On first launch:
 
 1. Enter the hub URL.
-2. Enter the approved device name and token from the desktop setup panel.
+2. Enter the desktop-generated Device ID, device name, and token.
 3. Log in with a Secretary account.
 4. Add attachments.
 5. Complete all document metadata.
 6. Submit. The record appears in the desktop `Mobile Submissions` queue as `Pending`.
 
-Drafts, hub URL, device ID/name/token, and retry queue are persisted in Android SharedPreferences. Failed uploads remain queued and can be retried from Capture or History when office Wi-Fi returns.
+Drafts, hub URL, device ID/name/token, and retry queue are persisted in Android SharedPreferences. Failed uploads remain queued and can be retried from Capture or History when office Wi-Fi returns. If a phone is lost, revoke it from `Admin Console > Mobile Devices`; the revoked token cannot use the mobile API.
 
 ## Desktop Review
 
@@ -53,7 +54,7 @@ Secretaries review submissions in:
 /s/mobile-submissions
 ```
 
-Approving creates the official desktop document and copies the submitted attachments. Rejecting leaves the submission in rejected status with a reason. The review queue supports status, search, date filters, rejection templates, and device/submission audit details.
+Approving creates the official desktop document and copies the submitted attachments. Rejecting leaves the submission in rejected status with a reason. The review queue supports attachment preview, status/search/date filters, rejection templates, keyboard review shortcuts, and device/submission audit details.
 
 ## Build Notes
 
@@ -68,6 +69,14 @@ cd mobile/android
 .\android\gradlew.bat -p android :app:assembleDebug
 ```
 
+Final release build:
+
+```powershell
+.\scripts\build-final-release.ps1
+```
+
+The script runs the desktop build, desktop UI tests, Android tests/typecheck, Android release APK build, Rust mobile tests, and desktop bundle build.
+
 For signed release builds, keep secrets outside git and set:
 
 ```powershell
@@ -78,7 +87,7 @@ $env:OVPSPEE_ANDROID_KEY_PASSWORD = "<password>"
 .\android\gradlew.bat -p android :app:assembleRelease
 ```
 
-Recommended v1.1 deployment is device token plus trusted office Wi-Fi/firewall. Use the included HTTPS reverse proxy when phones require TLS before reaching port `1421`.
+Recommended deployment is approved-device tokens plus trusted office Wi-Fi/firewall. Use the included HTTPS reverse proxy when phones require TLS before reaching port `1421`.
 
 ## HTTPS Proxy
 
