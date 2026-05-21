@@ -13,8 +13,8 @@ vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => 'session-1'
 }));
 
-import { getMobileApiSetup, listMobileSubmissions } from '../../lib/invoke';
-import type { MobileSubmissionItem } from '../../types';
+import { getMobileApiSetup, getMobileSubmission, listMobileSubmissions } from '../../lib/invoke';
+import type { MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
 
 const pendingSubmission: MobileSubmissionItem = {
   mobile_submission_id: 18,
@@ -45,9 +45,25 @@ const pendingSubmission: MobileSubmissionItem = {
   updated_at: '2026-05-20T08:00:00Z'
 };
 
+const pendingDetail: MobileSubmissionDetail = {
+  submission: pendingSubmission,
+  attachments: [
+    {
+      mobile_submission_attachment_id: 9,
+      mobile_submission_id: 18,
+      original_file_name: 'mobile-bac-memo.pdf',
+      mime_type: 'application/pdf',
+      file_size_bytes: 4096,
+      sort_order: 1,
+      created_at: '2026-05-20T08:00:00Z'
+    }
+  ]
+};
+
 describe('MobileSubmissions', () => {
   beforeEach(() => {
     vi.mocked(listMobileSubmissions).mockResolvedValue([pendingSubmission]);
+    vi.mocked(getMobileSubmission).mockResolvedValue(pendingDetail);
     vi.mocked(getMobileApiSetup).mockResolvedValue({
       enabled: true,
       bind_addr: '0.0.0.0:1421',
@@ -73,6 +89,7 @@ describe('MobileSubmissions', () => {
     expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
     expect(screen.getByText('Captured on Android')).toBeInTheDocument();
     expect(screen.getByText('2 file(s)')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /preview/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
   });

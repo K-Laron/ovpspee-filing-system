@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, fs};
+use std::{ffi::OsStr, fs, path::Path};
 
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,9 @@ use crate::{
     },
     error::{AppError, AppResult},
 };
+
+const MAX_TEXT_PREVIEW_BYTES: i64 = 262_144;
+const MAX_TEXT_PREVIEW_CHARS: usize = 16_384;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MobileSubmissionInput {
@@ -76,6 +79,30 @@ pub struct MobileSubmissionAttachmentItem {
     pub file_size_bytes: i64,
     pub sort_order: i64,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MobileSubmissionAttachmentPreviewInfo {
+    pub mobile_submission_attachment_id: i64,
+    pub mobile_submission_id: i64,
+    pub original_file_name: String,
+    pub extension: String,
+    pub mime_type: String,
+    pub file_size_bytes: i64,
+    pub preview_kind: String,
+    pub page_count: Option<i64>,
+    pub file_exists: bool,
+    pub supported: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MobileSubmissionAttachmentPreviewPage {
+    pub info: MobileSubmissionAttachmentPreviewInfo,
+    pub page_number: i64,
+    pub file_path: Option<String>,
+    pub text_content: Option<String>,
+    pub text_truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,6 +205,41 @@ pub async fn get_mobile_submission(
     Ok(MobileSubmissionDetail {
         submission,
         attachments,
+    })
+}
+
+pub async fn get_mobile_submission_attachment_preview_page(
+    pool: &DbPool,
+    storage: &StorageRoot,
+    session_id: &str,
+    mobile_submission_attachment_id: i64,
+    page_number: Option<i64>,
+) -> AppResult<MobileSubmissionAttachmentPreviewPage> {
+    require_secretary(pool, session_id).await?;
+    let attachment = fetch_attachment(pool, mobile_submission_attachment_id).await?;
+    let path = storage.resolve_checked(&attachment.stored_relative_path)?;
+    let info = mobile_preview_info(&attachment, &path);
+    let requested = page_number.unwrap_or(1).max(1);
+    let max_page = info.page_count.unwrap_or(1).max(1);
+    if requested > max_page {
+        return Err(AppError::Validation("Preview page is out of range.".into()));
+    }
+    let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
+        read_text_preview(&path, info.file_size_bytes)?
+    } else {
+        (None, false)
+    };
+    let file_path = if info.file_exists && matches!(info.preview_kind.as_str(), "Pdf" | "Image") {
+        Some(path.to_string_lossy().into_owned())
+    } else {
+        None
+    };
+    Ok(MobileSubmissionAttachmentPreviewPage {
+        info,
+        page_number: requested,
+        file_path,
+        text_content,
+        text_truncated,
     })
 }
 
@@ -606,6 +668,120 @@ async fn fetch_attachments(
     .fetch_all(pool)
     .await?;
     Ok(rows)
+}
+
+async fn fetch_attachment(
+    pool: &DbPool,
+    mobile_submission_attachment_id: i64,
+) -> AppResult<MobileSubmissionAttachmentItem> {
+    sqlx::query_as::<_, MobileSubmissionAttachmentItem>(
+        "SELECT mobile_submission_attachment_id,
+                mobile_submission_id,
+                original_file_name,
+                stored_relative_path,
+                mime_type,
+                file_size_bytes,
+                sort_order,
+                created_at
+         FROM mobile_submission_attachment
+         WHERE mobile_submission_attachment_id = ?",
+    )
+    .bind(mobile_submission_attachment_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Mobile attachment not found.".into()))
+}
+
+fn mobile_preview_info(
+    attachment: &MobileSubmissionAttachmentItem,
+    path: &Path,
+) -> MobileSubmissionAttachmentPreviewInfo {
+    let file_exists = path.is_file();
+    let preview_kind = preview_kind(&attachment.mime_type).to_owned();
+    let supported = preview_kind != "Unsupported";
+    let page_count = if file_exists && preview_kind == "Pdf" {
+        estimate_pdf_page_count(path)
+    } else if file_exists && preview_kind == "Image" {
+        Some(1)
+    } else {
+        None
+    };
+    let message = if !file_exists {
+        "Attachment file is unavailable.".to_owned()
+    } else if preview_kind == "Text" && attachment.file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+        "Text preview is unavailable because this file is too large.".to_owned()
+    } else if preview_kind == "Unsupported" {
+        "Preview not available for this file type.".to_owned()
+    } else {
+        "Preview available.".to_owned()
+    };
+    MobileSubmissionAttachmentPreviewInfo {
+        mobile_submission_attachment_id: attachment.mobile_submission_attachment_id,
+        mobile_submission_id: attachment.mobile_submission_id,
+        original_file_name: attachment.original_file_name.clone(),
+        extension: extension_from_name(&attachment.original_file_name, &attachment.mime_type),
+        mime_type: attachment.mime_type.clone(),
+        file_size_bytes: attachment.file_size_bytes,
+        preview_kind,
+        page_count,
+        file_exists,
+        supported,
+        message,
+    }
+}
+
+fn preview_kind(mime_type: &str) -> &'static str {
+    if mime_type == "application/pdf" {
+        "Pdf"
+    } else if matches!(mime_type, "image/png" | "image/jpeg") {
+        "Image"
+    } else if mime_type == "text/plain" {
+        "Text"
+    } else {
+        "Unsupported"
+    }
+}
+
+fn extension_from_name(name: &str, mime_type: &str) -> String {
+    Path::new(name)
+        .extension()
+        .and_then(OsStr::to_str)
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_else(|| match mime_type {
+            "application/pdf" => "pdf".to_owned(),
+            "image/jpeg" => "jpg".to_owned(),
+            "image/png" => "png".to_owned(),
+            "text/plain" => "txt".to_owned(),
+            _ => "unknown".to_owned(),
+        })
+}
+
+fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<String>, bool)> {
+    if file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+        return Ok((None, true));
+    }
+    let bytes = fs::read(path)?;
+    let text = String::from_utf8(bytes).map_err(|_| {
+        AppError::Validation("Text preview is available only for UTF-8 text files.".into())
+    })?;
+    let mut truncated = false;
+    let mut preview = String::new();
+    for (index, ch) in text.chars().enumerate() {
+        if index >= MAX_TEXT_PREVIEW_CHARS {
+            truncated = true;
+            break;
+        }
+        preview.push(ch);
+    }
+    Ok((Some(preview), truncated))
+}
+
+fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
+    let bytes = fs::read(path).ok()?;
+    let text = String::from_utf8_lossy(&bytes);
+    let count =
+        text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
+    Some(count.max(1))
 }
 
 fn validate_review_status(value: &str) -> AppResult<()> {

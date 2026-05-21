@@ -1,4 +1,5 @@
-import { CheckCircle2, Clock3, FileText, Paperclip, QrCode, RefreshCw, Search, Smartphone, XCircle } from 'lucide-react';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, FileText, Paperclip, QrCode, RefreshCw, Search, Smartphone, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
@@ -9,6 +10,7 @@ import { getUserErrorMessage } from '../../lib/errors';
 import {
   approveMobileSubmission,
   getMobileApiSetup,
+  getMobileSubmissionAttachmentPreviewPage,
   getMobileSubmission,
   listMobileSubmissions,
   rejectMobileSubmission
@@ -18,6 +20,7 @@ import type {
   MobileReviewStatus,
   MobileApiSetup,
   MobileSubmissionAttachmentItem,
+  MobileSubmissionAttachmentPreviewPage,
   MobileSubmissionDetail,
   MobileSubmissionItem
 } from '../../types';
@@ -67,8 +70,13 @@ export const MobileSubmissions = () => {
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState<number | null>(null);
+  const [preview, setPreview] = useState<MobileSubmissionAttachmentPreviewPage | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
-  const selectedId = detail?.submission.mobile_submission_id ?? null;
+  const selected = detail?.submission;
+  const attachments = detail?.attachments ?? [];
+  const selectedId = selected?.mobile_submission_id ?? null;
   const pendingCount = useMemo(
     () => submissions.filter((submission) => submission.review_status === 'Pending').length,
     [submissions]
@@ -77,6 +85,8 @@ export const MobileSubmissions = () => {
   const openDetail = async (submission: MobileSubmissionItem) => {
     setDetail(detailFromItem(submission));
     setReviewNotes(submission.review_notes ?? '');
+    setSelectedAttachmentId(null);
+    setPreview(null);
     if (!sessionId) return;
 
     try {
@@ -174,8 +184,43 @@ export const MobileSubmissions = () => {
     });
   };
 
-  const selected = detail?.submission;
-  const attachments = detail?.attachments ?? [];
+  const loadPreview = async (attachment: MobileSubmissionAttachmentItem, pageNumber = 1) => {
+    if (!sessionId) return;
+    setSelectedAttachmentId(attachment.mobile_submission_attachment_id);
+    setPreviewLoading(true);
+    try {
+      setPreview(await getMobileSubmissionAttachmentPreviewPage({
+        sessionId,
+        mobileSubmissionAttachmentId: attachment.mobile_submission_attachment_id,
+        pageNumber
+      }));
+    } catch (err) {
+      setPreview(null);
+      setMessage(getUserErrorMessage(err, 'Could not preview this mobile attachment.'));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && rejecting) {
+        setRejecting(false);
+        return;
+      }
+      if (!selected || selected.review_status !== 'Pending' || busy) return;
+      if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        confirmApprove();
+      }
+      if (event.ctrlKey && (event.key === 'Backspace' || event.key === 'Delete')) {
+        event.preventDefault();
+        setRejecting(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [busy, rejecting, selected?.mobile_submission_id, selected?.review_status]);
 
   return (
     <section className="space-y-5">
@@ -440,7 +485,20 @@ export const MobileSubmissions = () => {
                   <Paperclip size={18} className="text-primary" />
                   <h3 className="font-semibold text-secondary">Attachments</h3>
                 </div>
-                <AttachmentList attachments={attachments} expectedCount={selected.attachment_count} />
+                <AttachmentList
+                  attachments={attachments}
+                  expectedCount={selected.attachment_count}
+                  onPreview={(attachment) => void loadPreview(attachment)}
+                  selectedAttachmentId={selectedAttachmentId}
+                />
+                <MobileAttachmentPreview
+                  loading={previewLoading}
+                  onPageChange={(pageNumber) => {
+                    const attachment = attachments.find((item) => item.mobile_submission_attachment_id === selectedAttachmentId);
+                    if (attachment) void loadPreview(attachment, pageNumber);
+                  }}
+                  preview={preview}
+                />
               </div>
 
               <div className="rounded border border-border bg-background p-3 text-xs text-muted">
@@ -465,10 +523,14 @@ const MetadataItem = ({ className = '', label, value }: { className?: string; la
 
 const AttachmentList = ({
   attachments,
-  expectedCount
+  expectedCount,
+  onPreview,
+  selectedAttachmentId
 }: {
   attachments: MobileSubmissionAttachmentItem[];
   expectedCount: number;
+  onPreview: (attachment: MobileSubmissionAttachmentItem) => void;
+  selectedAttachmentId: number | null;
 }) => {
   if (attachments.length === 0) {
     return (
@@ -482,14 +544,84 @@ const AttachmentList = ({
   return (
     <div className="space-y-2">
       {attachments.map((attachment) => (
-        <div className="flex items-center justify-between gap-3 rounded border border-border p-3 text-sm" key={attachment.mobile_submission_attachment_id}>
+        <div className={`flex items-center justify-between gap-3 rounded border p-3 text-sm ${selectedAttachmentId === attachment.mobile_submission_attachment_id ? 'border-primary bg-primary/5' : 'border-border'}`} key={attachment.mobile_submission_attachment_id}>
           <div className="min-w-0">
             <p className="truncate font-medium text-secondary">{attachment.original_file_name}</p>
             <p className="truncate text-xs text-muted">{attachment.mime_type} · {sizeLabel(attachment.file_size_bytes)}</p>
           </div>
-          <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">#{attachment.sort_order}</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">#{attachment.sort_order}</span>
+            <button className="btn" onClick={() => onPreview(attachment)} type="button">
+              <Eye size={15} />Preview
+            </button>
+          </div>
         </div>
       ))}
+    </div>
+  );
+};
+
+const MobileAttachmentPreview = ({
+  loading,
+  onPageChange,
+  preview
+}: {
+  loading: boolean;
+  onPageChange: (pageNumber: number) => void;
+  preview: MobileSubmissionAttachmentPreviewPage | null;
+}) => {
+  if (loading) {
+    return <div className="mt-3 rounded border border-border bg-background p-4 text-sm text-muted">Loading preview...</div>;
+  }
+  if (!preview) {
+    return <div className="mt-3 rounded border border-border bg-background p-4 text-sm text-muted">Select Preview on an attachment.</div>;
+  }
+
+  const info = preview.info;
+  const maxPage = info.page_count ?? 1;
+  const canPage = info.preview_kind === 'Pdf' && maxPage > 1;
+  const fileUrl = preview.file_path ? convertFileSrc(preview.file_path) : null;
+
+  return (
+    <div className="mt-3 space-y-3 rounded border border-border bg-background p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-secondary">{info.original_file_name}</p>
+          <p className="text-xs text-muted">{info.preview_kind} · {info.extension} · {sizeLabel(info.file_size_bytes)}</p>
+        </div>
+        {canPage ? (
+          <div className="flex items-center gap-2">
+            <button className="icon-btn" disabled={preview.page_number <= 1} onClick={() => onPageChange(preview.page_number - 1)} title="Previous page" type="button">
+              <ChevronLeft size={15} />
+            </button>
+            <span className="text-xs font-semibold text-secondary">PAGE {preview.page_number} of {maxPage}</span>
+            <button className="icon-btn" disabled={preview.page_number >= maxPage} onClick={() => onPageChange(preview.page_number + 1)} title="Next page" type="button">
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {!info.file_exists ? (
+        <div className="rounded border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+          <div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />File unavailable</div>
+          <p className="mt-1">{info.message}</p>
+        </div>
+      ) : null}
+      {info.file_exists && info.preview_kind === 'Text' ? (
+        <pre className="max-h-[26rem] overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-white p-3 text-xs leading-relaxed text-secondary">{preview.text_content ?? info.message}</pre>
+      ) : null}
+      {info.file_exists && info.preview_kind === 'Image' && fileUrl ? (
+        <div className="max-h-[32rem] overflow-auto rounded border border-border bg-white p-3">
+          <img alt={info.original_file_name} className="mx-auto max-h-[30rem] max-w-full object-contain" src={fileUrl} />
+        </div>
+      ) : null}
+      {info.file_exists && info.preview_kind === 'Pdf' && fileUrl ? (
+        <iframe className="h-[32rem] w-full rounded border border-border bg-white" src={`${fileUrl}#page=${preview.page_number}`} title={info.original_file_name} />
+      ) : null}
+      {info.file_exists && info.preview_kind === 'Unsupported' ? (
+        <div className="rounded border border-border bg-surface p-4 text-sm text-secondary">{info.message}</div>
+      ) : null}
     </div>
   );
 };

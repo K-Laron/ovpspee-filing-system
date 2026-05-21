@@ -15,8 +15,7 @@ use crate::{
     db::DbPool,
     documents::StorageRoot,
     error::AppError,
-    master_data,
-    mobile_devices,
+    master_data, mobile_devices,
     mobile_submissions::{self, MobileSubmissionAttachmentUpload, MobileSubmissionInput},
 };
 

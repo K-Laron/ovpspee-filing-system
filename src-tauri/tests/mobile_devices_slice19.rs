@@ -6,10 +6,10 @@ use ovpspee_filing_system::{
     auth::{authenticate_user, create_first_admin},
     db::{create_test_pool, DbPool},
     documents::StorageRoot,
+    mobile_api,
     mobile_devices::{
         create_mobile_device, list_mobile_devices, revoke_mobile_device, validate_mobile_device,
     },
-    mobile_api,
     users::{create_user, UserInput},
 };
 use sqlx::Row;
@@ -89,12 +89,13 @@ async fn admin_can_create_list_and_validate_mobile_device_token() {
     assert_eq!(devices[0].device_name, "Records Android");
     assert!(devices[0].is_active);
 
-    let stored_hash: String = sqlx::query("SELECT token_hash FROM mobile_device WHERE device_id = ?")
-        .bind(&created.device_id)
-        .fetch_one(&fx.pool)
-        .await
-        .expect("stored hash")
-        .get("token_hash");
+    let stored_hash: String =
+        sqlx::query("SELECT token_hash FROM mobile_device WHERE device_id = ?")
+            .bind(&created.device_id)
+            .fetch_one(&fx.pool)
+            .await
+            .expect("stored hash")
+            .get("token_hash");
     assert_ne!(stored_hash, created.device_token);
 
     validate_mobile_device(&fx.pool, &created.device_id, &created.device_token)
@@ -106,9 +107,11 @@ async fn admin_can_create_list_and_validate_mobile_device_token() {
 async fn secretary_cannot_create_mobile_device_token() {
     let fx = fixture().await;
 
-    assert!(create_mobile_device(&fx.pool, &fx.secretary, "Blocked phone")
-        .await
-        .is_err());
+    assert!(
+        create_mobile_device(&fx.pool, &fx.secretary, "Blocked phone")
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]

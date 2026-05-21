@@ -176,6 +176,28 @@ export interface MobileSubmissionDetail {
   attachments: MobileSubmissionAttachmentItem[];
 }
 
+export interface MobileSubmissionAttachmentPreviewInfo {
+  mobile_submission_attachment_id: number;
+  mobile_submission_id: number;
+  original_file_name: string;
+  extension: string;
+  mime_type: string;
+  file_size_bytes: number;
+  preview_kind: 'Pdf' | 'Image' | 'Text' | 'Unsupported';
+  page_count: number | null;
+  file_exists: boolean;
+  supported: boolean;
+  message: string;
+}
+
+export interface MobileSubmissionAttachmentPreviewPage {
+  info: MobileSubmissionAttachmentPreviewInfo;
+  page_number: number;
+  file_path: string | null;
+  text_content: string | null;
+  text_truncated: boolean;
+}
+
 export interface ScanIntakeItem {
   scan_intake_id: number;
   original_file_name: string;

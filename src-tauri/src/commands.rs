@@ -21,7 +21,9 @@ use crate::{
     },
     mobile_api::{self, MobileApiSetup},
     mobile_devices::{self, CreatedMobileDevice, MobileDeviceItem},
-    mobile_submissions::{self, MobileSubmissionDetail, MobileSubmissionItem},
+    mobile_submissions::{
+        self, MobileSubmissionAttachmentPreviewPage, MobileSubmissionDetail, MobileSubmissionItem,
+    },
     printing::{self, PrintOptions, PrintResult},
     scan_intake::{self, ScanIntakeItem, ScanIntakePreviewPage},
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
@@ -827,6 +829,26 @@ pub async fn get_mobile_submission(
     mobile_submissions::get_mobile_submission(&db.pool, &session_id, mobile_submission_id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mobile_submission_attachment_preview_page(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    session_id: String,
+    mobile_submission_attachment_id: i64,
+    page_number: Option<i64>,
+) -> Result<MobileSubmissionAttachmentPreviewPage, String> {
+    let storage = storage_root(&app)?;
+    mobile_submissions::get_mobile_submission_attachment_preview_page(
+        &db.pool,
+        &storage,
+        &session_id,
+        mobile_submission_attachment_id,
+        page_number,
+    )
+    .await
+    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

@@ -93,6 +93,7 @@ pub fn run() {
             commands::list_mobile_devices,
             commands::revoke_mobile_device,
             commands::get_mobile_submission,
+            commands::get_mobile_submission_attachment_preview_page,
             commands::approve_mobile_submission,
             commands::reject_mobile_submission,
             commands::import_scan_files,

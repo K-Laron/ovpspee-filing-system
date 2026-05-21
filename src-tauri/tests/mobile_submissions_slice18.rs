@@ -12,7 +12,8 @@ use ovpspee_filing_system::{
     },
     mobile_submissions::{
         approve_mobile_submission, create_mobile_submission, get_mobile_submission,
-        reject_mobile_submission, MobileSubmissionAttachmentUpload, MobileSubmissionInput,
+        get_mobile_submission_attachment_preview_page, reject_mobile_submission,
+        MobileSubmissionAttachmentUpload, MobileSubmissionInput,
     },
     users::{create_user, UserInput},
 };
@@ -276,4 +277,27 @@ async fn reject_mobile_submission_marks_rejected_without_document() {
         Some("Wrong category")
     );
     assert_eq!(rejected.submission.resulting_document_id, None);
+}
+
+#[tokio::test]
+async fn mobile_submission_attachment_preview_returns_file_path() {
+    let fx = fixture().await;
+    let submission_id = create_pending(&fx).await;
+    let detail = get_mobile_submission(&fx.pool, &fx.secretary, submission_id)
+        .await
+        .expect("detail");
+
+    let preview = get_mobile_submission_attachment_preview_page(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        detail.attachments[0].mobile_submission_attachment_id,
+        Some(1),
+    )
+    .await
+    .expect("preview");
+
+    assert_eq!(preview.info.preview_kind, "Pdf");
+    assert!(preview.info.file_exists);
+    assert!(preview.file_path.is_some());
 }

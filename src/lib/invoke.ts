@@ -17,6 +17,7 @@ import type {
   MobileReviewStatus,
   MobileApiSetup,
   MobileDeviceItem,
+  MobileSubmissionAttachmentPreviewPage,
   MobileSubmissionDetail,
   MobileSubmissionItem,
   OfficeItem,
@@ -511,6 +512,13 @@ export const getMobileSubmission = (params: {
   sessionId: string;
   mobileSubmissionId: number;
 }): Promise<MobileSubmissionDetail> => invoke('get_mobile_submission', params);
+
+export const getMobileSubmissionAttachmentPreviewPage = (params: {
+  sessionId: string;
+  mobileSubmissionAttachmentId: number;
+  pageNumber?: number | null;
+}): Promise<MobileSubmissionAttachmentPreviewPage> =>
+  invoke('get_mobile_submission_attachment_preview_page', params);
 
 export const approveMobileSubmission = (params: {
   sessionId: string;
