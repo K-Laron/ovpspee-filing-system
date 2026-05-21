@@ -591,11 +591,11 @@ const MobileAttachmentPreview = ({
         </div>
         {canPage ? (
           <div className="flex items-center gap-2">
-            <button className="icon-btn" disabled={preview.page_number <= 1} onClick={() => onPageChange(preview.page_number - 1)} title="Previous page" type="button">
+            <button aria-label="Previous mobile attachment preview page" className="icon-btn" disabled={preview.page_number <= 1} onClick={() => onPageChange(preview.page_number - 1)} title="Previous page" type="button">
               <ChevronLeft size={15} />
             </button>
             <span className="text-xs font-semibold text-secondary">PAGE {preview.page_number} of {maxPage}</span>
-            <button className="icon-btn" disabled={preview.page_number >= maxPage} onClick={() => onPageChange(preview.page_number + 1)} title="Next page" type="button">
+            <button aria-label="Next mobile attachment preview page" className="icon-btn" disabled={preview.page_number >= maxPage} onClick={() => onPageChange(preview.page_number + 1)} title="Next page" type="button">
               <ChevronRight size={15} />
             </button>
           </div>

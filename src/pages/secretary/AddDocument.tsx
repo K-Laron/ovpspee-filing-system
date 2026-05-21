@@ -208,7 +208,7 @@ export const AddDocument = () => {
                   <p className="truncate font-medium text-secondary">{fileNameFromPath(sourcePath)}</p>
                   <p className="truncate text-xs text-muted">{sourcePath}</p>
                 </div>
-                <button className="icon-btn shrink-0" onClick={() => removeSelectedAttachment(sourcePath)} title="Remove selected file" type="button">
+                <button aria-label={`Remove selected file ${fileNameFromPath(sourcePath)}`} className="icon-btn shrink-0" onClick={() => removeSelectedAttachment(sourcePath)} title="Remove selected file" type="button">
                   <X size={15} />
                 </button>
               </div>

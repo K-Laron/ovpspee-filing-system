@@ -1,6 +1,7 @@
 import { save } from '@tauri-apps/plugin-dialog';
 import { Download, FileText, Folder, Printer, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
 import { EmptyState } from '../components/EmptyState';
@@ -91,6 +92,12 @@ export const GuestLanding = () => {
 
   const openDocument = async (documentId: number) => {
     setDetail(await getPublicDocument(documentId));
+  };
+
+  const openDocumentFromKeyboard = (event: KeyboardEvent<HTMLTableRowElement>, documentId: number) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    void openDocument(documentId).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   };
 
   const exportPdf = async () => {
@@ -205,7 +212,15 @@ export const GuestLanding = () => {
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr className="cursor-pointer border-b border-border hover:bg-background" key={doc.document_id} onClick={() => void openDocument(doc.document_id).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))}>
+                <tr
+                  aria-label={`Open public document ${doc.document_name}`}
+                  className="cursor-pointer border-b border-border hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  key={doc.document_id}
+                  onClick={() => void openDocument(doc.document_id).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))}
+                  onKeyDown={(event) => openDocumentFromKeyboard(event, doc.document_id)}
+                  role="button"
+                  tabIndex={0}
+                >
                   <td className="p-3">
                     <p className="font-semibold text-secondary">{doc.document_name}</p>
                     <p className="text-xs text-muted"><span className="rounded bg-background px-2 py-0.5 text-[11px] font-semibold text-secondary">{doc.status}</span> · {doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</p>

@@ -211,7 +211,7 @@ export const BackupRestore = () => {
         <div className="space-y-4 rounded border border-border bg-surface p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-secondary">Backup Settings</h2>
           <label className="block text-sm">
-            <span className="label">Destination</span>
+            <span className="form-label">Destination</span>
             <div className="flex gap-2">
               <input className="input" value={destination} onChange={(event) => setDestination(event.target.value)} />
               <button className="btn" onClick={() => void chooseDestination()} type="button">
@@ -226,11 +226,11 @@ export const BackupRestore = () => {
               Scheduled backups
             </label>
             <label className="block text-sm">
-              <span className="label">Daily time</span>
+              <span className="form-label">Daily time</span>
               <input className="input" onChange={(event) => setScheduleTime(event.target.value)} type="time" value={scheduleTime} />
             </label>
             <label className="block text-sm">
-              <span className="label">Keep last</span>
+              <span className="form-label">Keep last</span>
               <input className="input" min={1} max={100} onChange={(event) => setRetentionCount(Number(event.target.value))} type="number" value={retentionCount} />
             </label>
           </div>
@@ -249,7 +249,7 @@ export const BackupRestore = () => {
         <div className="space-y-4 rounded border border-border bg-surface p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-secondary">Portable Backup</h2>
           <label className="block text-sm">
-            <span className="label">Selected backup</span>
+            <span className="form-label">Selected backup</span>
             <select className="input" value={selected} onChange={(event) => setSelected(event.target.value)}>
               <option value="">Select backup</option>
               {history.map((backup) => <option key={backup.backup_name} value={backup.backup_name}>{backup.backup_name}</option>)}

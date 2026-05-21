@@ -1,10 +1,19 @@
 import { Ban, KeyRound, RefreshCw, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { createMobileDevice, listMobileDevices, revokeMobileDevice } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CreatedMobileDevice, MobileDeviceItem } from '../../types';
+
+interface ConfirmAction {
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+}
 
 export const MobileDevices = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -15,6 +24,7 @@ export const MobileDevices = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const load = async () => {
     if (!sessionId) return;
@@ -69,8 +79,38 @@ export const MobileDevices = () => {
     }
   };
 
+  const confirmRevoke = (device: MobileDeviceItem) => {
+    setConfirmAction({
+      title: 'Revoke mobile device?',
+      body: <>Revoke <strong>{device.device_name}</strong>. This Android phone will no longer be allowed to upload documents to this office PC.</>,
+      confirmLabel: 'Revoke Device',
+      onConfirm: () => revoke(device.device_id)
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    try {
+      await confirmAction.onConfirm();
+    } catch (err) {
+      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+    } finally {
+      setConfirmAction(null);
+    }
+  };
+
   return (
     <section className="space-y-5">
+      {confirmAction && (
+        <ConfirmDialog
+          body={confirmAction.body}
+          confirmLabel={confirmAction.confirmLabel}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => handleConfirmAction()}
+          title={confirmAction.title}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Mobile Devices</h1>
@@ -159,7 +199,7 @@ export const MobileDevices = () => {
                         <button
                           className="btn"
                           disabled={!device.is_active || revokingId === device.device_id}
-                          onClick={() => void revoke(device.device_id)}
+                          onClick={() => confirmRevoke(device)}
                           type="button"
                         >
                           <Ban size={16} />{revokingId === device.device_id ? 'Revoking...' : 'Revoke'}

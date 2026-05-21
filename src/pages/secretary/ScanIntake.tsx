@@ -104,11 +104,11 @@ const ScanIntakePreview = ({ item, loading, onPageChange, page, preview }: ScanI
 
       {canPage && (
         <div className="flex items-center gap-2">
-          <button className="icon-btn" disabled={loading || page <= 1} onClick={() => onPageChange(page - 1)} title="Previous page" type="button">
+          <button aria-label="Previous scan preview page" className="icon-btn" disabled={loading || page <= 1} onClick={() => onPageChange(page - 1)} title="Previous page" type="button">
             <ChevronLeft size={15} />
           </button>
           <span className="text-xs font-semibold text-secondary">PAGE {page} of {maxPage}</span>
-          <button className="icon-btn" disabled={loading || page >= maxPage} onClick={() => onPageChange(page + 1)} title="Next page" type="button">
+          <button aria-label="Next scan preview page" className="icon-btn" disabled={loading || page >= maxPage} onClick={() => onPageChange(page + 1)} title="Next page" type="button">
             <ChevronRight size={15} />
           </button>
         </div>
@@ -598,7 +598,7 @@ export const ScanIntake = () => {
                     <p className="truncate font-medium text-secondary">{fileNameFromPath(sourcePath)}</p>
                     <p className="truncate text-xs text-muted">Ready to import</p>
                   </div>
-                  <button className="icon-btn shrink-0" onClick={() => setSelectedPaths((current) => current.filter((path) => path !== sourcePath))} title="Remove selected file" type="button">
+                  <button aria-label={`Remove selected scan file ${fileNameFromPath(sourcePath)}`} className="icon-btn shrink-0" onClick={() => setSelectedPaths((current) => current.filter((path) => path !== sourcePath))} title="Remove selected file" type="button">
                     <X size={15} />
                   </button>
                 </div>

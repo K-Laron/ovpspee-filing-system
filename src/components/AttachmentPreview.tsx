@@ -71,11 +71,11 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
         <div className="flex items-center gap-2">
           {canPage && (
             <>
-              <button className="icon-btn" disabled={loading || pageNumber <= 1} onClick={() => void load(pageNumber - 1)} title="Previous page" type="button">
+              <button aria-label="Previous preview page" className="icon-btn" disabled={loading || pageNumber <= 1} onClick={() => void load(pageNumber - 1)} title="Previous page" type="button">
                 <ChevronLeft size={15} />
               </button>
               <span className="text-xs font-semibold text-secondary">PAGE {pageNumber} of {maxPage}</span>
-              <button className="icon-btn" disabled={loading || pageNumber >= maxPage} onClick={() => void load(pageNumber + 1)} title="Next page" type="button">
+              <button aria-label="Next preview page" className="icon-btn" disabled={loading || pageNumber >= maxPage} onClick={() => void load(pageNumber + 1)} title="Next page" type="button">
                 <ChevronRight size={15} />
               </button>
             </>

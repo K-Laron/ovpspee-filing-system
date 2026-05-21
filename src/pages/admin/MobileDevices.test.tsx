@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/invoke', () => ({
@@ -12,7 +13,7 @@ vi.mock('../../store/sessionStore', () => ({
     selector({ sessionId: 'session-1' })
 }));
 
-import { listMobileDevices } from '../../lib/invoke';
+import { listMobileDevices, revokeMobileDevice } from '../../lib/invoke';
 import type { MobileDeviceItem } from '../../types';
 
 const device: MobileDeviceItem = {
@@ -29,6 +30,7 @@ const device: MobileDeviceItem = {
 describe('MobileDevices', () => {
   beforeEach(() => {
     vi.mocked(listMobileDevices).mockResolvedValue([device]);
+    vi.mocked(revokeMobileDevice).mockResolvedValue(undefined);
   });
 
   it('shows device list, create token, and revoke controls', async () => {
@@ -41,5 +43,26 @@ describe('MobileDevices', () => {
     expect(screen.getByText('device-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create token/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /revoke/i })).toBeInTheDocument();
+  });
+
+  it('requires confirmation before revoking a mobile device', async () => {
+    const user = userEvent.setup();
+    const { MobileDevices } = await import('./MobileDevices');
+
+    render(<MobileDevices />);
+
+    await user.click(await screen.findByRole('button', { name: /revoke/i }));
+
+    expect(revokeMobileDevice).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: /revoke mobile device/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /revoke device/i }));
+
+    await waitFor(() =>
+      expect(revokeMobileDevice).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        deviceId: 'device-1'
+      })
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Download, Edit3, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -136,6 +136,12 @@ export const Documents = () => {
     setEditing(false);
     setMoving(false);
     setPreviewAttachmentId(nextDetail.attachments[0]?.attachment_id ?? null);
+  };
+
+  const openDetailFromKeyboard = (event: KeyboardEvent<HTMLTableRowElement>, documentId: number) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    void openDetail(documentId);
   };
 
   useEffect(() => {
@@ -412,7 +418,15 @@ export const Documents = () => {
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr className="cursor-pointer border-b border-border hover:bg-background" key={doc.document_id} onClick={() => void openDetail(doc.document_id)}>
+                <tr
+                  aria-label={`Open document ${doc.document_name}`}
+                  className="cursor-pointer border-b border-border hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  key={doc.document_id}
+                  onClick={() => void openDetail(doc.document_id)}
+                  onKeyDown={(event) => openDetailFromKeyboard(event, doc.document_id)}
+                  role="button"
+                  tabIndex={0}
+                >
                   <td className="p-3">
                     <p className="font-semibold text-secondary">{doc.document_name}</p>
                     <p className="text-xs text-muted">
@@ -523,8 +537,8 @@ export const Documents = () => {
                     <div className="flex items-center justify-between rounded border border-border p-3 text-sm" key={file.attachment_id}>
                       <div><p className="font-medium text-secondary">{file.original_file_name}</p><p className="text-xs text-muted">{Math.ceil(file.file_size_bytes / 1024)} KB</p></div>
                       <div className="flex gap-2">
-                        <button className="icon-btn" title="Preview attachment" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button"><Eye size={15} /></button>
-                        {!isTrashView && <button className="icon-btn" title="Remove attachment" onClick={() => confirmRemoveAttachment(file.attachment_id, file.original_file_name)} type="button"><Trash2 size={15} /></button>}
+                        <button aria-label={`Preview attachment ${file.original_file_name}`} className="icon-btn" title="Preview attachment" onClick={() => setPreviewAttachmentId(file.attachment_id)} type="button"><Eye size={15} /></button>
+                        {!isTrashView && <button aria-label={`Remove attachment ${file.original_file_name}`} className="icon-btn" title="Remove attachment" onClick={() => confirmRemoveAttachment(file.attachment_id, file.original_file_name)} type="button"><Trash2 size={15} /></button>}
                       </div>
                     </div>
                   ))}
@@ -543,6 +557,7 @@ export const Documents = () => {
                             <p className="truncate text-xs text-muted">{sourcePath}</p>
                           </div>
                           <button
+                            aria-label={`Remove selected file ${fileNameFromPath(sourcePath)}`}
                             className="icon-btn shrink-0"
                             onClick={() => setPendingAttachmentPaths((current) => current.filter((path) => path !== sourcePath))}
                             title="Remove selected file"
