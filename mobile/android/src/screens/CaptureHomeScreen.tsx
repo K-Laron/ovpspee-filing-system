@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MobileSubmissionDraft } from '../types';
 
 interface CaptureHomeScreenProps {
+  captureError?: string;
   draft: MobileSubmissionDraft;
   lastSubmissionId: number | null;
   pendingQueueCount: number;
@@ -14,6 +15,7 @@ interface CaptureHomeScreenProps {
 }
 
 export function CaptureHomeScreen({
+  captureError,
   draft,
   lastSubmissionId,
   pendingQueueCount,
@@ -45,6 +47,17 @@ export function CaptureHomeScreen({
           <Text style={styles.secondaryText}>Add file</Text>
         </Pressable>
       </View>
+      {draft.attachments.length > 0 ? (
+        <View style={styles.stagedList}>
+          {draft.attachments.map((file, index) => (
+            <View key={`${file.uri}-${index}`} style={styles.stagedItem}>
+              <Text numberOfLines={1} style={styles.stagedName}>{file.name}</Text>
+              <Text style={styles.stagedType}>{file.type}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {captureError ? <Text style={styles.error}>{captureError}</Text> : null}
       <Pressable
         accessibilityRole="button"
         disabled={!hasAttachments}
@@ -72,6 +85,11 @@ const styles = StyleSheet.create({
   captureText: { color: '#fffaf0', fontSize: 18, fontWeight: '900' },
   secondaryButton: { alignItems: 'center', backgroundColor: '#f4c86a', borderRadius: 8, paddingVertical: 18 },
   secondaryText: { color: '#33230f', fontSize: 16, fontWeight: '900' },
+  stagedList: { gap: 8 },
+  stagedItem: { backgroundColor: '#fffaf0', borderColor: '#ded4c1', borderRadius: 8, borderWidth: 1, padding: 12 },
+  stagedName: { color: '#12312b', fontWeight: '900' },
+  stagedType: { color: '#5c675e', fontSize: 12, marginTop: 2 },
+  error: { color: '#b7352d', fontWeight: '800' },
   nextButton: { alignItems: 'center', backgroundColor: '#b7352d', borderRadius: 8, paddingVertical: 16 },
   nextButtonDisabled: { backgroundColor: '#b9afa0' },
   nextText: { color: '#fffaf0', fontSize: 16, fontWeight: '900' }

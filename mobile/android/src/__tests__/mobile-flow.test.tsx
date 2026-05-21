@@ -4,6 +4,21 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { AppRoot } from '../AppRoot';
 import type { LookupsPayload } from '../types';
 
+jest.mock('../native/capture', () => ({
+  pickFile: jest.fn(async () => ({
+    uri: 'content://office/mobile-picked.pdf',
+    name: 'mobile-picked.pdf',
+    type: 'application/pdf',
+    sizeBytes: 4096
+  })),
+  capturePhoto: jest.fn(async () => ({
+    uri: 'file:///cache/mobile-photo.jpg',
+    name: 'mobile-photo.jpg',
+    type: 'image/jpeg',
+    sizeBytes: 2048
+  }))
+}));
+
 jest.mock('../storage/drafts', () => ({
   clearQueuedSubmissions: jest.fn(),
   loadDeviceProfile: jest.fn(async () => ({ deviceId: 'device-1', deviceName: 'Records phone', deviceToken: '' })),
@@ -60,6 +75,9 @@ describe('mobile capture flow', () => {
 
     expect(await screen.findByText('Start with the document, then complete the filing details.')).toBeTruthy();
     fireEvent.press(screen.getByText('Add file'));
+    expect(await screen.findByText('mobile-picked.pdf')).toBeTruthy();
+    fireEvent.press(screen.getByText('Camera capture'));
+    expect(await screen.findByText('mobile-photo.jpg')).toBeTruthy();
     fireEvent.press(screen.getByText('Next'));
     expect(await screen.findByText('Full Add Document metadata')).toBeTruthy();
     fireEvent.press(screen.getByText('Next'));

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 import { ApiClient } from './api/client';
+import { capturePhoto, pickFile } from './native/capture';
 import { AttachmentReviewScreen } from './screens/AttachmentReviewScreen';
 import { CaptureHomeScreen } from './screens/CaptureHomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
@@ -69,6 +70,7 @@ export function AppRoot({ api: injectedApi, initialHubUrl = 'http://192.168.1.10
   const [queue, setQueue] = useState<QueuedSubmission[]>([]);
   const [history, setHistory] = useState<SubmissionHistoryItem[]>([]);
   const [lastSubmissionId, setLastSubmissionId] = useState<number | null>(null);
+  const [captureError, setCaptureError] = useState('');
   const [locked, setLocked] = useState(false);
   const [lastActiveAt, setLastActiveAt] = useState(() => Date.now());
 
@@ -138,6 +140,17 @@ export function AppRoot({ api: injectedApi, initialHubUrl = 'http://192.168.1.10
     await reloadQueue();
   };
 
+  const stageAttachment = async (loader: () => Promise<MobileSubmissionDraft['attachments'][number]>, message: string) => {
+    touch();
+    setCaptureError('');
+    try {
+      const file = await loader();
+      updateDraft((current) => ({ ...current, attachments: [...current.attachments, file] }));
+    } catch {
+      setCaptureError(message);
+    }
+  };
+
   const nav = session ? (
     <View style={styles.nav}>
       {(['capture', 'history', 'settings'] as Screen[]).map((item) => (
@@ -198,27 +211,12 @@ export function AppRoot({ api: injectedApi, initialHubUrl = 'http://192.168.1.10
         ) : null}
         {screen === 'capture' && session ? (
           <CaptureHomeScreen
+            captureError={captureError}
             draft={draft}
             lastSubmissionId={lastSubmissionId}
             pendingQueueCount={queue.length}
-            onAddFile={() =>
-              updateDraft((current) => ({
-                ...current,
-                attachments: [
-                  ...current.attachments,
-                  { uri: 'file:///mobile-capture.pdf', name: 'mobile-capture.pdf', type: 'application/pdf', sizeBytes: 4096 }
-                ]
-              }))
-            }
-            onCapture={() =>
-              updateDraft((current) => ({
-                ...current,
-                attachments: [
-                  ...current.attachments,
-                  { uri: 'file:///camera-capture-compressed.jpg', name: 'camera-capture-compressed.jpg', type: 'image/jpeg', sizeBytes: 2048 }
-                ]
-              }))
-            }
+            onAddFile={() => void stageAttachment(pickFile, 'Could not open the Android file picker.')}
+            onCapture={() => void stageAttachment(capturePhoto, 'Could not capture a camera photo.')}
             onNext={() => {
               touch();
               setScreen('metadata');
