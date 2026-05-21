@@ -13,9 +13,9 @@
 ## Implementation Status - 2026-05-21
 
 - Phases 1-5 are implemented and committed on `codex/final-mobile-app-implementation`.
-- Phase 6 is prepared with `docs/final-office-pilot-checklist.md`, but real phone install, camera/file picker proof, offline retry pilot, and backup/restore drill are blocked because `adb devices -l` returned no authorized Android device.
-- Phase 7 automated release-scope checks passed for desktop build, desktop Vitest, mobile Jest/typecheck, signed release APK, and mobile/security/review Rust slices.
-- Full `cargo test` after a clean Rust target rebuild did not finish within 30 minutes on 2026-05-21. Release-scope Rust tests passed serially with `CARGO_BUILD_JOBS=1`, `RUSTFLAGS=-C debuginfo=0`, and `CARGO_TARGET_DIR=D:\OVPSPEE_CDHP_cargo_target_final`.
+- Phase 6 is prepared with `docs/final-office-pilot-checklist.md`, but real phone install, camera/file picker proof, offline retry pilot, and backup/restore drill are blocked because no authorized physical Android device is connected.
+- An Android emulator smoke test passed on 2026-05-21: signed release APK installed, launched, focused `com.ovpspeemobile/.MainActivity`, and UI dump showed the Mobile Intake login screen. This is not a substitute for the real office phone pilot.
+- Phase 7 automated checks passed for desktop build, desktop Vitest, mobile Jest/typecheck, signed release APK, mobile/security/review Rust slices, emulator launch smoke, and full `cargo test -- --test-threads=1`.
 - Final release tag `v1.0-final-mobile` is intentionally not created until the Phase 6 office pilot and backup/restore drill pass.
 
 ---
