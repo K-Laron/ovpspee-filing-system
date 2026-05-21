@@ -1,6 +1,6 @@
 import { NativeModules, Platform } from 'react-native';
 
-import type { DeviceProfile, MobileSubmissionDraft, QueuedSubmission } from '../types';
+import type { DeviceProfile, MobileSubmissionDraft, QueueSyncStatus, QueuedSubmission } from '../types';
 
 const DRAFT_KEY = 'ovpspee.mobileSubmissionDraft.v1';
 const HUB_URL_KEY = 'ovpspee.mobileHubUrl.v1';
@@ -51,6 +51,15 @@ const parseJson = <T>(value: string | null, fallback: T): T => {
 const randomId = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
+type StoredQueuedSubmission = Omit<QueuedSubmission, 'syncStatus'> & {
+  syncStatus?: QueueSyncStatus;
+};
+
+const normalizeQueuedSubmission = (submission: StoredQueuedSubmission): QueuedSubmission => ({
+  ...submission,
+  syncStatus: submission.syncStatus ?? 'pending'
+});
+
 export const newClientSubmissionId = (): string => `mobile-${randomId()}`;
 
 export const defaultDeviceName = (): string =>
@@ -94,14 +103,15 @@ export const saveDeviceProfile = async (profile: DeviceProfile): Promise<void> =
 };
 
 export const loadQueuedSubmissions = async (): Promise<QueuedSubmission[]> => {
-  return parseJson<QueuedSubmission[]>(await getItem(QUEUE_KEY), []);
+  return parseJson<StoredQueuedSubmission[]>(await getItem(QUEUE_KEY), []).map(normalizeQueuedSubmission);
 };
 
-export const saveQueuedSubmission = async (submission: QueuedSubmission): Promise<void> => {
+export const saveQueuedSubmission = async (submission: StoredQueuedSubmission): Promise<void> => {
   const queue = await loadQueuedSubmissions();
+  const normalized = normalizeQueuedSubmission(submission);
   const next = [
-    submission,
-    ...queue.filter((item) => item.clientSubmissionId !== submission.clientSubmissionId)
+    normalized,
+    ...queue.filter((item) => item.clientSubmissionId !== normalized.clientSubmissionId)
   ];
   await setItem(QUEUE_KEY, JSON.stringify(next));
 };
@@ -125,7 +135,22 @@ export const markQueuedSubmissionAttempt = async (
     JSON.stringify(
       queue.map((item) =>
         item.clientSubmissionId === clientSubmissionId
-          ? { ...item, attempts: item.attempts + 1, lastError, lastAttemptAt: now }
+          ? { ...item, attempts: item.attempts + 1, lastError, lastAttemptAt: now, syncStatus: 'failed' }
+          : item
+      )
+    )
+  );
+};
+
+export const markQueuedSubmissionRetrying = async (clientSubmissionId: string): Promise<void> => {
+  const queue = await loadQueuedSubmissions();
+  const now = new Date().toISOString();
+  await setItem(
+    QUEUE_KEY,
+    JSON.stringify(
+      queue.map((item) =>
+        item.clientSubmissionId === clientSubmissionId
+          ? { ...item, lastAttemptAt: now, syncStatus: 'retrying' }
           : item
       )
     )

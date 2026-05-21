@@ -49,11 +49,14 @@ export interface MobileSubmissionDraft {
   attachments: MobileAttachmentDraft[];
 }
 
+export type QueueSyncStatus = 'pending' | 'retrying' | 'failed';
+
 export interface QueuedSubmission {
   clientSubmissionId: string;
   draft: MobileSubmissionDraft;
   attempts: number;
   lastError: string;
+  syncStatus: QueueSyncStatus;
   queuedAt: string;
   lastAttemptAt?: string;
 }

@@ -48,9 +48,11 @@ export function SubmissionHistoryScreen({
         <View style={styles.queuePanel}>
           <Text style={styles.queueTitle}>Pending sync</Text>
           {queue.map((item) => (
-            <Text key={item.clientSubmissionId} style={styles.queueItem}>
-              {item.draft.documentName || 'Untitled draft'} · attempt {item.attempts}
-            </Text>
+            <View key={item.clientSubmissionId} style={styles.queueItem}>
+              <Text style={styles.queueItemTitle}>{item.draft.documentName || 'Untitled draft'}</Text>
+              <Text style={styles.queueItemMeta}>{item.syncStatus} · attempt {item.attempts}</Text>
+              {item.lastError ? <Text style={styles.queueItemError}>{item.lastError}</Text> : null}
+            </View>
           ))}
           <Pressable accessibilityRole="button" onPress={onSyncQueue} style={styles.syncButton}>
             <Text style={styles.syncText}>Retry all</Text>
@@ -80,7 +82,10 @@ const styles = StyleSheet.create({
   error: { color: '#b7352d', fontWeight: '800' },
   queuePanel: { backgroundColor: '#fff1c2', borderColor: '#e3b936', borderRadius: 8, borderWidth: 1, gap: 8, padding: 14 },
   queueTitle: { color: '#4d3900', fontWeight: '900' },
-  queueItem: { color: '#6a4a00' },
+  queueItem: { backgroundColor: '#fffaf0', borderColor: '#e3b936', borderRadius: 8, borderWidth: 1, padding: 10 },
+  queueItemTitle: { color: '#4d3900', fontWeight: '900' },
+  queueItemMeta: { color: '#6a4a00', fontSize: 12, marginTop: 2 },
+  queueItemError: { color: '#b7352d', fontSize: 12, fontWeight: '700', marginTop: 4 },
   syncButton: { alignItems: 'center', backgroundColor: '#12312b', borderRadius: 8, marginTop: 4, padding: 10 },
   syncText: { color: '#fffaf0', fontWeight: '900' },
   item: { backgroundColor: '#fffaf0', borderColor: '#ded4c1', borderRadius: 8, borderWidth: 1, padding: 16 },

@@ -69,6 +69,7 @@ export function AttachmentReviewScreen({
         draft,
         attempts: 1,
         lastError: 'Could not submit. Check the office PC connection and try again.',
+        syncStatus: 'pending',
         queuedAt: new Date().toISOString(),
         lastAttemptAt: new Date().toISOString()
       };

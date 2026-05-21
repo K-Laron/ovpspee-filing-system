@@ -221,6 +221,13 @@ async fn duplicate_client_submission_id_returns_existing_pending_submission() {
     .expect("idempotent duplicate");
 
     assert_eq!(first_id, second_id);
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM mobile_submission WHERE client_submission_id = 'mobile-client-1'",
+    )
+    .fetch_one(&fx.pool)
+    .await
+    .expect("count duplicate client submission rows");
+    assert_eq!(count, 1);
 }
 
 #[tokio::test]

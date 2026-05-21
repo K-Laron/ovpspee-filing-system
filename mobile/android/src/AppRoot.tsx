@@ -16,6 +16,7 @@ import {
   loadHubUrl,
   loadQueuedSubmissions,
   markQueuedSubmissionAttempt,
+  markQueuedSubmissionRetrying,
   newClientSubmissionId,
   removeQueuedSubmission,
   saveDeviceProfile,
@@ -130,6 +131,7 @@ export function AppRoot({ api: injectedApi, initialHubUrl = 'http://192.168.1.10
     touch();
     for (const item of queue) {
       try {
+        await markQueuedSubmissionRetrying(item.clientSubmissionId);
         const result = await api.createSubmission(session.session_id, item.draft);
         await removeQueuedSubmission(item.clientSubmissionId);
         setLastSubmissionId(result.mobile_submission_id);

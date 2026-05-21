@@ -39,6 +39,7 @@ describe('submission queue storage', () => {
         clientSubmissionId: 'queue-1',
         attempts: 1,
         lastError: 'Retry failed.',
+        syncStatus: 'failed',
         draft: expect.objectContaining({ documentName: 'Offline memo' })
       })
     ]);
