@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    exclude: ['mobile/**', 'node_modules/**', 'dist/**', 'src-tauri/**'],
     globals: true,
     setupFiles: './src/test/setup.ts'
   }
