@@ -23,12 +23,20 @@ use crate::{
 pub struct MobileApiState {
     pub pool: DbPool,
     pub storage: StorageRoot,
+    pub config: MobileApiConfig,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MobileApiConfig {
+    pub device_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    pub device_id: Option<String>,
+    pub device_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -44,6 +52,10 @@ pub struct LookupsResponse {
 }
 
 pub fn router(pool: DbPool, storage: StorageRoot) -> Router {
+    router_with_config(pool, storage, MobileApiConfig::from_env())
+}
+
+pub fn router_with_config(pool: DbPool, storage: StorageRoot, config: MobileApiConfig) -> Router {
     Router::new()
         .route("/api/mobile/health", get(health))
         .route("/api/mobile/login", post(login))
@@ -60,7 +72,11 @@ pub fn router(pool: DbPool, storage: StorageRoot) -> Router {
                 .allow_methods(Any)
                 .allow_headers(Any),
         )
-        .with_state(MobileApiState { pool, storage })
+        .with_state(MobileApiState {
+            pool,
+            storage,
+            config,
+        })
 }
 
 pub async fn serve(pool: DbPool, storage: StorageRoot, addr: &str) -> Result<(), String> {
@@ -74,14 +90,66 @@ pub async fn serve(pool: DbPool, storage: StorageRoot, addr: &str) -> Result<(),
         .map_err(|err| err.to_string())
 }
 
-async fn health() -> impl IntoResponse {
-    Json(serde_json::json!({ "status": "ok" }))
+impl MobileApiConfig {
+    pub fn from_env() -> Self {
+        Self {
+            device_token: std::env::var("OVPSPEE_MOBILE_DEVICE_TOKEN")
+                .ok()
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct MobileApiSetup {
+    pub enabled: bool,
+    pub bind_addr: String,
+    pub local_ip: String,
+    pub setup_url: String,
+    pub device_token_required: bool,
+}
+
+pub fn setup_info() -> MobileApiSetup {
+    let bind_addr =
+        std::env::var("OVPSPEE_MOBILE_API_ADDR").unwrap_or_else(|_| "0.0.0.0:1421".to_owned());
+    let local_ip = local_ipv4().unwrap_or_else(|| "127.0.0.1".to_owned());
+    let port = bind_addr.rsplit(':').next().unwrap_or("1421");
+    let hub_url = format!("http://{local_ip}:{port}");
+    MobileApiSetup {
+        enabled: std::env::var("OVPSPEE_MOBILE_API_ENABLED").as_deref() == Ok("1"),
+        bind_addr,
+        local_ip,
+        setup_url: format!("ovpspee://setup?hub={}", encode_setup_value(&hub_url)),
+        device_token_required: MobileApiConfig::from_env().device_token.is_some(),
+    }
+}
+
+fn encode_setup_value(value: &str) -> String {
+    value.replace(':', "%3A").replace('/', "%2F")
+}
+
+fn local_ipv4() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let addr = socket.local_addr().ok()?;
+    Some(addr.ip().to_string())
+}
+
+async fn health(
+    State(state): State<MobileApiState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, ApiError> {
+    require_device_token(&headers, &state.config)?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
 async fn login(
     State(state): State<MobileApiState>,
+    headers: HeaderMap,
     Json(input): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    require_device_token(&headers, &state.config)?;
     let session = auth::authenticate_user(&state.pool, &input.username, &input.password).await?;
     if session.role != "Secretary" {
         return Err(ApiError(AppError::Unauthorized));
@@ -122,6 +190,9 @@ async fn list_submissions(
         &state.pool,
         &session_id,
         Some("Pending".into()),
+        None,
+        None,
+        None,
     )
     .await?;
     Ok(Json(rows))
@@ -188,12 +259,27 @@ async fn create_submission(
 }
 
 async fn auth_required(headers: &HeaderMap, state: &MobileApiState) -> Result<String, ApiError> {
+    require_device_token(headers, &state.config)?;
     let session_id = bearer_session(headers)?;
     let session = auth::validate_session(&state.pool, &session_id).await?;
     if session.role != "Secretary" {
         return Err(ApiError(AppError::Unauthorized));
     }
     Ok(session_id)
+}
+
+fn require_device_token(headers: &HeaderMap, config: &MobileApiConfig) -> Result<(), ApiError> {
+    let Some(required) = config.device_token.as_deref() else {
+        return Ok(());
+    };
+    let provided = headers
+        .get("x-ovpspee-device-token")
+        .and_then(|value| value.to_str().ok());
+    if provided == Some(required) {
+        Ok(())
+    } else {
+        Err(ApiError(AppError::Unauthorized))
+    }
 }
 
 fn bearer_session(headers: &HeaderMap) -> Result<String, ApiError> {

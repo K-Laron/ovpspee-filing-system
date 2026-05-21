@@ -19,6 +19,7 @@ use crate::{
     master_data::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
+    mobile_api::{self, MobileApiSetup},
     mobile_submissions::{self, MobileSubmissionDetail, MobileSubmissionItem},
     printing::{self, PrintOptions, PrintResult},
     scan_intake::{self, ScanIntakeItem, ScanIntakePreviewPage},
@@ -763,10 +764,25 @@ pub async fn list_mobile_submissions(
     db: State<'_, DbState>,
     session_id: String,
     review_status: Option<String>,
+    search: Option<String>,
+    date_from: Option<String>,
+    date_to: Option<String>,
 ) -> Result<Vec<MobileSubmissionItem>, String> {
-    mobile_submissions::list_mobile_submissions(&db.pool, &session_id, review_status)
-        .await
-        .map_err(|err| err.to_string())
+    mobile_submissions::list_mobile_submissions(
+        &db.pool,
+        &session_id,
+        review_status,
+        search,
+        date_from,
+        date_to,
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mobile_api_setup() -> Result<MobileApiSetup, String> {
+    Ok(mobile_api::setup_info())
 }
 
 #[tauri::command]

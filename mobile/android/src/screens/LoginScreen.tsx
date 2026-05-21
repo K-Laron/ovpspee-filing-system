@@ -1,17 +1,26 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { saveHubUrl } from '../storage/drafts';
-import type { MobileApi, SessionPayload } from '../types';
+import type { DeviceProfile, MobileApi, SessionPayload } from '../types';
 
 interface LoginScreenProps {
   api: MobileApi;
+  deviceProfile: DeviceProfile;
   hubUrl: string;
+  onDeviceProfileChange(profile: DeviceProfile): void;
   onHubUrlChange(value: string): void;
   onLoggedIn(session: SessionPayload): void;
 }
 
-export function LoginScreen({ api, hubUrl, onHubUrlChange, onLoggedIn }: LoginScreenProps) {
+export function LoginScreen({
+  api,
+  deviceProfile,
+  hubUrl,
+  onDeviceProfileChange,
+  onHubUrlChange,
+  onLoggedIn
+}: LoginScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -36,7 +45,7 @@ export function LoginScreen({ api, hubUrl, onHubUrlChange, onLoggedIn }: LoginSc
     setMessage('');
     try {
       await saveHubUrl(hubUrl);
-      const session = await api.login(username.trim(), password);
+      const session = await api.login(username.trim(), password, deviceProfile);
       setPassword('');
       onLoggedIn(session);
     } catch {
@@ -59,9 +68,29 @@ export function LoginScreen({ api, hubUrl, onHubUrlChange, onLoggedIn }: LoginSc
         style={styles.input}
         value={hubUrl}
       />
-      <TouchableOpacity accessibilityRole="button" onPress={testConnection} style={styles.secondaryButton}>
+      <Pressable accessibilityRole="button" onPress={testConnection} style={styles.secondaryButton}>
         <Text style={styles.secondaryText}>{busy ? 'Checking...' : 'Test connection'}</Text>
-      </TouchableOpacity>
+      </Pressable>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Approved device</Text>
+        <TextInput
+          accessibilityLabel="Device name"
+          onChangeText={(deviceName) => onDeviceProfileChange({ ...deviceProfile, deviceName })}
+          placeholder="Device name"
+          style={styles.input}
+          value={deviceProfile.deviceName}
+        />
+        <TextInput
+          accessibilityLabel="Device token"
+          autoCapitalize="none"
+          onChangeText={(deviceToken) => onDeviceProfileChange({ ...deviceProfile, deviceToken })}
+          placeholder="Office device token"
+          secureTextEntry
+          style={styles.input}
+          value={deviceProfile.deviceToken}
+        />
+        <Text style={styles.help}>Use token shown on desktop Android Setup when enabled.</Text>
+      </View>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Secretary login</Text>
         <TextInput
@@ -80,9 +109,9 @@ export function LoginScreen({ api, hubUrl, onHubUrlChange, onLoggedIn }: LoginSc
           style={styles.input}
           value={password}
         />
-        <TouchableOpacity accessibilityRole="button" onPress={login} style={styles.primaryButton}>
+        <Pressable accessibilityRole="button" onPress={login} style={styles.primaryButton}>
           <Text style={styles.primaryText}>{busy ? 'Signing in...' : 'Login'}</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </View>
@@ -94,6 +123,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: '#12312b', fontSize: 22, fontWeight: '800' },
   card: { backgroundColor: '#fffaf0', borderColor: '#ded4c1', borderRadius: 8, borderWidth: 1, padding: 16, gap: 12 },
   cardTitle: { color: '#3a3328', fontSize: 18, fontWeight: '800' },
+  help: { color: '#5c675e', fontSize: 12 },
   input: {
     backgroundColor: '#ffffff',
     borderColor: '#c9bda6',

@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3, FileText, Paperclip, RefreshCw, Smartphone, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, FileText, Paperclip, QrCode, RefreshCw, Search, Smartphone, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
@@ -8,6 +8,7 @@ import { formatDateOnly, formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import {
   approveMobileSubmission,
+  getMobileApiSetup,
   getMobileSubmission,
   listMobileSubmissions,
   rejectMobileSubmission
@@ -15,6 +16,7 @@ import {
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   MobileReviewStatus,
+  MobileApiSetup,
   MobileSubmissionAttachmentItem,
   MobileSubmissionDetail,
   MobileSubmissionItem
@@ -30,6 +32,11 @@ interface ConfirmAction {
 }
 
 const reviewStatuses: FilterStatus[] = ['', 'Pending', 'Approved', 'Rejected', 'Removed'];
+const rejectionTemplates = [
+  'Metadata does not match the attached document.',
+  'Wrong category or folder selected.',
+  'Attachment is unreadable. Please recapture and resend.'
+];
 
 const statusClass = (status: MobileReviewStatus) => {
   if (status === 'Approved') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -48,8 +55,12 @@ const detailFromItem = (submission: MobileSubmissionItem): MobileSubmissionDetai
 export const MobileSubmissions = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
   const [filter, setFilter] = useState<FilterStatus>('Pending');
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [submissions, setSubmissions] = useState<MobileSubmissionItem[]>([]);
   const [detail, setDetail] = useState<MobileSubmissionDetail | null>(null);
+  const [setup, setSetup] = useState<MobileApiSetup | null>(null);
   const [message, setMessage] = useState('');
   const [reviewNotes, setReviewNotes] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -86,7 +97,10 @@ export const MobileSubmissions = () => {
     if (!sessionId) return;
     const rows = await listMobileSubmissions({
       sessionId,
-      reviewStatus: filter || null
+      reviewStatus: filter || null,
+      search: search.trim() || null,
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null
     });
     setSubmissions(rows);
     if (rows.length === 0) {
@@ -101,6 +115,12 @@ export const MobileSubmissions = () => {
   useEffect(() => {
     void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')));
   }, [sessionId, filter]);
+
+  useEffect(() => {
+    void getMobileApiSetup()
+      .then(setSetup)
+      .catch(() => setSetup(null));
+  }, []);
 
   const approveSelected = async () => {
     if (!sessionId || !detail || busy) return;
@@ -190,6 +210,18 @@ export const MobileSubmissions = () => {
                 value={rejectReason}
               />
             </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {rejectionTemplates.map((template) => (
+                <button
+                  className="btn text-xs"
+                  key={template}
+                  onClick={() => setRejectReason(template)}
+                  type="button"
+                >
+                  {template}
+                </button>
+              ))}
+            </div>
             <div className="mt-5 flex justify-end gap-2">
               <button className="btn" disabled={busy} onClick={() => setRejecting(false)} type="button">Cancel</button>
               <button className="btn btn-primary" disabled={busy || !rejectReason.trim()} type="submit">
@@ -210,7 +242,34 @@ export const MobileSubmissions = () => {
         </button>
       </div>
 
-      <div className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_180px_auto]">
+      <div className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm lg:grid-cols-[1fr_1.2fr_auto]">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
+            <QrCode size={19} />
+          </span>
+          <div>
+            <h2 className="font-semibold text-secondary">Android Setup</h2>
+            <p className="text-sm text-muted">
+              {setup ? `${setup.local_ip} · ${setup.enabled ? 'Mobile API enabled' : 'Enable OVPSPEE_MOBILE_API_ENABLED=1'}` : 'Setup details unavailable'}
+            </p>
+          </div>
+        </div>
+        <div className="min-w-0 rounded border border-border bg-background p-3 text-xs text-muted">
+          <p className="truncate font-mono text-secondary">{setup?.setup_url ?? 'ovpspee://setup unavailable'}</p>
+          <p className="mt-1">{setup?.device_token_required ? 'Device token required.' : 'Device token optional for this hub.'}</p>
+        </div>
+        <button
+          className="btn self-center"
+          onClick={() => {
+            if (setup?.setup_url) void navigator.clipboard?.writeText(setup.setup_url);
+          }}
+          type="button"
+        >
+          Copy setup
+        </button>
+      </div>
+
+      <div className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm xl:grid-cols-[1fr_180px_220px_160px_160px_auto]">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
             <Smartphone size={19} />
@@ -227,6 +286,39 @@ export const MobileSubmissions = () => {
               <option key={status || 'All'} value={status}>{status || 'All'}</option>
             ))}
           </select>
+        </label>
+        <label>
+          <span className="form-label">Search submissions</span>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3 text-muted" size={16} />
+            <input
+              aria-label="Search submissions"
+              className="input pl-9"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name, sender, device"
+              value={search}
+            />
+          </div>
+        </label>
+        <label>
+          <span className="form-label">Date from</span>
+          <input
+            aria-label="Date from"
+            className="input"
+            onChange={(event) => setDateFrom(event.target.value)}
+            type="date"
+            value={dateFrom}
+          />
+        </label>
+        <label>
+          <span className="form-label">Date to</span>
+          <input
+            aria-label="Date to"
+            className="input"
+            onChange={(event) => setDateTo(event.target.value)}
+            type="date"
+            value={dateTo}
+          />
         </label>
         <button className="btn btn-primary self-end" onClick={() => void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')))} type="button">
           Apply
@@ -308,12 +400,14 @@ export const MobileSubmissions = () => {
 
               <dl className="grid gap-3 md:grid-cols-2">
                 <MetadataItem label="Submitted by" value={selected.submitter_name} />
+                <MetadataItem label="Device" value={selected.submitted_device_name ?? selected.submitted_device_id ?? 'Not reported'} />
                 <MetadataItem label="Category" value={selected.category_name} />
                 <MetadataItem label="Folder" value={selected.folder_name ?? 'Category root'} />
                 <MetadataItem label="Sender office" value={selected.office_name ?? 'Not specified'} />
                 <MetadataItem label="Date received" value={formatDateOnly(selected.date_received)} />
                 <MetadataItem label="Document status" value={selected.status} />
                 <MetadataItem label="Attachment count" value={`${selected.attachment_count} file(s)`} />
+                <MetadataItem label="Client submission" value={selected.client_submission_id ?? 'Not reported'} />
                 <MetadataItem className="md:col-span-2" label="Remarks" value={selected.remarks ?? 'None'} />
               </dl>
 
@@ -352,7 +446,7 @@ export const MobileSubmissions = () => {
               <div className="rounded border border-border bg-background p-3 text-xs text-muted">
                 <div className="flex items-center gap-2 font-semibold text-secondary"><Clock3 size={15} />Audit trail</div>
                 <p className="mt-1">Created {formatDateTime(selected.created_at)} · Updated {formatDateTime(selected.updated_at)}</p>
-                {selected.reviewed_at && <p>Reviewed {formatDateTime(selected.reviewed_at)}</p>}
+                {selected.reviewed_at && <p>Reviewed {formatDateTime(selected.reviewed_at)}{selected.reviewer_name ? ` by ${selected.reviewer_name}` : ''}</p>}
               </div>
             </div>
           )}

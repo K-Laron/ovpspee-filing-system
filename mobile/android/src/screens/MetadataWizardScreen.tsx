@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { LookupsPayload, MobileApi, MobileSubmissionDraft } from '../types';
 
@@ -89,14 +89,14 @@ export function MetadataWizardScreen({ api, sessionId, draft, onBack, onChange, 
       />
       <View style={styles.statusRow}>
         {(['Filed', 'Archived', 'Confidential', 'Other'] as const).map((status) => (
-          <TouchableOpacity
+          <Pressable
             accessibilityRole="button"
             key={status}
             onPress={() => update({ status })}
             style={[styles.statusButton, draft.status === status && styles.statusButtonActive]}
           >
             <Text style={[styles.statusText, draft.status === status && styles.statusTextActive]}>{status}</Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
       {draft.status === 'Confidential' ? <Text style={styles.warning}>Confidential files require desktop review before release.</Text> : null}
@@ -110,12 +110,12 @@ export function MetadataWizardScreen({ api, sessionId, draft, onBack, onChange, 
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.footer}>
-        <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.secondaryButton}>
+        <Pressable accessibilityRole="button" onPress={onBack} style={styles.secondaryButton}>
           <Text style={styles.secondaryText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={next} style={styles.primaryButton}>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={next} style={styles.primaryButton}>
           <Text style={styles.primaryText}>Next</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </ScrollView>
   );

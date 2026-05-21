@@ -125,11 +125,23 @@ export interface MobileSubmissionItem {
   rejection_reason: string | null;
   review_notes: string | null;
   reviewed_by: number | null;
+  reviewer_name: string | null;
   reviewed_at: string | null;
   resulting_document_id: number | null;
+  client_submission_id: string | null;
+  submitted_device_id: string | null;
+  submitted_device_name: string | null;
   attachment_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface MobileApiSetup {
+  enabled: boolean;
+  bind_addr: string;
+  local_ip: string;
+  setup_url: string;
+  device_token_required: boolean;
 }
 
 export interface MobileSubmissionAttachmentItem {

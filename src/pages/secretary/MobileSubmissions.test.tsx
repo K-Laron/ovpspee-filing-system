@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/invoke', () => ({
   approveMobileSubmission: vi.fn(),
+  getMobileApiSetup: vi.fn(),
   getMobileSubmission: vi.fn(),
   listMobileSubmissions: vi.fn(),
   rejectMobileSubmission: vi.fn()
@@ -12,7 +13,7 @@ vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => 'session-1'
 }));
 
-import { listMobileSubmissions } from '../../lib/invoke';
+import { getMobileApiSetup, listMobileSubmissions } from '../../lib/invoke';
 import type { MobileSubmissionItem } from '../../types';
 
 const pendingSubmission: MobileSubmissionItem = {
@@ -35,6 +36,10 @@ const pendingSubmission: MobileSubmissionItem = {
   reviewed_by: null,
   reviewed_at: null,
   resulting_document_id: null,
+  client_submission_id: 'mobile-client-18',
+  submitted_device_id: 'device-1',
+  submitted_device_name: 'Records phone',
+  reviewer_name: null,
   attachment_count: 2,
   created_at: '2026-05-20T08:00:00Z',
   updated_at: '2026-05-20T08:00:00Z'
@@ -43,15 +48,28 @@ const pendingSubmission: MobileSubmissionItem = {
 describe('MobileSubmissions', () => {
   beforeEach(() => {
     vi.mocked(listMobileSubmissions).mockResolvedValue([pendingSubmission]);
+    vi.mocked(getMobileApiSetup).mockResolvedValue({
+      enabled: true,
+      bind_addr: '0.0.0.0:1421',
+      local_ip: '192.168.1.50',
+      setup_url: 'ovpspee://setup?hub=http%3A%2F%2F192.168.1.50%3A1421',
+      device_token_required: true
+    });
   });
 
-  it('shows pending mobile submissions for review', async () => {
+  it('shows setup, filters, and pending mobile submissions for review', async () => {
     const { MobileSubmissions } = await import('./MobileSubmissions');
 
     render(<MobileSubmissions />);
 
+    expect(await screen.findByText('Android Setup')).toBeInTheDocument();
+    expect(screen.getAllByText(/192\.168\.1\.50/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Search submissions')).toBeInTheDocument();
+    expect(screen.getByLabelText('Date from')).toBeInTheDocument();
+    expect(screen.getByLabelText('Date to')).toBeInTheDocument();
     expect(await screen.findAllByText('Mobile BAC memo')).toHaveLength(2);
     expect(screen.getByText('Sec User')).toBeInTheDocument();
+    expect(screen.getByText('Records phone')).toBeInTheDocument();
     expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
     expect(screen.getByText('Captured on Android')).toBeInTheDocument();
     expect(screen.getByText('2 file(s)')).toBeInTheDocument();

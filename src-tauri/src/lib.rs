@@ -29,11 +29,10 @@ pub fn run() {
                 let api_pool = handle.clone();
                 let storage = documents::StorageRoot::new(app_data_dir.join("storage"))
                     .map_err(|err| Box::<dyn std::error::Error>::from(err.to_string()))?;
+                let addr = std::env::var("OVPSPEE_MOBILE_API_ADDR")
+                    .unwrap_or_else(|_| "0.0.0.0:1421".to_owned());
                 tauri::async_runtime::spawn(async move {
-                    if mobile_api::serve(api_pool, storage, "0.0.0.0:1421")
-                        .await
-                        .is_err()
-                    {
+                    if mobile_api::serve(api_pool, storage, &addr).await.is_err() {
                         eprintln!("Mobile API stopped.");
                     }
                 });
@@ -88,6 +87,7 @@ pub fn run() {
             commands::get_public_document,
             commands::list_document_offices,
             commands::list_mobile_submissions,
+            commands::get_mobile_api_setup,
             commands::get_mobile_submission,
             commands::approve_mobile_submission,
             commands::reject_mobile_submission,

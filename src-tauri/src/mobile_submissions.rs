@@ -17,6 +17,9 @@ use crate::{
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MobileSubmissionInput {
+    pub client_submission_id: Option<String>,
+    pub device_id: Option<String>,
+    pub device_name: Option<String>,
     pub document_name: String,
     pub category_id: i64,
     pub folder_id: Option<i64>,
@@ -51,8 +54,12 @@ pub struct MobileSubmissionItem {
     pub rejection_reason: Option<String>,
     pub review_notes: Option<String>,
     pub reviewed_by: Option<i64>,
+    pub reviewer_name: Option<String>,
     pub reviewed_at: Option<String>,
     pub resulting_document_id: Option<i64>,
+    pub client_submission_id: Option<String>,
+    pub submitted_device_id: Option<String>,
+    pub submitted_device_name: Option<String>,
     pub attachment_count: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -85,6 +92,16 @@ pub async fn create_mobile_submission(
     uploads: Vec<MobileSubmissionAttachmentUpload>,
 ) -> AppResult<i64> {
     let session = require_secretary(pool, session_id).await?;
+    let client_submission_id = trim_optional(input.client_submission_id.clone(), 120)?;
+    let submitted_device_id = trim_optional(input.device_id.clone(), 120)?;
+    let submitted_device_name = trim_optional(input.device_name.clone(), 120)?;
+    if let Some(client_submission_id) = client_submission_id.as_deref() {
+        if let Some(existing_id) =
+            find_existing_client_submission(pool, session.user_id, client_submission_id).await?
+        {
+            return Ok(existing_id);
+        }
+    }
     if uploads.is_empty() {
         return Err(AppError::Validation(
             "At least one attachment is required.".into(),
@@ -94,8 +111,10 @@ pub async fn create_mobile_submission(
     let now = now_text();
     let result = sqlx::query(
         "INSERT INTO mobile_submission
-         (submitted_by, document_name, category_id, folder_id, office_id, date_received, remarks, status, review_status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)",
+         (submitted_by, document_name, category_id, folder_id, office_id, date_received, remarks,
+          status, review_status, client_submission_id, submitted_device_id, submitted_device_name,
+          created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?)",
     )
     .bind(session.user_id)
     .bind(&input.document_name)
@@ -105,6 +124,9 @@ pub async fn create_mobile_submission(
     .bind(&input.date_received)
     .bind(&input.remarks)
     .bind(&input.status)
+    .bind(&client_submission_id)
+    .bind(&submitted_device_id)
+    .bind(&submitted_device_name)
     .bind(&now)
     .bind(&now)
     .execute(pool)
@@ -131,17 +153,18 @@ pub async fn list_mobile_submissions(
     pool: &DbPool,
     session_id: &str,
     review_status: Option<String>,
+    search: Option<String>,
+    date_from: Option<String>,
+    date_to: Option<String>,
 ) -> AppResult<Vec<MobileSubmissionItem>> {
     require_secretary(pool, session_id).await?;
     let status = review_status
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty());
-    if let Some(status) = status {
-        validate_review_status(&status)?;
-        fetch_submission_rows_by_status(pool, &status).await
-    } else {
-        fetch_all_submission_rows(pool).await
+    if let Some(status) = status.as_deref() {
+        validate_review_status(status)?;
     }
+    fetch_submission_rows(pool, status, search, date_from, date_to).await
 }
 
 pub async fn get_mobile_submission(
@@ -436,22 +459,78 @@ async fn fetch_submission(
         .ok_or_else(|| AppError::NotFound("Mobile submission not found.".into()))
 }
 
-async fn fetch_all_submission_rows(pool: &DbPool) -> AppResult<Vec<MobileSubmissionItem>> {
-    let sql = submission_select("");
-    Ok(sqlx::query_as::<_, MobileSubmissionItem>(&sql)
-        .fetch_all(pool)
-        .await?)
+async fn find_existing_client_submission(
+    pool: &DbPool,
+    submitted_by: i64,
+    client_submission_id: &str,
+) -> AppResult<Option<i64>> {
+    let id = sqlx::query_scalar::<_, i64>(
+        "SELECT mobile_submission_id
+         FROM mobile_submission
+         WHERE submitted_by = ? AND client_submission_id = ?",
+    )
+    .bind(submitted_by)
+    .bind(client_submission_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(id)
 }
 
-async fn fetch_submission_rows_by_status(
+async fn fetch_submission_rows(
     pool: &DbPool,
-    status: &str,
+    status: Option<String>,
+    search: Option<String>,
+    date_from: Option<String>,
+    date_to: Option<String>,
 ) -> AppResult<Vec<MobileSubmissionItem>> {
-    let sql = submission_select("WHERE ms.review_status = ?");
-    Ok(sqlx::query_as::<_, MobileSubmissionItem>(&sql)
-        .bind(status.to_owned())
-        .fetch_all(pool)
-        .await?)
+    let mut where_parts = Vec::new();
+    if status.is_some() {
+        where_parts.push("ms.review_status = ?");
+    }
+    let search = search
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    if search.is_some() {
+        where_parts.push("(ms.document_name LIKE ? OR u.first_name || ' ' || u.last_name LIKE ? OR ms.submitted_device_name LIKE ?)");
+    }
+    if date_from
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty())
+    {
+        validate_date(date_from.as_deref().unwrap_or_default())?;
+        where_parts.push("ms.date_received >= ?");
+    }
+    if date_to
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty())
+    {
+        validate_date(date_to.as_deref().unwrap_or_default())?;
+        where_parts.push("ms.date_received <= ?");
+    }
+    let where_clause = if where_parts.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", where_parts.join(" AND "))
+    };
+    let sql = submission_select(&where_clause);
+    let mut query = sqlx::query_as::<_, MobileSubmissionItem>(&sql);
+    if let Some(status) = status {
+        query = query.bind(status);
+    }
+    if let Some(search) = search {
+        let pattern = format!("%{search}%");
+        query = query
+            .bind(pattern.clone())
+            .bind(pattern.clone())
+            .bind(pattern);
+    }
+    if let Some(date_from) = date_from.filter(|value| !value.trim().is_empty()) {
+        query = query.bind(date_from);
+    }
+    if let Some(date_to) = date_to.filter(|value| !value.trim().is_empty()) {
+        query = query.bind(date_to);
+    }
+    Ok(query.fetch_all(pool).await?)
 }
 
 async fn fetch_submission_row_by_id(
@@ -484,8 +563,12 @@ fn submission_select(where_clause: &str) -> String {
                 ms.rejection_reason,
                 ms.review_notes,
                 ms.reviewed_by,
+                CASE WHEN reviewer.user_id IS NULL THEN NULL ELSE reviewer.first_name || ' ' || reviewer.last_name END AS reviewer_name,
                 ms.reviewed_at,
                 ms.resulting_document_id,
+                ms.client_submission_id,
+                ms.submitted_device_id,
+                ms.submitted_device_name,
                 COUNT(a.mobile_submission_attachment_id) AS attachment_count,
                 ms.created_at,
                 ms.updated_at
@@ -494,6 +577,7 @@ fn submission_select(where_clause: &str) -> String {
          JOIN category c ON c.category_id = ms.category_id
          LEFT JOIN folder f ON f.folder_id = ms.folder_id
          LEFT JOIN office o ON o.office_id = ms.office_id
+         LEFT JOIN user reviewer ON reviewer.user_id = ms.reviewed_by
          LEFT JOIN mobile_submission_attachment a ON a.mobile_submission_id = ms.mobile_submission_id
          {where_clause}
          GROUP BY ms.mobile_submission_id

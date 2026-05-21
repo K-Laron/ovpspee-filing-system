@@ -7,16 +7,24 @@
 
 ```powershell
 $env:OVPSPEE_MOBILE_API_ENABLED = "1"
+$env:OVPSPEE_MOBILE_DEVICE_TOKEN = "<office-issued-device-token>"
 ```
 
 3. Keep the desktop app open while Android devices submit documents.
-4. Use the office PC LAN IP address and port `1421` in the Android app, for example:
+4. Open `Mobile Submissions` on the desktop and use the `Android Setup` panel for the LAN IP, setup link, and token status.
+5. Use the office PC LAN IP address and port `1421` in the Android app, for example:
 
 ```text
 http://192.168.1.20:1421
 ```
 
-5. Allow inbound office-network traffic to port `1421` only on the trusted office network.
+6. Allow inbound office-network traffic to port `1421` only on the trusted office network.
+
+Set a custom bind address when needed:
+
+```powershell
+$env:OVPSPEE_MOBILE_API_ADDR = "0.0.0.0:1421"
+```
 
 ## Android App
 
@@ -29,10 +37,13 @@ mobile/android/android/app/build/outputs/apk/debug/app-debug.apk
 Install it on an Android device connected to the same office network as the PC. On first launch:
 
 1. Enter the hub URL.
-2. Log in with a Secretary account.
-3. Add attachments.
-4. Complete all document metadata.
-5. Submit. The record appears in the desktop `Mobile Submissions` queue as `Pending`.
+2. Enter the approved device name and token from the desktop setup panel.
+3. Log in with a Secretary account.
+4. Add attachments.
+5. Complete all document metadata.
+6. Submit. The record appears in the desktop `Mobile Submissions` queue as `Pending`.
+
+Drafts, hub URL, device ID/name/token, and retry queue are persisted in Android SharedPreferences. Failed uploads remain queued and can be retried from Capture or History when office Wi-Fi returns.
 
 ## Desktop Review
 
@@ -42,7 +53,7 @@ Secretaries review submissions in:
 /s/mobile-submissions
 ```
 
-Approving creates the official desktop document and copies the submitted attachments. Rejecting leaves the submission in rejected status with a reason.
+Approving creates the official desktop document and copies the submitted attachments. Rejecting leaves the submission in rejected status with a reason. The review queue supports status, search, date filters, rejection templates, and device/submission audit details.
 
 ## Build Notes
 
@@ -57,4 +68,14 @@ cd mobile/android
 .\android\gradlew.bat -p android :app:assembleDebug
 ```
 
-The v1 Android draft store is intentionally abstracted. Current debug build keeps draft data in app memory to avoid adding another native storage dependency before field testing.
+For signed release builds, keep secrets outside git and set:
+
+```powershell
+$env:OVPSPEE_ANDROID_KEYSTORE = "C:\secure\ovpspee-release.keystore"
+$env:OVPSPEE_ANDROID_KEYSTORE_PASSWORD = "<password>"
+$env:OVPSPEE_ANDROID_KEY_ALIAS = "<alias>"
+$env:OVPSPEE_ANDROID_KEY_PASSWORD = "<password>"
+.\android\gradlew.bat -p android :app:assembleRelease
+```
+
+HTTPS for office LAN remains an infrastructure step. Recommended v1.1 deployment is device token plus trusted office Wi-Fi/firewall; put a local reverse proxy with a trusted certificate in front of port `1421` when phones require HTTPS.

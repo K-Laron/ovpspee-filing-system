@@ -5,11 +5,19 @@ import { AppRoot } from '../AppRoot';
 import type { LookupsPayload } from '../types';
 
 jest.mock('../storage/drafts', () => ({
+  clearQueuedSubmissions: jest.fn(),
+  loadDeviceProfile: jest.fn(async () => ({ deviceId: 'device-1', deviceName: 'Records phone', deviceToken: '' })),
   saveDraft: jest.fn(),
   loadDraft: jest.fn(async () => null),
+  loadQueuedSubmissions: jest.fn(async () => []),
   clearDraft: jest.fn(),
+  markQueuedSubmissionAttempt: jest.fn(),
+  newClientSubmissionId: jest.fn(() => 'mobile-client-test'),
+  removeQueuedSubmission: jest.fn(),
+  saveDeviceProfile: jest.fn(),
   saveHubUrl: jest.fn(),
-  loadHubUrl: jest.fn(async () => null)
+  loadHubUrl: jest.fn(async () => null),
+  saveQueuedSubmission: jest.fn()
 }));
 
 const lookups: LookupsPayload = {

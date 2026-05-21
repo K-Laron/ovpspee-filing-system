@@ -1,4 +1,4 @@
-import { ApiClient } from '../api/client';
+import { ApiClient, buildSubmissionMetadata } from '../api/client';
 import type { MobileSubmissionDraft } from '../types';
 
 describe('ApiClient', () => {
@@ -18,14 +18,23 @@ describe('ApiClient', () => {
   it('posts login to the mobile endpoint without retaining the password', async () => {
     const client = new ApiClient('http://10.0.0.5:1421');
 
-    await client.login('sec1', 'Secret123!');
+    await client.login('sec1', 'Secret123!', {
+      deviceId: 'device-1',
+      deviceName: 'Records phone',
+      deviceToken: ''
+    });
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'http://10.0.0.5:1421/api/mobile/login',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'sec1', password: 'Secret123!' })
+        body: JSON.stringify({
+          username: 'sec1',
+          password: 'Secret123!',
+          device_id: 'device-1',
+          device_name: 'Records phone'
+        })
       })
     );
     expect(JSON.stringify(client)).not.toContain('Secret123!');
@@ -37,6 +46,7 @@ describe('ApiClient', () => {
       json: async () => ({ mobile_submission_id: 42 })
     })) as jest.Mock;
     const draft: MobileSubmissionDraft = {
+      clientSubmissionId: 'mobile-client-42',
       documentName: 'Mobile BAC memo',
       categoryId: 1,
       folderId: 2,
@@ -58,5 +68,54 @@ describe('ApiClient', () => {
         body: expect.any(FormData)
       })
     );
+  });
+
+  it('adds device headers and retries transient upload failures', async () => {
+    const okResponse = {
+      ok: true,
+      json: async () => ({ mobile_submission_id: 77 })
+    };
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockResolvedValueOnce(okResponse) as jest.Mock;
+    const draft: MobileSubmissionDraft = {
+      clientSubmissionId: 'mobile-client-1',
+      documentName: 'Retry memo',
+      categoryId: 1,
+      folderId: 2,
+      officeId: 3,
+      dateReceived: '2026-05-20',
+      remarks: 'Captured on Android',
+      status: 'Filed',
+      attachments: [{ uri: 'file:///scan.pdf', name: 'scan.pdf', type: 'application/pdf', sizeBytes: 4096 }]
+    };
+
+    const result = await new ApiClient('http://hub.local', {
+      deviceId: 'device-1',
+      deviceName: 'Records phone',
+      deviceToken: 'office-token'
+    }).createSubmission('session-1', draft);
+
+    expect(result.mobile_submission_id).toBe(77);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenLastCalledWith(
+      'http://hub.local/api/mobile/submissions',
+      expect.objectContaining({
+        headers: {
+          Authorization: 'Bearer session-1',
+          'X-OVPSPEE-Device-Token': 'office-token'
+        }
+      })
+    );
+    expect(buildSubmissionMetadata(draft, {
+      deviceId: 'device-1',
+      deviceName: 'Records phone',
+      deviceToken: 'office-token'
+    })).toMatchObject({
+      client_submission_id: 'mobile-client-1',
+      device_id: 'device-1',
+      device_name: 'Records phone'
+    });
   });
 });

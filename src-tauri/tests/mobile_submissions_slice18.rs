@@ -110,6 +110,9 @@ async fn fixture() -> Fixture {
 
 fn input(fx: &Fixture) -> MobileSubmissionInput {
     MobileSubmissionInput {
+        client_submission_id: Some("mobile-client-1".to_owned()),
+        device_id: Some("device-1".to_owned()),
+        device_name: Some("Records phone".to_owned()),
         document_name: "Mobile BAC memo".to_owned(),
         category_id: fx.category_id,
         folder_id: Some(fx.folder_id),
@@ -174,11 +177,50 @@ async fn secretary_can_create_mobile_submission_with_metadata_and_file() {
         .expect("detail");
 
     assert_eq!(detail.submission.review_status, "Pending");
+    assert_eq!(
+        detail.submission.client_submission_id.as_deref(),
+        Some("mobile-client-1")
+    );
+    assert_eq!(
+        detail.submission.submitted_device_name.as_deref(),
+        Some("Records phone")
+    );
     assert_eq!(detail.attachments.len(), 1);
     assert!(fx
         .storage
         .resolve_relative(&detail.attachments[0].stored_relative_path)
         .exists());
+}
+
+#[tokio::test]
+async fn duplicate_client_submission_id_returns_existing_pending_submission() {
+    let fx = fixture().await;
+    let source = write_file(&fx.source_dir, "duplicate.pdf", b"%PDF-1.4\nmobile");
+    let upload = || MobileSubmissionAttachmentUpload {
+        source_path: source.to_string_lossy().into_owned(),
+        original_file_name: "duplicate.pdf".to_owned(),
+    };
+
+    let first_id = create_mobile_submission(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        input(&fx),
+        vec![upload()],
+    )
+    .await
+    .expect("first submission");
+    let second_id = create_mobile_submission(
+        &fx.pool,
+        &fx.storage,
+        &fx.secretary,
+        input(&fx),
+        vec![upload()],
+    )
+    .await
+    .expect("idempotent duplicate");
+
+    assert_eq!(first_id, second_id);
 }
 
 #[tokio::test]

@@ -14,6 +14,7 @@ import type {
   DocumentStatus,
   FolderItem,
   MobileReviewStatus,
+  MobileApiSetup,
   MobileSubmissionDetail,
   MobileSubmissionItem,
   OfficeItem,
@@ -484,7 +485,12 @@ export const scanToIntake = (params: {
 export const listMobileSubmissions = (params: {
   sessionId: string;
   reviewStatus?: MobileReviewStatus | null;
+  search?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
 }): Promise<MobileSubmissionItem[]> => invoke('list_mobile_submissions', params);
+
+export const getMobileApiSetup = (): Promise<MobileApiSetup> => invoke('get_mobile_api_setup');
 
 export const getMobileSubmission = (params: {
   sessionId: string;

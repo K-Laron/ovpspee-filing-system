@@ -9,6 +9,12 @@ export interface SessionPayload {
   profile_pic_path: string | null;
 }
 
+export interface DeviceProfile {
+  deviceId: string;
+  deviceName: string;
+  deviceToken: string;
+}
+
 export interface LookupItem {
   category_id?: number;
   category_name?: string;
@@ -28,9 +34,11 @@ export interface MobileAttachmentDraft {
   uri: string;
   name: string;
   type: string;
+  sizeBytes?: number;
 }
 
 export interface MobileSubmissionDraft {
+  clientSubmissionId: string;
   documentName: string;
   categoryId: number | null;
   folderId: number | null;
@@ -39,6 +47,15 @@ export interface MobileSubmissionDraft {
   remarks: string;
   status: DocumentStatus;
   attachments: MobileAttachmentDraft[];
+}
+
+export interface QueuedSubmission {
+  clientSubmissionId: string;
+  draft: MobileSubmissionDraft;
+  attempts: number;
+  lastError: string;
+  queuedAt: string;
+  lastAttemptAt?: string;
 }
 
 export interface SubmissionHistoryItem {
@@ -51,7 +68,7 @@ export interface SubmissionHistoryItem {
 
 export interface MobileApi {
   health(): Promise<{ status: 'ok' }>;
-  login(username: string, password: string): Promise<SessionPayload>;
+  login(username: string, password: string, deviceProfile: DeviceProfile): Promise<SessionPayload>;
   getLookups(sessionId: string): Promise<LookupsPayload>;
   createSubmission(
     sessionId: string,

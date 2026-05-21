@@ -1,17 +1,32 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { saveHubUrl } from '../storage/drafts';
-import type { MobileApi } from '../types';
+import { saveDeviceProfile, saveHubUrl } from '../storage/drafts';
+import type { DeviceProfile, MobileApi } from '../types';
 
 interface SettingsScreenProps {
   api: MobileApi;
+  deviceProfile: DeviceProfile;
   hubUrl: string;
+  pendingQueueCount: number;
+  appVersion: string;
+  onDeviceProfileChange(profile: DeviceProfile): void;
   onHubUrlChange(value: string): void;
+  onLock(): void;
   onLogout(): void;
 }
 
-export function SettingsScreen({ api, hubUrl, onHubUrlChange, onLogout }: SettingsScreenProps) {
+export function SettingsScreen({
+  api,
+  appVersion,
+  deviceProfile,
+  hubUrl,
+  pendingQueueCount,
+  onDeviceProfileChange,
+  onHubUrlChange,
+  onLock,
+  onLogout
+}: SettingsScreenProps) {
   const [message, setMessage] = useState('');
 
   const testConnection = async () => {
@@ -22,6 +37,11 @@ export function SettingsScreen({ api, hubUrl, onHubUrlChange, onLogout }: Settin
     } catch {
       setMessage('Office PC hub is not reachable.');
     }
+  };
+
+  const saveDevice = async (profile: DeviceProfile) => {
+    onDeviceProfileChange(profile);
+    await saveDeviceProfile(profile);
   };
 
   return (
@@ -36,13 +56,42 @@ export function SettingsScreen({ api, hubUrl, onHubUrlChange, onLogout }: Settin
         style={styles.input}
         value={hubUrl}
       />
-      <TouchableOpacity accessibilityRole="button" onPress={testConnection} style={styles.secondaryButton}>
+      <Pressable accessibilityRole="button" onPress={testConnection} style={styles.secondaryButton}>
         <Text style={styles.secondaryText}>Test connection</Text>
-      </TouchableOpacity>
+      </Pressable>
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>Approved device</Text>
+        <Text style={styles.meta}>Device ID: {deviceProfile.deviceId}</Text>
+        <TextInput
+          accessibilityLabel="Device name"
+          onChangeText={(deviceName) => void saveDevice({ ...deviceProfile, deviceName })}
+          placeholder="Device name"
+          style={styles.input}
+          value={deviceProfile.deviceName}
+        />
+        <TextInput
+          accessibilityLabel="Device token"
+          autoCapitalize="none"
+          onChangeText={(deviceToken) => void saveDevice({ ...deviceProfile, deviceToken })}
+          placeholder="Office device token"
+          secureTextEntry
+          style={styles.input}
+          value={deviceProfile.deviceToken}
+        />
+      </View>
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>App status</Text>
+        <Text style={styles.meta}>Version {appVersion}</Text>
+        <Text style={styles.meta}>{pendingQueueCount} pending sync item(s)</Text>
+        <Text style={styles.meta}>Session auto-locks after 15 minutes idle.</Text>
+      </View>
       {message ? <Text style={styles.message}>{message}</Text> : null}
-      <TouchableOpacity accessibilityRole="button" onPress={onLogout} style={styles.logoutButton}>
+      <Pressable accessibilityRole="button" onPress={onLock} style={styles.secondaryButton}>
+        <Text style={styles.secondaryText}>Lock app</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={onLogout} style={styles.logoutButton}>
         <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }
@@ -53,6 +102,9 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#fff', borderColor: '#c9bda6', borderRadius: 8, borderWidth: 1, fontSize: 16, minHeight: 50, paddingHorizontal: 14 },
   secondaryButton: { alignItems: 'center', borderColor: '#12312b', borderRadius: 8, borderWidth: 1, padding: 14 },
   secondaryText: { color: '#12312b', fontWeight: '900' },
+  panel: { backgroundColor: '#fffaf0', borderColor: '#ded4c1', borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 },
+  panelTitle: { color: '#12312b', fontSize: 16, fontWeight: '900' },
+  meta: { color: '#5c675e', fontSize: 13 },
   message: { color: '#5c675e' },
   logoutButton: { alignItems: 'center', backgroundColor: '#b7352d', borderRadius: 8, marginTop: 'auto', padding: 15 },
   logoutText: { color: '#fffaf0', fontWeight: '900' }
