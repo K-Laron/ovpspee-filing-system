@@ -36,7 +36,7 @@ class OvpspeeCaptureModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun pickFile(promise: Promise) {
         if (!beginRequest(promise)) return
-        val activity = currentActivity ?: return rejectAndClear("E_NO_ACTIVITY", "No active Android activity.")
+        val activity = getCurrentActivity() ?: return rejectAndClear("E_NO_ACTIVITY", "No active Android activity.")
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -61,14 +61,14 @@ class OvpspeeCaptureModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
             PICK_FILE_REQUEST -> handleFilePickerResult(resultCode, data)
             CAPTURE_PHOTO_REQUEST -> handleCameraResult(resultCode)
         }
     }
 
-    override fun onNewIntent(intent: Intent?) = Unit
+    override fun onNewIntent(intent: Intent) = Unit
 
     private fun handleFilePickerResult(resultCode: Int, data: Intent?) {
         if (resultCode != Activity.RESULT_OK) {
@@ -111,7 +111,7 @@ class OvpspeeCaptureModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun launchCamera() {
-        val activity = currentActivity ?: return rejectAndClear("E_NO_ACTIVITY", "No active Android activity.")
+        val activity = getCurrentActivity() ?: return rejectAndClear("E_NO_ACTIVITY", "No active Android activity.")
         val displayName = "ovpspee-capture-${System.currentTimeMillis()}.jpg"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
@@ -146,7 +146,7 @@ class OvpspeeCaptureModule(private val reactContext: ReactApplicationContext) :
         }
 
     private fun requestCameraPermissions() {
-        val activity = currentActivity
+        val activity = getCurrentActivity()
         if (activity !is PermissionAwareActivity) {
             rejectAndClear("E_PERMISSION_UNAVAILABLE", "Android camera permission cannot be requested.")
             return
