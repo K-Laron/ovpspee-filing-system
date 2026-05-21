@@ -44,7 +44,7 @@ export class ApiClient implements MobileApi {
   async login(username: string, password: string, deviceProfile: DeviceProfile): Promise<SessionPayload> {
     const response = await fetch(`${this.baseUrl}/api/mobile/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.deviceHeaders() },
+      headers: { 'Content-Type': 'application/json', ...this.deviceHeaders(deviceProfile) },
       body: JSON.stringify({
         username,
         password,
@@ -94,9 +94,12 @@ export class ApiClient implements MobileApi {
     return this.parse(response, 'Could not submit. Check the office PC connection and try again.');
   }
 
-  private deviceHeaders(): Record<string, string> {
-    const token = this.deviceProfile?.deviceToken.trim();
-    return token ? { 'X-OVPSPEE-Device-Token': token } : {};
+  private deviceHeaders(profile = this.deviceProfile): Record<string, string> {
+    const deviceId = profile?.deviceId.trim();
+    const token = profile?.deviceToken.trim();
+    return deviceId && token
+      ? { 'X-OVPSPEE-Device-Id': deviceId, 'X-OVPSPEE-Device-Token': token }
+      : {};
   }
 
   private async fetchWithRetry(input: RequestInfo, init: RequestInit): Promise<Response> {

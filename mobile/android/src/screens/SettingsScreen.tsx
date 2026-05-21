@@ -61,7 +61,14 @@ export function SettingsScreen({
       </Pressable>
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Approved device</Text>
-        <Text style={styles.meta}>Device ID: {deviceProfile.deviceId}</Text>
+        <TextInput
+          accessibilityLabel="Device ID"
+          autoCapitalize="none"
+          onChangeText={(deviceId) => void saveDevice({ ...deviceProfile, deviceId })}
+          placeholder="Desktop-generated device ID"
+          style={styles.input}
+          value={deviceProfile.deviceId}
+        />
         <TextInput
           accessibilityLabel="Device name"
           onChangeText={(deviceName) => void saveDevice({ ...deviceProfile, deviceName })}

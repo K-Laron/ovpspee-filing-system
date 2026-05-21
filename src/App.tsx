@@ -11,6 +11,7 @@ import { AuditLog } from './pages/admin/AuditLog';
 import { BackupRestore } from './pages/admin/BackupRestore';
 import { DeviceSettingsPage } from './pages/admin/DeviceSettings';
 import { MasterData } from './pages/admin/MasterData';
+import { MobileDevices } from './pages/admin/MobileDevices';
 import { TrashManagement } from './pages/admin/TrashManagement';
 import { Users } from './pages/admin/Users';
 import { FirstRunSetup } from './pages/FirstRunSetup';
@@ -91,6 +92,7 @@ export const App = () => {
         <Route path="audit-log" element={<AuditLog />} />
         <Route path="backup-restore" element={<BackupRestore />} />
         <Route path="devices" element={<DeviceSettingsPage />} />
+        <Route path="mobile-devices" element={<MobileDevices />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route

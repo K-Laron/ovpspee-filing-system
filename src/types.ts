@@ -144,6 +144,23 @@ export interface MobileApiSetup {
   device_token_required: boolean;
 }
 
+export interface CreatedMobileDevice {
+  device_id: string;
+  device_name: string;
+  device_token: string;
+}
+
+export interface MobileDeviceItem {
+  mobile_device_id: number;
+  device_id: string;
+  device_name: string;
+  is_active: boolean;
+  last_seen_at: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MobileSubmissionAttachmentItem {
   mobile_submission_attachment_id: number;
   mobile_submission_id: number;

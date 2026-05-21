@@ -13,8 +13,10 @@ import type {
   DocumentItem,
   DocumentStatus,
   FolderItem,
+  CreatedMobileDevice,
   MobileReviewStatus,
   MobileApiSetup,
+  MobileDeviceItem,
   MobileSubmissionDetail,
   MobileSubmissionItem,
   OfficeItem,
@@ -491,6 +493,19 @@ export const listMobileSubmissions = (params: {
 }): Promise<MobileSubmissionItem[]> => invoke('list_mobile_submissions', params);
 
 export const getMobileApiSetup = (): Promise<MobileApiSetup> => invoke('get_mobile_api_setup');
+
+export const createMobileDevice = (params: {
+  sessionId: string;
+  deviceName: string;
+}): Promise<CreatedMobileDevice> => invoke('create_mobile_device', params);
+
+export const listMobileDevices = (sessionId: string): Promise<MobileDeviceItem[]> =>
+  invoke('list_mobile_devices', { sessionId });
+
+export const revokeMobileDevice = (params: {
+  sessionId: string;
+  deviceId: string;
+}): Promise<void> => invoke('revoke_mobile_device', params);
 
 export const getMobileSubmission = (params: {
   sessionId: string;

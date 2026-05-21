@@ -8,6 +8,7 @@ pub mod documents;
 pub mod error;
 pub mod master_data;
 pub mod mobile_api;
+pub mod mobile_devices;
 pub mod mobile_submissions;
 pub mod printing;
 pub mod scan_intake;
@@ -88,6 +89,9 @@ pub fn run() {
             commands::list_document_offices,
             commands::list_mobile_submissions,
             commands::get_mobile_api_setup,
+            commands::create_mobile_device,
+            commands::list_mobile_devices,
+            commands::revoke_mobile_device,
             commands::get_mobile_submission,
             commands::approve_mobile_submission,
             commands::reject_mobile_submission,

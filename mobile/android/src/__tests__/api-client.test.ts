@@ -21,14 +21,18 @@ describe('ApiClient', () => {
     await client.login('sec1', 'Secret123!', {
       deviceId: 'device-1',
       deviceName: 'Records phone',
-      deviceToken: ''
+      deviceToken: 'office-token'
     });
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'http://10.0.0.5:1421/api/mobile/login',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-OVPSPEE-Device-Id': 'device-1',
+          'X-OVPSPEE-Device-Token': 'office-token'
+        },
         body: JSON.stringify({
           username: 'sec1',
           password: 'Secret123!',
@@ -57,14 +61,22 @@ describe('ApiClient', () => {
       attachments: [{ uri: 'file:///scan.pdf', name: 'scan.pdf', type: 'application/pdf' }]
     };
 
-    const result = await new ApiClient('http://hub.local').createSubmission('session-1', draft);
+    const result = await new ApiClient('http://hub.local', {
+      deviceId: 'device-1',
+      deviceName: 'Records phone',
+      deviceToken: 'office-token'
+    }).createSubmission('session-1', draft);
 
     expect(result.mobile_submission_id).toBe(42);
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'http://hub.local/api/mobile/submissions',
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer session-1' },
+        headers: {
+          Authorization: 'Bearer session-1',
+          'X-OVPSPEE-Device-Id': 'device-1',
+          'X-OVPSPEE-Device-Token': 'office-token'
+        },
         body: expect.any(FormData)
       })
     );
@@ -104,6 +116,7 @@ describe('ApiClient', () => {
       expect.objectContaining({
         headers: {
           Authorization: 'Bearer session-1',
+          'X-OVPSPEE-Device-Id': 'device-1',
           'X-OVPSPEE-Device-Token': 'office-token'
         }
       })

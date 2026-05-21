@@ -20,6 +20,7 @@ use crate::{
         self, CategoryInput, CategoryItem, FolderInput, FolderItem, OfficeInput, OfficeItem,
     },
     mobile_api::{self, MobileApiSetup},
+    mobile_devices::{self, CreatedMobileDevice, MobileDeviceItem},
     mobile_submissions::{self, MobileSubmissionDetail, MobileSubmissionItem},
     printing::{self, PrintOptions, PrintResult},
     scan_intake::{self, ScanIntakeItem, ScanIntakePreviewPage},
@@ -783,6 +784,38 @@ pub async fn list_mobile_submissions(
 #[tauri::command]
 pub async fn get_mobile_api_setup() -> Result<MobileApiSetup, String> {
     Ok(mobile_api::setup_info())
+}
+
+#[tauri::command]
+pub async fn create_mobile_device(
+    db: State<'_, DbState>,
+    session_id: String,
+    device_name: String,
+) -> Result<CreatedMobileDevice, String> {
+    mobile_devices::create_mobile_device(&db.pool, &session_id, &device_name)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_mobile_devices(
+    db: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<MobileDeviceItem>, String> {
+    mobile_devices::list_mobile_devices(&db.pool, &session_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn revoke_mobile_device(
+    db: State<'_, DbState>,
+    session_id: String,
+    device_id: String,
+) -> Result<(), String> {
+    mobile_devices::revoke_mobile_device(&db.pool, &session_id, &device_id)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

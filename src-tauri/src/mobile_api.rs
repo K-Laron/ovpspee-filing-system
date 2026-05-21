@@ -16,6 +16,7 @@ use crate::{
     documents::StorageRoot,
     error::AppError,
     master_data,
+    mobile_devices,
     mobile_submissions::{self, MobileSubmissionAttachmentUpload, MobileSubmissionInput},
 };
 
@@ -27,9 +28,7 @@ pub struct MobileApiState {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct MobileApiConfig {
-    pub device_token: Option<String>,
-}
+pub struct MobileApiConfig {}
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -92,12 +91,7 @@ pub async fn serve(pool: DbPool, storage: StorageRoot, addr: &str) -> Result<(),
 
 impl MobileApiConfig {
     pub fn from_env() -> Self {
-        Self {
-            device_token: std::env::var("OVPSPEE_MOBILE_DEVICE_TOKEN")
-                .ok()
-                .map(|value| value.trim().to_owned())
-                .filter(|value| !value.is_empty()),
-        }
+        Self {}
     }
 }
 
@@ -121,7 +115,7 @@ pub fn setup_info() -> MobileApiSetup {
         bind_addr,
         local_ip,
         setup_url: format!("ovpspee://setup?hub={}", encode_setup_value(&hub_url)),
-        device_token_required: MobileApiConfig::from_env().device_token.is_some(),
+        device_token_required: true,
     }
 }
 
@@ -140,7 +134,7 @@ async fn health(
     State(state): State<MobileApiState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, ApiError> {
-    require_device_token(&headers, &state.config)?;
+    require_mobile_device(&headers, &state).await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
@@ -149,7 +143,14 @@ async fn login(
     headers: HeaderMap,
     Json(input): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    require_device_token(&headers, &state.config)?;
+    let device_id = require_mobile_device(&headers, &state).await?;
+    if input
+        .device_id
+        .as_deref()
+        .is_some_and(|body_device_id| body_device_id != device_id)
+    {
+        return Err(ApiError(AppError::Unauthorized));
+    }
     let session = auth::authenticate_user(&state.pool, &input.username, &input.password).await?;
     if session.role != "Secretary" {
         return Err(ApiError(AppError::Unauthorized));
@@ -259,7 +260,7 @@ async fn create_submission(
 }
 
 async fn auth_required(headers: &HeaderMap, state: &MobileApiState) -> Result<String, ApiError> {
-    require_device_token(headers, &state.config)?;
+    require_mobile_device(headers, state).await?;
     let session_id = bearer_session(headers)?;
     let session = auth::validate_session(&state.pool, &session_id).await?;
     if session.role != "Secretary" {
@@ -268,18 +269,20 @@ async fn auth_required(headers: &HeaderMap, state: &MobileApiState) -> Result<St
     Ok(session_id)
 }
 
-fn require_device_token(headers: &HeaderMap, config: &MobileApiConfig) -> Result<(), ApiError> {
-    let Some(required) = config.device_token.as_deref() else {
-        return Ok(());
-    };
-    let provided = headers
+async fn require_mobile_device(
+    headers: &HeaderMap,
+    state: &MobileApiState,
+) -> Result<String, ApiError> {
+    let device_id = headers
+        .get("x-ovpspee-device-id")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(ApiError(AppError::Unauthorized))?;
+    let token = headers
         .get("x-ovpspee-device-token")
-        .and_then(|value| value.to_str().ok());
-    if provided == Some(required) {
-        Ok(())
-    } else {
-        Err(ApiError(AppError::Unauthorized))
-    }
+        .and_then(|value| value.to_str().ok())
+        .ok_or(ApiError(AppError::Unauthorized))?;
+    mobile_devices::validate_mobile_device(&state.pool, device_id, token).await?;
+    Ok(device_id.to_owned())
 }
 
 fn bearer_session(headers: &HeaderMap) -> Result<String, ApiError> {

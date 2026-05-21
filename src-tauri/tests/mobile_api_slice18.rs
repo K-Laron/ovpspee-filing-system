@@ -2,13 +2,31 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use ovpspee_filing_system::{
+    auth::{authenticate_user, create_first_admin},
+    db::{create_test_pool, DbPool},
+    mobile_devices::{create_mobile_device, CreatedMobileDevice},
+};
 use tower::ServiceExt;
+
+async fn pool_with_device() -> (DbPool, CreatedMobileDevice) {
+    let pool = create_test_pool().await.expect("pool");
+    create_first_admin(&pool, "Admin", "User", "admin1", "Admin123!")
+        .await
+        .expect("admin");
+    let admin = authenticate_user(&pool, "admin1", "Admin123!")
+        .await
+        .expect("admin login")
+        .session_id;
+    let device = create_mobile_device(&pool, &admin, "Records Android")
+        .await
+        .expect("device");
+    (pool, device)
+}
 
 #[tokio::test]
 async fn mobile_api_requires_auth_for_submissions() {
-    let pool = ovpspee_filing_system::db::create_test_pool()
-        .await
-        .expect("pool");
+    let (pool, device) = pool_with_device().await;
     let dir = tempfile::tempdir().expect("temp dir");
     let storage = ovpspee_filing_system::documents::StorageRoot::new(dir.path().join("storage"))
         .expect("storage");
@@ -19,6 +37,8 @@ async fn mobile_api_requires_auth_for_submissions() {
         .oneshot(
             Request::builder()
                 .uri("/api/mobile/health")
+                .header("x-ovpspee-device-id", &device.device_id)
+                .header("x-ovpspee-device-token", &device.device_token)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -30,6 +50,8 @@ async fn mobile_api_requires_auth_for_submissions() {
         .oneshot(
             Request::builder()
                 .uri("/api/mobile/submissions")
+                .header("x-ovpspee-device-id", &device.device_id)
+                .header("x-ovpspee-device-token", &device.device_token)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -40,20 +62,12 @@ async fn mobile_api_requires_auth_for_submissions() {
 }
 
 #[tokio::test]
-async fn mobile_api_requires_device_token_when_configured() {
-    let pool = ovpspee_filing_system::db::create_test_pool()
-        .await
-        .expect("pool");
+async fn mobile_api_requires_registered_device_token() {
+    let (pool, device) = pool_with_device().await;
     let dir = tempfile::tempdir().expect("temp dir");
     let storage = ovpspee_filing_system::documents::StorageRoot::new(dir.path().join("storage"))
         .expect("storage");
-    let app = ovpspee_filing_system::mobile_api::router_with_config(
-        pool,
-        storage,
-        ovpspee_filing_system::mobile_api::MobileApiConfig {
-            device_token: Some("office-token".to_owned()),
-        },
-    );
+    let app = ovpspee_filing_system::mobile_api::router(pool, storage);
 
     let missing_token = app
         .clone()
@@ -71,7 +85,8 @@ async fn mobile_api_requires_device_token_when_configured() {
         .oneshot(
             Request::builder()
                 .uri("/api/mobile/health")
-                .header("x-ovpspee-device-token", "office-token")
+                .header("x-ovpspee-device-id", &device.device_id)
+                .header("x-ovpspee-device-token", &device.device_token)
                 .body(Body::empty())
                 .unwrap(),
         )
