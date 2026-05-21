@@ -10,6 +10,7 @@ dev_storage/
 .superpowers/
 .playwright-mcp/
 .worktrees/
+.local/
 mobile/android/android/.gradle/
 mobile/android/android/app/.cxx/
 mobile/android/android/app/build/

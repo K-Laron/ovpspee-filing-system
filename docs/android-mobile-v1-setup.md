@@ -78,4 +78,41 @@ $env:OVPSPEE_ANDROID_KEY_PASSWORD = "<password>"
 .\android\gradlew.bat -p android :app:assembleRelease
 ```
 
-HTTPS for office LAN remains an infrastructure step. Recommended v1.1 deployment is device token plus trusted office Wi-Fi/firewall; put a local reverse proxy with a trusted certificate in front of port `1421` when phones require HTTPS.
+Recommended v1.1 deployment is device token plus trusted office Wi-Fi/firewall. Use the included HTTPS reverse proxy when phones require TLS before reaching port `1421`.
+
+## HTTPS Proxy
+
+Generate a local certificate and key outside git:
+
+```powershell
+mkdir .local\mobile-https
+openssl req -x509 -newkey rsa:2048 -sha256 -days 825 -nodes `
+  -keyout .local\mobile-https\ovpspee-mobile.key `
+  -out .local\mobile-https\ovpspee-mobile.crt `
+  -subj "/CN=OVPSPEE Mobile Hub"
+```
+
+Start the HTTPS reverse proxy:
+
+```powershell
+$env:OVPSPEE_MOBILE_HTTP_TARGET = "http://127.0.0.1:1421"
+$env:OVPSPEE_MOBILE_HTTPS_PORT = "1443"
+pnpm mobile:https-proxy
+```
+
+Android hub URL becomes:
+
+```text
+https://<office-pc-lan-ip>:1443
+```
+
+For office phones, install/trust the generated `.local\mobile-https\ovpspee-mobile.crt` or replace it with an office CA-issued certificate.
+
+## Phone Install Check
+
+With USB debugging enabled and one phone connected:
+
+```powershell
+.\scripts\install-android-apk.ps1 -BuildType debug
+.\scripts\install-android-apk.ps1 -BuildType release
+```

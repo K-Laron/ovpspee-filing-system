@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "tsc --noEmit && vite build",
+    "mobile:https-proxy": "node scripts/mobile-https-proxy.mjs",
+    "mobile:https-proxy:test": "node scripts/mobile-https-proxy.mjs --self-test",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
