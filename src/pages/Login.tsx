@@ -61,7 +61,7 @@ export const Login = () => {
         </label>
         {error && <p className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <button
-          className="focus-ring mt-6 w-full rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn btn-primary mt-6 w-full"
           disabled={submitting}
           type="submit"
         >

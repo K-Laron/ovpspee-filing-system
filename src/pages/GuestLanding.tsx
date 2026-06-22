@@ -1,6 +1,6 @@
 import { save } from '@tauri-apps/plugin-dialog';
 import { Download, FileText, Folder, Printer, Search, X } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
@@ -26,6 +26,7 @@ export const GuestLanding = () => {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const isGlobalSearch = search.trim().length > 0;
 
   const load = async () => {
@@ -55,6 +56,26 @@ export const GuestLanding = () => {
 
   useEffect(() => {
     void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
+  }, []);
+
+  // ponytail: debounced auto-search on filter changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, categoryId, folderId]);
+
+  // ponytail: / key focuses search input
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const selectCategory = async (id: number) => {
@@ -146,7 +167,7 @@ export const GuestLanding = () => {
           <form className="flex min-w-[360px] items-end gap-2" onSubmit={submitSearch}>
             <label className="flex-1">
               <span className="form-label">Search all public documents</span>
-              <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </label>
             <button className="btn btn-primary" type="submit"><Search size={16} />Search</button>
             {search && <button className="btn" onClick={clearSearch} type="button"><X size={16} />Clear</button>}

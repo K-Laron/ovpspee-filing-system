@@ -1,6 +1,6 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Download, Edit3, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
@@ -52,6 +52,7 @@ export const Documents = () => {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const loadLookups = async () => {
     if (!sessionId) return;
@@ -128,6 +129,27 @@ export const Documents = () => {
     setSelectedIds(new Set());
     void loadDocuments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [sessionId, view]);
+
+  // ponytail: debounced auto-search on filter changes; Apply button still works for explicit submit
+  useEffect(() => {
+    if (!sessionId) return;
+    const timer = setTimeout(() => {
+      void loadDocuments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, categoryId, folderId, officeId, statusFilter, dateFrom, dateTo]);
+
+  // ponytail: / key focuses search input
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -376,7 +398,7 @@ export const Documents = () => {
       {!isTrashView && <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_160px_160px_160px_150px_180px_180px_auto]" onSubmit={submitSearch}>
         <label>
           <span className="form-label">Search</span>
-          <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
         </label>
         <label>
           <span className="form-label">Category</span>
