@@ -6,25 +6,7 @@ import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { AttachmentPreview } from '../../components/AttachmentPreview';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDateOnly } from '../../lib/dates';
-import {
-  addAttachment,
-  exportDocumentPdf,
-  getDocument,
-  listPrintPrinters,
-  listDocumentOffices,
-  listDocuments,
-  listPublicCategories,
-  listPublicFolders,
-  listTrashDocuments,
-  moveDocument,
-  removeAttachment,
-  restoreDocument,
-  setDocumentStatus,
-  setDocumentHidden,
-  trashDocument,
-  updateDocument,
-  printDocumentPdf
-} from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentDetail, DocumentItem, DocumentStatus, FolderItem, OfficeItem, PrinterDevice } from '../../types';
@@ -79,13 +61,16 @@ export const Documents = () => {
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const loadLookups = async () => {
     if (!sessionId) return;
     const [nextCategories, nextOffices, nextPrinters] = await Promise.all([
-      listPublicCategories(),
-      listDocumentOffices(sessionId),
-      listPrintPrinters(sessionId)
+      cmd<CategoryItem[]>('list_public_categories'),
+      cmd<OfficeItem[]>('list_document_offices', { sessionId }),
+      cmd<PrinterDevice[]>('list_print_printers', { sessionId })
     ]);
     setCategories(nextCategories);
     setOffices(nextOffices);
@@ -99,19 +84,21 @@ export const Documents = () => {
       setFolders([]);
       return;
     }
-    setFolders(await listPublicFolders(Number(nextCategoryId)));
+    setFolders(await cmd<FolderItem[]>('list_public_folders', { categoryId: Number(nextCategoryId) }));
   };
 
   const loadDocuments = async () => {
     if (!sessionId) return;
     let rows = view === 'trash'
-      ? await listTrashDocuments(sessionId)
-      : await listDocuments({
+      ? await cmd<DocumentItem[]>('list_trash_documents', { sessionId })
+      : await cmd<DocumentItem[]>('list_documents', {
           sessionId,
           search: search || null,
           categoryId: categoryId ? Number(categoryId) : null,
           folderId: folderId ? Number(folderId) : null,
-          officeId: officeId ? Number(officeId) : null
+          officeId: officeId ? Number(officeId) : null,
+          dateFrom: dateFrom || null,
+          dateTo: dateTo || null
         });
     if (view === 'active' && statusFilter) {
       rows = rows.filter((row) => row.status === statusFilter);
@@ -127,18 +114,19 @@ export const Documents = () => {
 
   const openDetail = async (documentId: number) => {
     if (!sessionId) return;
-    const nextDetail = await getDocument(sessionId, documentId);
+    const nextDetail = await cmd<DocumentDetail>('get_document', { sessionId, documentId });
     setDetail(nextDetail);
     setStatusDraft(nextDetail.document.status);
     setMoveCategoryId(String(nextDetail.document.category_id));
     setMoveFolderId(nextDetail.document.folder_id ? String(nextDetail.document.folder_id) : '');
-    setMoveFolders(await listPublicFolders(nextDetail.document.category_id));
+    setMoveFolders(await cmd<FolderItem[]>('list_public_folders', { categoryId: nextDetail.document.category_id }));
     setEditing(false);
     setMoving(false);
     setPreviewAttachmentId(nextDetail.attachments[0]?.attachment_id ?? null);
   };
 
-  const openDetailFromKeyboard = (event: KeyboardEvent<HTMLTableRowElement>, documentId: number) => {
+  // ponytail: KeyboardEvent on td instead of tr due to checkbox column
+  const openDetailFromKeyboard = (event: KeyboardEvent<HTMLTableDataCellElement>, documentId: number) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     void openDetail(documentId);
@@ -149,6 +137,7 @@ export const Documents = () => {
   }, [sessionId]);
 
   useEffect(() => {
+    setSelectedIds(new Set());
     void loadDocuments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [sessionId, view]);
 
@@ -159,7 +148,7 @@ export const Documents = () => {
 
   const saveEdit = async () => {
     if (!sessionId || !detail) return;
-    await updateDocument({
+    await cmd<void>('update_document', {
       sessionId,
       documentId: detail.document.document_id,
       documentName: detail.document.document_name,
@@ -190,7 +179,7 @@ export const Documents = () => {
   const attach = async () => {
     if (!sessionId || !detail || pendingAttachmentPaths.length === 0) return;
     for (const [index, sourcePath] of pendingAttachmentPaths.entries()) {
-      await addAttachment({
+      await cmd<number>('add_attachment', {
         sessionId,
         documentId: detail.document.document_id,
         sourcePath,
@@ -204,7 +193,7 @@ export const Documents = () => {
 
   const remove = async (attachmentId: number) => {
     if (!sessionId || !detail) return;
-    await removeAttachment({ sessionId, attachmentId });
+    await cmd<void>('remove_attachment', { sessionId, attachmentId });
     setMessage('Attachment removed.');
     await openDetail(detail.document.document_id);
   };
@@ -212,7 +201,7 @@ export const Documents = () => {
   const toggleHidden = async () => {
     if (!sessionId || !detail) return;
     const nextHidden = !detail.document.is_hidden;
-    await setDocumentHidden({
+    await cmd<void>('set_document_hidden', {
       sessionId,
       documentId: detail.document.document_id,
       isHidden: nextHidden
@@ -224,7 +213,7 @@ export const Documents = () => {
 
   const moveToTrash = async () => {
     if (!sessionId || !detail) return;
-    await trashDocument({ sessionId, documentId: detail.document.document_id });
+    await cmd<void>('trash_document', { sessionId, documentId: detail.document.document_id });
     setMessage('Document moved to trash.');
     setDetail(null);
     await loadDocuments();
@@ -232,7 +221,7 @@ export const Documents = () => {
 
   const restore = async () => {
     if (!sessionId || !detail) return;
-    await restoreDocument({ sessionId, documentId: detail.document.document_id });
+    await cmd<void>('restore_document', { sessionId, documentId: detail.document.document_id });
     setMessage('Document restored.');
     setDetail(null);
     await loadDocuments();
@@ -241,12 +230,12 @@ export const Documents = () => {
   const loadMoveFolders = async (nextCategoryId: string) => {
     setMoveCategoryId(nextCategoryId);
     setMoveFolderId('');
-    setMoveFolders(nextCategoryId ? await listPublicFolders(Number(nextCategoryId)) : []);
+    setMoveFolders(nextCategoryId ? await cmd<FolderItem[]>('list_public_folders', { categoryId: Number(nextCategoryId) }) : []);
   };
 
   const saveMove = async () => {
     if (!sessionId || !detail || !moveCategoryId) return;
-    await moveDocument({
+    await cmd<void>('move_document', {
       sessionId,
       documentId: detail.document.document_id,
       categoryId: Number(moveCategoryId),
@@ -259,7 +248,7 @@ export const Documents = () => {
 
   const saveStatus = async () => {
     if (!sessionId || !detail) return;
-    await setDocumentStatus({
+    await cmd<void>('set_document_status', {
       sessionId,
       documentId: detail.document.document_id,
       status: statusDraft
@@ -279,7 +268,7 @@ export const Documents = () => {
         filters: [{ name: 'PDF', extensions: ['pdf'] }]
       });
       if (!outputPath) return;
-      const savedPath = await exportDocumentPdf({
+      const savedPath = await cmd<string>('export_document_pdf', {
         sessionId,
         documentId: detail.document.document_id,
         outputPath
@@ -297,7 +286,7 @@ export const Documents = () => {
     setPrinting(true);
     setMessage('');
     try {
-      const result = await printDocumentPdf({
+      const result = await cmd<{ printer_name: string }>('print_document_pdf', {
         sessionId,
         documentId: detail.document.document_id,
         printerId: selectedPrinterId,
@@ -318,6 +307,21 @@ export const Documents = () => {
       body: <>Move <strong>{detail.document.document_name}</strong> to Trash. It can be restored from Trash later.</>,
       confirmLabel: 'Move to Trash',
       onConfirm: moveToTrash
+    });
+  };
+
+  const bulkTrash = () => {
+    setConfirmAction({
+      title: 'Trash documents',
+      body: <>Move <strong>{selectedIds.size}</strong> document(s) to Trash?</>,
+      confirmLabel: 'Trash',
+      onConfirm: async () => {
+        await Promise.all([...selectedIds].map((id) =>
+          cmd<void>('trash_document', { sessionId, documentId: id })
+        ));
+        setSelectedIds(new Set());
+        await loadDocuments();
+      }
     });
   };
 
@@ -369,7 +373,19 @@ export const Documents = () => {
         <button className={view === 'trash' ? 'btn btn-primary' : 'btn'} onClick={() => { setView('trash'); setDetail(null); }} type="button">Trash</button>
       </div>
 
-      {!isTrashView && <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_160px_160px_160px_150px_auto]" onSubmit={submitSearch}>
+      {!isTrashView && <div className="flex flex-wrap gap-3 rounded border border-border bg-surface p-3 text-xs text-muted">
+        {['Filed', 'Archived', 'Confidential', 'Other'].map((s) => (
+          <span key={s} className="rounded bg-background px-2 py-1">{s}: {documents.filter((d) => d.status === s).length}</span>
+        ))}
+      </div>}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded border border-border bg-surface p-3 text-sm">
+          <span className="font-semibold text-secondary">{selectedIds.size} selected</span>
+          <button className="btn" onClick={bulkTrash} type="button"><Trash2 size={16} />Trash selected</button>
+          <button className="btn" onClick={() => setSelectedIds(new Set())} type="button"><X size={16} />Clear</button>
+        </div>
+      )}
+      {!isTrashView && <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_160px_160px_160px_150px_180px_180px_auto]" onSubmit={submitSearch}>
         <label>
           <span className="form-label">Search</span>
           <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -405,6 +421,14 @@ export const Documents = () => {
             <option>Other</option>
           </select>
         </label>
+        <label>
+          <span className="form-label">From</span>
+          <input className="input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </label>
+        <label>
+          <span className="form-label">To</span>
+          <input className="input" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </label>
         <button className="btn btn-primary self-end" type="submit"><Search size={16} />Apply</button>
       </form>}
 
@@ -414,20 +438,42 @@ export const Documents = () => {
         <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-background text-xs uppercase text-muted">
-              <tr><th className="p-3">Document</th><th className="p-3">Location</th><th className="p-3">Date</th></tr>
+              <tr>
+                <th className="w-10 p-3">
+                  <input
+                    aria-label="Select all documents"
+                    checked={documents.length > 0 && selectedIds.size === documents.length}
+                    className="checkbox"
+                    onChange={(e) => setSelectedIds(e.target.checked ? new Set(documents.map((d) => d.document_id)) : new Set())}
+                    type="checkbox"
+                  />
+                </th>
+                <th className="p-3">Document</th>
+                <th className="p-3">Location</th>
+                <th className="p-3">Date</th>
+              </tr>
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr
-                  aria-label={`Open document ${doc.document_name}`}
-                  className="cursor-pointer border-b border-border hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                  key={doc.document_id}
-                  onClick={() => void openDetail(doc.document_id)}
-                  onKeyDown={(event) => openDetailFromKeyboard(event, doc.document_id)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <td className="p-3">
+                  <tr
+                    aria-label={`Open document ${doc.document_name}`}
+                    className="border-b border-border hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                    key={doc.document_id}
+                  >
+                    <td className="w-10 p-3">
+                      <input
+                        aria-label={`Select ${doc.document_name}`}
+                        checked={selectedIds.has(doc.document_id)}
+                        className="checkbox"
+                        onChange={(e) => {
+                          const next = new Set(selectedIds);
+                          e.target.checked ? next.add(doc.document_id) : next.delete(doc.document_id);
+                          setSelectedIds(next);
+                        }}
+                        type="checkbox"
+                      />
+                    </td>
+                    <td className="cursor-pointer p-3" onClick={() => void openDetail(doc.document_id)} onKeyDown={(event) => openDetailFromKeyboard(event, doc.document_id)} role="button" tabIndex={0}>
                     <p className="font-semibold text-secondary">{doc.document_name}</p>
                     <p className="text-xs text-muted">
                       <span className="rounded bg-background px-2 py-0.5 text-[11px] font-semibold text-secondary">{doc.status}</span> · {doc.attachment_count} file(s){doc.is_hidden ? ' · Hidden' : ''}{doc.is_trashed ? ' · Trashed' : ''}

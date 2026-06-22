@@ -10,14 +10,14 @@ The Rust backend exposes all application logic through **Tauri IPC commands**. T
 ### Calling Pattern (Frontend)
 
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
+import { cmd } from '../lib/invoke';
 
 // Success
-const result = await invoke<DocumentRecord>('get_document', { documentId: 42 });
+const result = await cmd<DocumentRecord>('get_document', { documentId: 42 });
 
 // Error (Tauri surfaces Rust Err(...) as a rejected Promise)
 try {
-  await invoke('delete_scan', { intakeId: 7 });
+  await cmd<void>('trash_document', { sessionId, documentId: 7 });
 } catch (error) {
   // error is the string returned from the Rust Err(AppError::...)
   console.error(error);
@@ -26,7 +26,7 @@ try {
 
 ### Error Format
 
-All commands return `Result<T, String>` from Rust. On error, the frontend receives a plain string error message. Use a centralized `handleError(e: unknown)` utility in the frontend to display toast notifications.
+All commands return `Result<T, AppError>` from Rust. AppError implements Display, so the frontend receives a plain string error message matching the error code prefix (ERR_UNAUTHORIZED, ERR_VALIDATION, ERR_NOT_FOUND, etc.). Use a centralized `handleError(e: unknown)` utility in the frontend to display toast notifications.
 
 ### Standard Error Codes
 
@@ -1166,28 +1166,9 @@ async fn update_settings(
 
 ---
 
-## 13. Dashboard Commands (Secretary)
+## 13. Dashboard Summary (Secretary)
 
-### `get_dashboard_stats`
-
-```rust
-#[tauri::command]
-async fn get_dashboard_stats(
-    db: State<DbPool>,
-    session_id: String,
-) -> Result<DashboardStats, String>
-
-pub struct DashboardStats {
-    pub total_documents: i64,
-    pub total_categories: i64,
-    pub total_folders: i64,
-    pub hidden_documents: i64,
-    pub trashed_documents: i64,
-    pub documents_this_month: i64,
-    pub pending_intake_scans: i64,   // unclaimed scans in intake
-    pub recent_documents: Vec<DocumentListItem>,  // last 10
-}
-```
+Status counts and recent activity are computed from the `list_documents` and `list_scan_intake` results on the frontend. No dedicated dashboard command exists. A summary bar showing document counts by status is rendered at the top of the Documents page (`Documents.tsx`).
 
 ---
 

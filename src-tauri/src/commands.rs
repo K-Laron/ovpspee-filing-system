@@ -2,6 +2,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::{
     audit_log::{self, AuditLogFilter, AuditLogPage, AuditRetentionSettings},
+    error::AppError,
     auth::{self, SessionPayload},
     backup::{
         self, BackupRuntime, BackupSettings, BackupSettingsInput, BackupSummary, BackupValidation,
@@ -29,11 +30,11 @@ use crate::{
     users::{self, ProfileInput, ProfileItem, UserInput, UserItem, UserUpdateInput},
 };
 
+type CmdResult<T> = Result<T, AppError>;
+
 #[tauri::command]
-pub async fn first_run_check(db: State<'_, DbState>) -> Result<bool, String> {
-    auth::first_run_required(&db.pool)
-        .await
-        .map_err(|err| err.to_string())
+pub async fn first_run_check(db: State<'_, DbState>) -> CmdResult<bool> {
+    auth::first_run_required(&db.pool).await
 }
 
 #[tauri::command]
@@ -43,10 +44,8 @@ pub async fn first_run_setup(
     last_name: String,
     username: String,
     password: String,
-) -> Result<(), String> {
-    auth::create_first_admin(&db.pool, &first_name, &last_name, &username, &password)
-        .await
-        .map_err(|err| err.to_string())
+) -> CmdResult<()> {
+    auth::create_first_admin(&db.pool, &first_name, &last_name, &username, &password).await
 }
 
 #[tauri::command]
@@ -54,27 +53,21 @@ pub async fn login(
     db: State<'_, DbState>,
     username: String,
     password: String,
-) -> Result<SessionPayload, String> {
-    auth::authenticate_user(&db.pool, &username, &password)
-        .await
-        .map_err(|err| err.to_string())
+) -> CmdResult<SessionPayload> {
+    auth::authenticate_user(&db.pool, &username, &password).await
 }
 
 #[tauri::command]
-pub async fn logout(db: State<'_, DbState>, session_id: String) -> Result<(), String> {
-    auth::logout_session(&db.pool, &session_id)
-        .await
-        .map_err(|err| err.to_string())
+pub async fn logout(db: State<'_, DbState>, session_id: String) -> CmdResult<()> {
+    auth::logout_session(&db.pool, &session_id).await
 }
 
 #[tauri::command]
 pub async fn validate_session(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<SessionPayload, String> {
-    auth::validate_session(&db.pool, &session_id)
-        .await
-        .map_err(|err| err.to_string())
+) -> CmdResult<SessionPayload> {
+    auth::validate_session(&db.pool, &session_id).await
 }
 
 #[tauri::command]
@@ -82,10 +75,8 @@ pub async fn list_categories(
     db: State<'_, DbState>,
     session_id: String,
     include_inactive: Option<bool>,
-) -> Result<Vec<CategoryItem>, String> {
-    master_data::list_categories(&db.pool, &session_id, include_inactive)
-        .await
-        .map_err(|err| err.to_string())
+) -> CmdResult<Vec<CategoryItem>> {
+    master_data::list_categories(&db.pool, &session_id, include_inactive).await
 }
 
 #[tauri::command]
@@ -96,7 +87,7 @@ pub async fn create_category(
     description: Option<String>,
     color_code: String,
     icon: Option<String>,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     master_data::create_category(
         &db.pool,
         &session_id,
@@ -108,7 +99,6 @@ pub async fn create_category(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -121,7 +111,7 @@ pub async fn update_category(
     color_code: String,
     icon: Option<String>,
     is_active: bool,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     master_data::update_category(
         &db.pool,
         &session_id,
@@ -135,7 +125,6 @@ pub async fn update_category(
         is_active,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -144,10 +133,9 @@ pub async fn list_folders(
     session_id: String,
     category_id: Option<i64>,
     include_inactive: Option<bool>,
-) -> Result<Vec<FolderItem>, String> {
+) -> CmdResult<Vec<FolderItem>> {
     master_data::list_folders(&db.pool, &session_id, category_id, include_inactive)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -158,7 +146,7 @@ pub async fn create_folder(
     folder_name: String,
     description: Option<String>,
     folder_color: String,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     master_data::create_folder(
         &db.pool,
         &session_id,
@@ -170,7 +158,6 @@ pub async fn create_folder(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -183,7 +170,7 @@ pub async fn update_folder(
     description: Option<String>,
     folder_color: String,
     is_active: bool,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     master_data::update_folder(
         &db.pool,
         &session_id,
@@ -197,7 +184,6 @@ pub async fn update_folder(
         is_active,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -205,10 +191,9 @@ pub async fn list_offices(
     db: State<'_, DbState>,
     session_id: String,
     include_inactive: Option<bool>,
-) -> Result<Vec<OfficeItem>, String> {
+) -> CmdResult<Vec<OfficeItem>> {
     master_data::list_offices(&db.pool, &session_id, include_inactive)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -217,7 +202,7 @@ pub async fn create_office(
     session_id: String,
     office_name: String,
     description: Option<String>,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     master_data::create_office(
         &db.pool,
         &session_id,
@@ -227,7 +212,6 @@ pub async fn create_office(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -238,7 +222,7 @@ pub async fn update_office(
     office_name: String,
     description: Option<String>,
     is_active: bool,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     master_data::update_office(
         &db.pool,
         &session_id,
@@ -250,7 +234,6 @@ pub async fn update_office(
         is_active,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -258,10 +241,9 @@ pub async fn list_users(
     db: State<'_, DbState>,
     session_id: String,
     search: Option<String>,
-) -> Result<Vec<UserItem>, String> {
+) -> CmdResult<Vec<UserItem>> {
     users::list_users(&db.pool, &session_id, search.as_deref())
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -277,7 +259,7 @@ pub async fn create_user(
     contact_number: Option<String>,
     address: Option<String>,
     password: String,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     users::create_user(
         &db.pool,
         &session_id,
@@ -294,7 +276,6 @@ pub async fn create_user(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -311,7 +292,7 @@ pub async fn update_user(
     contact_number: Option<String>,
     address: Option<String>,
     is_active: bool,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     users::update_user(
         &db.pool,
         &session_id,
@@ -329,7 +310,6 @@ pub async fn update_user(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -338,20 +318,18 @@ pub async fn admin_reset_password(
     session_id: String,
     user_id: i64,
     new_password: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     users::admin_reset_password(&db.pool, &session_id, user_id, &new_password)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn get_my_profile(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<ProfileItem, String> {
+) -> CmdResult<ProfileItem> {
     users::get_my_profile(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -364,7 +342,7 @@ pub async fn update_my_profile(
     email: Option<String>,
     contact_number: Option<String>,
     address: Option<String>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     users::update_my_profile(
         &db.pool,
         &session_id,
@@ -378,7 +356,6 @@ pub async fn update_my_profile(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -387,10 +364,9 @@ pub async fn change_my_password(
     session_id: String,
     current_password: String,
     new_password: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     users::change_my_password(&db.pool, &session_id, &current_password, &new_password)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -404,7 +380,7 @@ pub async fn create_document(
     date_received: String,
     remarks: Option<String>,
     status: String,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     documents::create_document(
         &db.pool,
         &session_id,
@@ -419,7 +395,6 @@ pub async fn create_document(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -434,7 +409,7 @@ pub async fn update_document(
     date_received: String,
     remarks: Option<String>,
     status: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::update_document(
         &db.pool,
         &session_id,
@@ -450,7 +425,6 @@ pub async fn update_document(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -460,10 +434,9 @@ pub async fn move_document(
     document_id: i64,
     category_id: i64,
     folder_id: Option<i64>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::move_document(&db.pool, &session_id, document_id, category_id, folder_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -472,10 +445,9 @@ pub async fn set_document_status(
     session_id: String,
     document_id: i64,
     status: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::set_document_status(&db.pool, &session_id, document_id, status)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -484,10 +456,9 @@ pub async fn set_document_hidden(
     session_id: String,
     document_id: i64,
     is_hidden: bool,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::set_document_hidden(&db.pool, &session_id, document_id, is_hidden)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -495,10 +466,9 @@ pub async fn trash_document(
     db: State<'_, DbState>,
     session_id: String,
     document_id: i64,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::trash_document(&db.pool, &session_id, document_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -506,20 +476,18 @@ pub async fn restore_document(
     db: State<'_, DbState>,
     session_id: String,
     document_id: i64,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::restore_document(&db.pool, &session_id, document_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_trash_documents(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<DocumentItem>, String> {
+) -> CmdResult<Vec<DocumentItem>> {
     documents::list_trash_documents(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -528,11 +496,10 @@ pub async fn purge_document(
     db: State<'_, DbState>,
     session_id: String,
     document_id: i64,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let storage = storage_root(&app)?;
     documents::purge_document(&db.pool, &storage, &session_id, document_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -540,11 +507,10 @@ pub async fn empty_trash(
     app: AppHandle,
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     let storage = storage_root(&app)?;
     documents::empty_trash(&db.pool, &storage, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -557,7 +523,7 @@ pub async fn list_documents(
     office_id: Option<i64>,
     date_from: Option<String>,
     date_to: Option<String>,
-) -> Result<Vec<DocumentItem>, String> {
+) -> CmdResult<Vec<DocumentItem>> {
     documents::list_documents(
         &db.pool,
         &session_id,
@@ -571,7 +537,6 @@ pub async fn list_documents(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -579,10 +544,9 @@ pub async fn get_document(
     db: State<'_, DbState>,
     session_id: String,
     document_id: i64,
-) -> Result<DocumentDetail, String> {
+) -> CmdResult<DocumentDetail> {
     documents::get_document(&db.pool, &session_id, document_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -593,7 +557,7 @@ pub async fn add_attachment(
     document_id: i64,
     source_path: String,
     sort_order: Option<i64>,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     let storage = storage_root(&app)?;
     documents::add_attachment(
         &db.pool,
@@ -606,7 +570,6 @@ pub async fn add_attachment(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -615,11 +578,10 @@ pub async fn remove_attachment(
     db: State<'_, DbState>,
     session_id: String,
     attachment_id: i64,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let storage = storage_root(&app)?;
     documents::remove_attachment(&db.pool, &storage, &session_id, attachment_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -628,10 +590,9 @@ pub async fn reorder_attachments(
     session_id: String,
     document_id: i64,
     attachment_ids: Vec<i64>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     documents::reorder_attachments(&db.pool, &session_id, document_id, attachment_ids)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -640,11 +601,10 @@ pub async fn get_attachment_file_path(
     db: State<'_, DbState>,
     session_id: Option<String>,
     attachment_id: i64,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     let storage = storage_root(&app)?;
     documents::get_attachment_file_path(&db.pool, &storage, session_id.as_deref(), attachment_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -653,11 +613,10 @@ pub async fn get_attachment_preview_info(
     db: State<'_, DbState>,
     session_id: Option<String>,
     attachment_id: i64,
-) -> Result<AttachmentPreviewInfo, String> {
+) -> CmdResult<AttachmentPreviewInfo> {
     let storage = storage_root(&app)?;
     documents::get_attachment_preview_info(&db.pool, &storage, session_id.as_deref(), attachment_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -667,7 +626,7 @@ pub async fn get_attachment_preview_page(
     session_id: Option<String>,
     attachment_id: i64,
     page_number: Option<i64>,
-) -> Result<AttachmentPreviewPage, String> {
+) -> CmdResult<AttachmentPreviewPage> {
     let storage = storage_root(&app)?;
     documents::get_attachment_preview_page(
         &db.pool,
@@ -677,7 +636,6 @@ pub async fn get_attachment_preview_page(
         page_number,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -687,7 +645,7 @@ pub async fn export_document_pdf(
     session_id: Option<String>,
     document_id: i64,
     output_path: String,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     let storage = storage_root(&app)?;
     documents::export_document_pdf(
         &db.pool,
@@ -697,24 +655,21 @@ pub async fn export_document_pdf(
         &output_path,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
-pub async fn list_public_categories(db: State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
+pub async fn list_public_categories(db: State<'_, DbState>) -> CmdResult<Vec<CategoryItem>> {
     documents::list_public_categories(&db.pool)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_public_folders(
     db: State<'_, DbState>,
     category_id: i64,
-) -> Result<Vec<FolderItem>, String> {
+) -> CmdResult<Vec<FolderItem>> {
     documents::list_public_folders(&db.pool, category_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -726,7 +681,7 @@ pub async fn list_public_documents(
     office_id: Option<i64>,
     date_from: Option<String>,
     date_to: Option<String>,
-) -> Result<Vec<DocumentItem>, String> {
+) -> CmdResult<Vec<DocumentItem>> {
     documents::list_public_documents(
         &db.pool,
         DocumentListFilter {
@@ -739,27 +694,24 @@ pub async fn list_public_documents(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn get_public_document(
     db: State<'_, DbState>,
     document_id: i64,
-) -> Result<DocumentDetail, String> {
+) -> CmdResult<DocumentDetail> {
     documents::get_public_document(&db.pool, document_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_document_offices(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<OfficeItem>, String> {
+) -> CmdResult<Vec<OfficeItem>> {
     documents::list_document_offices(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -770,7 +722,7 @@ pub async fn list_mobile_submissions(
     search: Option<String>,
     date_from: Option<String>,
     date_to: Option<String>,
-) -> Result<Vec<MobileSubmissionItem>, String> {
+) -> CmdResult<Vec<MobileSubmissionItem>> {
     mobile_submissions::list_mobile_submissions(
         &db.pool,
         &session_id,
@@ -780,11 +732,10 @@ pub async fn list_mobile_submissions(
         date_to,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
-pub async fn get_mobile_api_setup() -> Result<MobileApiSetup, String> {
+pub async fn get_mobile_api_setup() -> CmdResult<MobileApiSetup> {
     Ok(mobile_api::setup_info())
 }
 
@@ -793,20 +744,18 @@ pub async fn create_mobile_device(
     db: State<'_, DbState>,
     session_id: String,
     device_name: String,
-) -> Result<CreatedMobileDevice, String> {
+) -> CmdResult<CreatedMobileDevice> {
     mobile_devices::create_mobile_device(&db.pool, &session_id, &device_name)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_mobile_devices(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<MobileDeviceItem>, String> {
+) -> CmdResult<Vec<MobileDeviceItem>> {
     mobile_devices::list_mobile_devices(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -814,10 +763,9 @@ pub async fn revoke_mobile_device(
     db: State<'_, DbState>,
     session_id: String,
     device_id: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     mobile_devices::revoke_mobile_device(&db.pool, &session_id, &device_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -825,10 +773,9 @@ pub async fn get_mobile_submission(
     db: State<'_, DbState>,
     session_id: String,
     mobile_submission_id: i64,
-) -> Result<MobileSubmissionDetail, String> {
+) -> CmdResult<MobileSubmissionDetail> {
     mobile_submissions::get_mobile_submission(&db.pool, &session_id, mobile_submission_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -838,7 +785,7 @@ pub async fn get_mobile_submission_attachment_preview_page(
     session_id: String,
     mobile_submission_attachment_id: i64,
     page_number: Option<i64>,
-) -> Result<MobileSubmissionAttachmentPreviewPage, String> {
+) -> CmdResult<MobileSubmissionAttachmentPreviewPage> {
     let storage = storage_root(&app)?;
     mobile_submissions::get_mobile_submission_attachment_preview_page(
         &db.pool,
@@ -848,7 +795,6 @@ pub async fn get_mobile_submission_attachment_preview_page(
         page_number,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -858,7 +804,7 @@ pub async fn approve_mobile_submission(
     session_id: String,
     mobile_submission_id: i64,
     review_notes: Option<String>,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     let storage = storage_root(&app)?;
     mobile_submissions::approve_mobile_submission(
         &db.pool,
@@ -868,7 +814,6 @@ pub async fn approve_mobile_submission(
         review_notes,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -877,7 +822,7 @@ pub async fn reject_mobile_submission(
     session_id: String,
     mobile_submission_id: i64,
     rejection_reason: String,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     mobile_submissions::reject_mobile_submission(
         &db.pool,
         &session_id,
@@ -885,7 +830,6 @@ pub async fn reject_mobile_submission(
         rejection_reason,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -894,21 +838,19 @@ pub async fn import_scan_files(
     db: State<'_, DbState>,
     session_id: String,
     source_paths: Vec<String>,
-) -> Result<Vec<i64>, String> {
+) -> CmdResult<Vec<i64>> {
     let storage = storage_root(&app)?;
     scan_intake::import_scan_files(&db.pool, &storage, &session_id, source_paths)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_scan_intake(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<ScanIntakeItem>, String> {
+) -> CmdResult<Vec<ScanIntakeItem>> {
     scan_intake::list_scan_intake(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -916,10 +858,9 @@ pub async fn get_scan_intake(
     db: State<'_, DbState>,
     session_id: String,
     scan_intake_id: i64,
-) -> Result<ScanIntakeItem, String> {
+) -> CmdResult<ScanIntakeItem> {
     scan_intake::get_scan_intake(&db.pool, &session_id, scan_intake_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -929,7 +870,7 @@ pub async fn get_scan_intake_preview_page(
     session_id: String,
     scan_intake_id: i64,
     page_number: Option<i64>,
-) -> Result<ScanIntakePreviewPage, String> {
+) -> CmdResult<ScanIntakePreviewPage> {
     let storage = storage_root(&app)?;
     scan_intake::get_scan_intake_preview_page(
         &db.pool,
@@ -939,7 +880,6 @@ pub async fn get_scan_intake_preview_page(
         page_number,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -948,10 +888,9 @@ pub async fn update_scan_intake_notes(
     session_id: String,
     scan_intake_id: i64,
     notes: Option<String>,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     scan_intake::update_scan_intake_notes(&db.pool, &session_id, scan_intake_id, notes)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -959,10 +898,9 @@ pub async fn remove_scan_intake(
     db: State<'_, DbState>,
     session_id: String,
     scan_intake_id: i64,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     scan_intake::remove_scan_intake(&db.pool, &session_id, scan_intake_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -978,7 +916,7 @@ pub async fn file_scan_as_document(
     date_received: String,
     remarks: Option<String>,
     status: String,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     let storage = storage_root(&app)?;
     scan_intake::file_scan_as_document(
         &db.pool,
@@ -996,7 +934,6 @@ pub async fn file_scan_as_document(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1006,7 +943,7 @@ pub async fn attach_scan_to_document(
     session_id: String,
     scan_intake_ids: Vec<i64>,
     document_id: i64,
-) -> Result<Vec<i64>, String> {
+) -> CmdResult<Vec<i64>> {
     let storage = storage_root(&app)?;
     scan_intake::attach_scan_to_document(
         &db.pool,
@@ -1016,7 +953,6 @@ pub async fn attach_scan_to_document(
         document_id,
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1024,10 +960,9 @@ pub async fn get_scanner_capabilities(
     db: State<'_, DbState>,
     session_id: String,
     scanner_id: String,
-) -> Result<ScannerCapabilities, String> {
+) -> CmdResult<ScannerCapabilities> {
     devices::get_scanner_capabilities(&db.pool, &session_id, &scanner_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1037,11 +972,10 @@ pub async fn scan_to_intake(
     session_id: String,
     scanner_id: String,
     options: ScanOptions,
-) -> Result<ScanIntakeItem, String> {
+) -> CmdResult<ScanIntakeItem> {
     let storage = storage_root(&app)?;
     devices::scan_to_intake(&db.pool, &storage, &session_id, &scanner_id, options)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1057,7 +991,7 @@ pub async fn list_audit_logs(
     date_to: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
-) -> Result<AuditLogPage, String> {
+) -> CmdResult<AuditLogPage> {
     audit_log::list_audit_logs(
         &db.pool,
         &session_id,
@@ -1074,7 +1008,6 @@ pub async fn list_audit_logs(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1088,7 +1021,7 @@ pub async fn list_my_activity(
     date_to: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
-) -> Result<AuditLogPage, String> {
+) -> CmdResult<AuditLogPage> {
     audit_log::list_my_activity(
         &db.pool,
         &session_id,
@@ -1104,37 +1037,33 @@ pub async fn list_my_activity(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_audit_event_types(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<String>, String> {
+) -> CmdResult<Vec<String>> {
     audit_log::list_audit_event_types(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_my_activity_event_types(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<String>, String> {
+) -> CmdResult<Vec<String>> {
     audit_log::list_my_activity_event_types(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn get_audit_retention_settings(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<AuditRetentionSettings, String> {
+) -> CmdResult<AuditRetentionSettings> {
     audit_log::get_audit_retention_settings(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1142,10 +1071,9 @@ pub async fn update_audit_retention_settings(
     db: State<'_, DbState>,
     session_id: String,
     retention_months: i64,
-) -> Result<AuditRetentionSettings, String> {
+) -> CmdResult<AuditRetentionSettings> {
     audit_log::update_audit_retention_settings(&db.pool, &session_id, retention_months)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1153,11 +1081,10 @@ pub async fn get_backup_settings(
     app: AppHandle,
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<BackupSettings, String> {
+) -> CmdResult<BackupSettings> {
     let runtime = backup_runtime(&app)?;
     backup::get_backup_settings(&db.pool, &runtime, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1169,7 +1096,7 @@ pub async fn update_backup_settings(
     schedule_enabled: bool,
     schedule_time: String,
     retention_count: i64,
-) -> Result<BackupSettings, String> {
+) -> CmdResult<BackupSettings> {
     let runtime = backup_runtime(&app)?;
     backup::update_backup_settings(
         &db.pool,
@@ -1183,7 +1110,6 @@ pub async fn update_backup_settings(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1191,11 +1117,10 @@ pub async fn create_backup(
     app: AppHandle,
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<BackupSummary, String> {
+) -> CmdResult<BackupSummary> {
     let runtime = backup_runtime(&app)?;
     backup::create_backup(&db.pool, &runtime, &session_id, false)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1203,11 +1128,10 @@ pub async fn list_backup_history(
     app: AppHandle,
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<BackupSummary>, String> {
+) -> CmdResult<Vec<BackupSummary>> {
     let runtime = backup_runtime(&app)?;
     backup::list_backup_history(&db.pool, &runtime, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1217,11 +1141,10 @@ pub async fn export_backup_archive(
     session_id: String,
     backup_name: String,
     output_path: String,
-) -> Result<String, String> {
+) -> CmdResult<String> {
     let runtime = backup_runtime(&app)?;
     backup::export_backup_archive(&db.pool, &runtime, &session_id, backup_name, output_path)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1230,11 +1153,10 @@ pub async fn validate_backup_archive(
     db: State<'_, DbState>,
     session_id: String,
     archive_path: String,
-) -> Result<BackupValidation, String> {
+) -> CmdResult<BackupValidation> {
     let runtime = backup_runtime(&app)?;
     backup::validate_backup_archive(&db.pool, &runtime, &session_id, archive_path)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1243,11 +1165,10 @@ pub async fn import_backup_archive(
     db: State<'_, DbState>,
     session_id: String,
     archive_path: String,
-) -> Result<BackupSummary, String> {
+) -> CmdResult<BackupSummary> {
     let runtime = backup_runtime(&app)?;
     backup::import_backup_archive(&db.pool, &runtime, &session_id, archive_path)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1256,11 +1177,10 @@ pub async fn restore_from_backup(
     db: State<'_, DbState>,
     session_id: String,
     backup_name: String,
-) -> Result<RestoreResult, String> {
+) -> CmdResult<RestoreResult> {
     let runtime = backup_runtime(&app)?;
     backup::restore_from_backup(&db.pool, &runtime, &session_id, backup_name)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1269,11 +1189,10 @@ pub async fn restore_from_backup_folder(
     db: State<'_, DbState>,
     session_id: String,
     folder_path: String,
-) -> Result<RestoreResult, String> {
+) -> CmdResult<RestoreResult> {
     let runtime = backup_runtime(&app)?;
     backup::restore_from_backup_folder(&db.pool, &runtime, &session_id, folder_path)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1281,51 +1200,46 @@ pub async fn run_scheduled_backup_check(
     app: AppHandle,
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Option<BackupSummary>, String> {
+) -> CmdResult<Option<BackupSummary>> {
     let runtime = backup_runtime(&app)?;
     backup::run_scheduled_backup_check(&db.pool, &runtime, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_scanners(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<ScannerDevice>, String> {
+) -> CmdResult<Vec<ScannerDevice>> {
     devices::list_scanners(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_printers(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Vec<PrinterDevice>, String> {
+) -> CmdResult<Vec<PrinterDevice>> {
     devices::list_printers(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn get_default_printer(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<Option<PrinterDevice>, String> {
+) -> CmdResult<Option<PrinterDevice>> {
     devices::get_default_printer(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn get_device_settings(
     db: State<'_, DbState>,
     session_id: String,
-) -> Result<DeviceSettings, String> {
+) -> CmdResult<DeviceSettings> {
     devices::get_device_settings(&db.pool, &session_id)
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1337,7 +1251,7 @@ pub async fn update_device_settings(
     scan_default_dpi: i64,
     scan_default_color_mode: String,
     scan_default_output_format: String,
-) -> Result<DeviceSettings, String> {
+) -> CmdResult<DeviceSettings> {
     devices::update_device_settings(
         &db.pool,
         &session_id,
@@ -1350,17 +1264,15 @@ pub async fn update_device_settings(
         },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 pub async fn list_print_printers(
     db: State<'_, DbState>,
     session_id: Option<String>,
-) -> Result<Vec<PrinterDevice>, String> {
+) -> CmdResult<Vec<PrinterDevice>> {
     printing::list_print_printers(&db.pool, session_id.as_deref())
         .await
-        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -1371,7 +1283,7 @@ pub async fn print_document_pdf(
     document_id: i64,
     printer_id: String,
     copies: i64,
-) -> Result<PrintResult, String> {
+) -> CmdResult<PrintResult> {
     let storage = storage_root(&app)?;
     printing::print_document_pdf(
         &db.pool,
@@ -1382,20 +1294,15 @@ pub async fn print_document_pdf(
         PrintOptions { copies },
     )
     .await
-    .map_err(|err| err.to_string())
 }
 
-fn storage_root(app: &AppHandle) -> Result<StorageRoot, String> {
-    let root = app
-        .path()
-        .app_data_dir()
-        .map_err(|err| err.to_string())?
-        .join("storage");
-    StorageRoot::new(root).map_err(|err| err.to_string())
+fn storage_root(app: &AppHandle) -> CmdResult<StorageRoot> {
+    let root = app.path().app_data_dir().map_err(|e| AppError::Validation(e.to_string()))?.join("storage");
+    StorageRoot::new(root)
 }
 
-fn backup_runtime(app: &AppHandle) -> Result<BackupRuntime, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
+fn backup_runtime(app: &AppHandle) -> CmdResult<BackupRuntime> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| AppError::Validation(e.to_string()))?;
     let db_path = app_data_dir.join("filing_system.db");
     let storage = storage_root(app)?;
     Ok(BackupRuntime::new(app_data_dir, db_path, storage))

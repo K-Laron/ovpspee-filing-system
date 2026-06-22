@@ -1,4 +1,3 @@
-use chrono::{SecondsFormat, Utc};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use sqlx::Row;
@@ -8,6 +7,7 @@ use crate::{
     auth::{require_admin_role, require_session, write_audit_log},
     db::DbPool,
     error::{AppError, AppResult},
+    util::{map_unique, now_text},
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -202,19 +202,4 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
         == 0
 }
 
-fn map_unique(
-    result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>,
-    message: &str,
-) -> AppResult<sqlx::sqlite::SqliteQueryResult> {
-    match result {
-        Ok(result) => Ok(result),
-        Err(sqlx::Error::Database(err)) if err.is_unique_violation() => {
-            Err(AppError::Duplicate(message.into()))
-        }
-        Err(err) => Err(AppError::Database(err)),
-    }
-}
 
-fn now_text() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
-}

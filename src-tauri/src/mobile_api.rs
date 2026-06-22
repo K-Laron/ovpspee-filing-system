@@ -23,11 +23,7 @@ use crate::{
 pub struct MobileApiState {
     pub pool: DbPool,
     pub storage: StorageRoot,
-    pub config: MobileApiConfig,
 }
-
-#[derive(Clone, Debug, Default)]
-pub struct MobileApiConfig {}
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -50,10 +46,6 @@ pub struct LookupsResponse {
 }
 
 pub fn router(pool: DbPool, storage: StorageRoot) -> Router {
-    router_with_config(pool, storage, MobileApiConfig::from_env())
-}
-
-pub fn router_with_config(pool: DbPool, storage: StorageRoot, config: MobileApiConfig) -> Router {
     Router::new()
         .route("/api/mobile/health", get(health))
         .route("/api/mobile/login", post(login))
@@ -73,7 +65,6 @@ pub fn router_with_config(pool: DbPool, storage: StorageRoot, config: MobileApiC
         .with_state(MobileApiState {
             pool,
             storage,
-            config,
         })
 }
 
@@ -86,12 +77,6 @@ pub async fn serve(pool: DbPool, storage: StorageRoot, addr: &str) -> Result<(),
     axum::serve(listener, router(pool, storage))
         .await
         .map_err(|err| err.to_string())
-}
-
-impl MobileApiConfig {
-    pub fn from_env() -> Self {
-        Self {}
-    }
 }
 
 #[derive(Debug, Serialize)]

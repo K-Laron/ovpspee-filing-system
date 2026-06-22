@@ -4,7 +4,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use chrono::{NaiveDate, SecondsFormat, Utc};
+
 use printpdf::{
     image_crate::{self, DynamicImage, GenericImageView, Rgb, RgbImage},
     BuiltinFont, Image, ImageTransform, IndirectFontRef, Mm, PdfDocument, PdfLayerReference,
@@ -19,11 +19,12 @@ use crate::{
     error::{AppError, AppResult},
     master_data::OfficeItem,
     master_data::{CategoryItem, FolderItem},
+    util::{now_text, validate_date, validate_status},
 };
 
 pub(crate) const MAX_ATTACHMENT_BYTES: u64 = 1_073_741_824;
-const MAX_TEXT_PREVIEW_BYTES: i64 = 262_144;
-const MAX_TEXT_PREVIEW_CHARS: usize = 16_384;
+pub(crate) const MAX_TEXT_PREVIEW_BYTES: i64 = 262_144;
+pub(crate) const MAX_TEXT_PREVIEW_CHARS: usize = 16_384;
 const PDF_PAGE_WIDTH_MM: f32 = 215.9;
 const PDF_PAGE_HEIGHT_MM: f32 = 279.4;
 const PDF_MARGIN_MM: f32 = 18.0;
@@ -795,21 +796,18 @@ pub async fn export_document_pdf(
     document_id: i64,
     output_path: &str,
 ) -> AppResult<String> {
-    let actor = if let Some(session_id) = session_id {
+    let session = if let Some(session_id) = session_id {
         let session = require_session(pool, session_id).await?;
         if session.role != "Secretary" && session.role != "Admin" {
             return Err(AppError::Unauthorized);
         }
-        ExportActor::User {
-            user_id: session.user_id,
-            role: session.role,
-        }
+        Some(session)
     } else {
-        ExportActor::PublicViewer
+        None
     };
     let detail = get_document_internal(pool, document_id, false).await?;
-    match &actor {
-        ExportActor::PublicViewer => {
+    match &session {
+        None => {
             if detail.document.is_hidden
                 || detail.document.is_trashed
                 || detail.document.status == "Confidential"
@@ -817,7 +815,7 @@ pub async fn export_document_pdf(
                 return Err(AppError::Unauthorized);
             }
         }
-        ExportActor::User { role, .. } if role == "Secretary" || role == "Admin" => {
+        Some(s) if s.role == "Secretary" || s.role == "Admin" => {
             if detail.document.is_trashed {
                 return Err(AppError::Validation(
                     "Trashed documents cannot be exported from normal document detail.".into(),
@@ -828,33 +826,26 @@ pub async fn export_document_pdf(
     }
     let output = validate_pdf_output_path(output_path)?;
     let generated_at = now_text();
-    let exported_by = match &actor {
-        ExportActor::PublicViewer => "Staff/Head Viewer".to_owned(),
-        ExportActor::User { role, user_id } => format!("{role} user #{user_id}"),
+    let exported_by = match &session {
+        None => "Staff/Head Viewer".to_owned(),
+        Some(s) => format!("{} user #{}", s.role, s.user_id),
     };
     let pdf = build_export_pdf(&detail, storage, &generated_at, &exported_by)?;
     fs::write(&output, pdf)?;
-    if let ExportActor::User { user_id, .. } = actor {
-        write_audit_log(
-            pool,
-            "EXPORT",
-            Some("document"),
-            Some(document_id),
-            "Exported document PDF",
-            Some(user_id),
-        )
-        .await?;
-    } else {
-        write_audit_log(
-            pool,
-            "EXPORT",
-            Some("document"),
-            Some(document_id),
-            "Exported public document PDF",
-            None,
-        )
-        .await?;
-    }
+    let user_id = session.as_ref().map(|s| s.user_id);
+    write_audit_log(
+        pool,
+        "EXPORT",
+        Some("document"),
+        Some(document_id),
+        if user_id.is_some() {
+            "Exported document PDF"
+        } else {
+            "Exported public document PDF"
+        },
+        user_id,
+    )
+    .await?;
     Ok(output.to_string_lossy().into_owned())
 }
 
@@ -1186,11 +1177,6 @@ struct AttachmentAccessRow {
     file_size_bytes: i64,
 }
 
-enum ExportActor {
-    PublicViewer,
-    User { user_id: i64, role: String },
-}
-
 async fn attachment_access_row(
     pool: &DbPool,
     session_id: Option<&str>,
@@ -1271,7 +1257,7 @@ fn preview_info_from_row(
     }
 }
 
-fn preview_kind(mime_type: &str) -> &'static str {
+pub(crate) fn preview_kind(mime_type: &str) -> &'static str {
     if mime_type == "application/pdf" {
         "Pdf"
     } else if matches!(mime_type, "image/png" | "image/jpeg") {
@@ -1283,7 +1269,7 @@ fn preview_kind(mime_type: &str) -> &'static str {
     }
 }
 
-fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<String>, bool)> {
+pub(crate) fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<String>, bool)> {
     if file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
         return Ok((None, true));
     }
@@ -1303,7 +1289,7 @@ fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<Str
     Ok((Some(preview), truncated))
 }
 
-fn extension_from_name(path: &Path, mime_type: &str) -> String {
+pub(crate) fn extension_from_name(path: &Path, mime_type: &str) -> String {
     path.extension()
         .and_then(OsStr::to_str)
         .map(|ext| ext.to_ascii_lowercase())
@@ -1318,7 +1304,7 @@ fn extension_from_name(path: &Path, mime_type: &str) -> String {
         })
 }
 
-fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
+pub(crate) fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
     let bytes = fs::read(path).ok()?;
     let text = String::from_utf8_lossy(&bytes);
     let count =
@@ -1362,15 +1348,6 @@ enum ExportPage {
         width_px: u32,
         height_px: u32,
     },
-}
-
-impl ExportPage {
-    fn marker_lines(&self) -> Vec<String> {
-        match self {
-            ExportPage::Text { lines } => lines.clone(),
-            ExportPage::Image { caption, .. } => vec![caption.clone()],
-        }
-    }
 }
 
 fn build_export_pdf(
@@ -1652,7 +1629,11 @@ fn append_pdf_text_markers(output: &mut Vec<u8>, pages: &[ExportPage]) {
     output.extend_from_slice(b"\n% OVPSPEE export verification markers\n");
     for (index, page) in pages.iter().enumerate() {
         output.extend_from_slice(format!("% PAGE {} of {}\n", index + 1, pages.len()).as_bytes());
-        for line in page.marker_lines() {
+        let lines = match page {
+            ExportPage::Text { lines } => lines.clone(),
+            ExportPage::Image { caption, .. } => vec![caption.clone()],
+        };
+        for line in lines {
             let safe = line
                 .chars()
                 .filter(|character| !character.is_control() || *character == '\t')
@@ -1868,17 +1849,7 @@ pub(crate) fn trim_optional(value: Option<String>, max: usize) -> AppResult<Opti
     }
 }
 
-fn validate_date(value: &str) -> AppResult<()> {
-    let date = NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .map_err(|_| AppError::Validation("Date must be YYYY-MM-DD.".into()))?;
-    let today = Utc::now().date_naive();
-    if date > today {
-        return Err(AppError::Validation(
-            "Date received cannot be in the future.".into(),
-        ));
-    }
-    Ok(())
-}
+
 
 fn normalize_optional_date(value: Option<&str>) -> AppResult<Option<String>> {
     match value {
@@ -1890,12 +1861,7 @@ fn normalize_optional_date(value: Option<&str>) -> AppResult<Option<String>> {
     }
 }
 
-fn validate_status(value: &str) -> AppResult<()> {
-    match value {
-        "Filed" | "Archived" | "Confidential" | "Other" => Ok(()),
-        _ => Err(AppError::Validation("Invalid document status.".into())),
-    }
-}
+
 
 fn like_filter(value: Option<&str>) -> Option<String> {
     value
@@ -1904,6 +1870,3 @@ fn like_filter(value: Option<&str>) -> Option<String> {
         .map(|value| format!("%{value}%"))
 }
 
-pub(crate) fn now_text() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
-}

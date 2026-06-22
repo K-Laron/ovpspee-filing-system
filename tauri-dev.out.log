@@ -1,9 +1,0 @@
-
-> ovpspee-filing-system@0.1.0 dev C:\Users\TESS LARON\Desktop\OVPSPEE_CDHP_v1_1_fixed
-> vite --host 127.0.0.1 --port 1420
-
-
-  [32m[1mVITE[22m v7.3.3[39m  [2mready in [0m[1m944[22m[2m[0m ms[22m
-
-  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m1420[22m/[39m
- ELIFECYCLE  Command failed with exit code 4294967295.

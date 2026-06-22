@@ -121,7 +121,7 @@ These were open questions from the README; all are resolved here.
 | 10 | TRASH as separate table? | No separate table. TRASH is a system category; documents carry `is_trashed`, `trashed_at`, `original_category_id`, `original_folder_id` columns. See ADR-001. |
 | 11 | Handling soft-deleted documents | Both Secretary and Admin can see trashed documents and restore them. **Only Admin can purge** (permanently delete). See ADR-008. |
 | 12 | Settings for auto-purge | Yes — `settings.trash_auto_purge_days` (default: 30). Admin-configurable. "Empty Trash" (bulk purge) available only to Admin/IT Staff. Each trashed document shows a live countdown ("Purges in N days") visible to the Secretary. |
-| 13 | Other improvements and refinements | Secretary Dashboard with stats widgets; drag-to-reorder attachments (dnd-kit); scan preview resolution/color settings before import; empty state illustrations; keyboard shortcuts; source tags ("Uploaded" vs "Scanned") on attachment thumbnails. |
+| 13 | Other improvements and refinements | Status counts bar on Documents page (replaced separate Dashboard page); drag-to-reorder attachments (dnd-kit); scan preview resolution/color settings before import; empty state illustrations; keyboard shortcuts; source tags ("Uploaded" vs "Scanned") on attachment thumbnails. |
 | 14 | Contents of the CDHP | 12 `.md` files covering design, schema, API, components, testing, deployment, guidelines, troubleshooting, notes, roadmap, scan intake spec, and security checklist. |
 
 ---

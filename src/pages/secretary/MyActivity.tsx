@@ -1,11 +1,11 @@
 import { RefreshCw, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
-import { listMyActivity, listMyActivityEventTypes } from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
-import type { AuditLogEntry } from '../../types';
+import type { AuditLogEntry, AuditLogPage } from '../../types';
 
 const pageSizeOptions = [25, 50, 100];
 
@@ -28,7 +28,7 @@ export const MyActivity = () => {
     setLoading(true);
     setMessage('');
     try {
-      const page = await listMyActivity({
+      const page = await cmd<AuditLogPage>('list_my_activity', {
         sessionId,
         search: nullable(search),
         action: nullable(action),
@@ -49,7 +49,7 @@ export const MyActivity = () => {
 
   useEffect(() => {
     if (!sessionId) return;
-    void listMyActivityEventTypes(sessionId).then(setEventTypes).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
+    void cmd<string[]>('list_my_activity_event_types', { sessionId }).then(setEventTypes).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
     void load(0);
   }, [sessionId]);
 

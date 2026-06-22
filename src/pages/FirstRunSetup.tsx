@@ -2,9 +2,10 @@ import { FormEvent, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { firstRunSetup, login } from '../lib/invoke';
+import { cmd } from '../lib/invoke';
 import { getUserErrorMessage } from '../lib/errors';
 import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
+import type { SessionPayload } from '../types';
 import { useSessionStore } from '../store/sessionStore';
 
 export const FirstRunSetup = () => {
@@ -29,13 +30,13 @@ export const FirstRunSetup = () => {
     }
 
     try {
-      await firstRunSetup({
+      await cmd<void>('first_run_setup', {
         firstName: String(data.get('firstName') ?? ''),
         lastName: String(data.get('lastName') ?? ''),
         username,
         password
       });
-      const session = await login(username, password);
+      const session = await cmd<SessionPayload>('login', { username, password });
       setSession(session);
       navigate('/a', { replace: true });
     } catch (err) {

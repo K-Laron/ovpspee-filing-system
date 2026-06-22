@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileText, Info } from 'l
 import { useEffect, useState } from 'react';
 
 import { getUserErrorMessage } from '../lib/errors';
-import { getAttachmentPreviewPage } from '../lib/invoke';
+import { cmd } from '../lib/invoke';
 import type { AttachmentItem, AttachmentPreviewPage } from '../types';
 
 interface AttachmentPreviewProps {
@@ -24,7 +24,7 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
     }
     setLoading(true);
     try {
-      const next = await getAttachmentPreviewPage({
+      const next = await cmd<AttachmentPreviewPage>('get_attachment_preview_page', {
         attachmentId: attachment.attachment_id,
         sessionId,
         pageNumber: nextPage

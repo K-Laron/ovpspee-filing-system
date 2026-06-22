@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{sqlite::SqlitePoolOptions, Row, SqlitePool};
 
 use crate::error::AppResult;
 
@@ -62,5 +62,34 @@ pub async fn cleanup_expired_sessions(pool: &DbPool) -> AppResult<()> {
     sqlx::query!("DELETE FROM session WHERE expires_at <= ?", now)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+pub async fn get_setting(pool: &DbPool, key: &str, default: &str) -> AppResult<String> {
+    Ok(get_optional_setting(pool, key)
+        .await?
+        .unwrap_or_else(|| default.to_owned()))
+}
+
+pub async fn get_optional_setting(pool: &DbPool, key: &str) -> AppResult<Option<String>> {
+    let row = sqlx::query("SELECT value FROM settings WHERE key = ?")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|row| row.get::<String, _>("value")))
+}
+
+pub async fn upsert_setting(pool: &DbPool, key: &str, value: &str) -> AppResult<()> {
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    sqlx::query(
+        "INSERT INTO settings (key, value, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    )
+    .bind(key)
+    .bind(value)
+    .bind(now)
+    .execute(pool)
+    .await?;
     Ok(())
 }

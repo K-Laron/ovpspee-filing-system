@@ -2,13 +2,7 @@ import { RefreshCw, Save, ScanLine, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { EmptyState } from '../../components/EmptyState';
-import {
-  getDefaultPrinter,
-  getDeviceSettings,
-  listPrinters,
-  listScanners,
-  updateDeviceSettings
-} from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DeviceSettings, PrinterDevice, ScannerDevice } from '../../types';
@@ -39,10 +33,10 @@ export const DeviceSettingsPage = () => {
     setMessage('');
     try {
       const [nextSettings, nextScanners, nextPrinters] = await Promise.all([
-        getDeviceSettings(sessionId),
-        listScanners(sessionId),
-        listPrinters(sessionId),
-        getDefaultPrinter(sessionId)
+        cmd<DeviceSettings>('get_device_settings', { sessionId }),
+        cmd<ScannerDevice[]>('list_scanners', { sessionId }),
+        cmd<PrinterDevice[]>('list_printers', { sessionId }),
+        cmd<PrinterDevice | null>('get_default_printer', { sessionId })
       ]);
       setSettings(nextSettings);
       setScanners(nextScanners);
@@ -64,7 +58,7 @@ export const DeviceSettingsPage = () => {
     setSaving(true);
     setMessage('');
     try {
-      const updated = await updateDeviceSettings({
+      const updated = await cmd<DeviceSettings>('update_device_settings', {
         sessionId,
         defaultScannerId: settings.default_scanner_id,
         defaultPrinterId: settings.default_printer_id,

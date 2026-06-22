@@ -1,14 +1,15 @@
 use std::{future::Future, path::Path};
 
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::{require_admin_role, require_session, write_audit_log},
-    db::DbPool,
-    documents::{mime_for_extension, now_text, validate_magic, StorageRoot, MAX_ATTACHMENT_BYTES},
+    db::{self, DbPool},
+    documents::{mime_for_extension, validate_magic, StorageRoot, MAX_ATTACHMENT_BYTES},
+    util::now_text,
     error::{AppError, AppResult},
     scan_intake::{self, ScanIntakeItem},
+    util::unsafe_device_id,
 };
 
 #[cfg(target_os = "windows")]
@@ -183,12 +184,8 @@ pub async fn list_scanners_with_provider(
     let session = require_session(pool, session_id).await?;
     require_device_reader(&session.role)?;
     let devices = provider.list_scanners().await?;
-    upsert_setting(
-        pool,
-        "device_detection_last_checked_at",
-        &Utc::now().to_rfc3339(),
-    )
-    .await?;
+    db::upsert_setting(pool, "device_detection_last_checked_at", &now_text())
+        .await?;
     Ok(sanitize_scanners(devices))
 }
 
@@ -200,12 +197,8 @@ pub async fn list_printers_with_provider(
     let session = require_session(pool, session_id).await?;
     require_device_reader(&session.role)?;
     let devices = provider.list_printers().await?;
-    upsert_setting(
-        pool,
-        "device_detection_last_checked_at",
-        &Utc::now().to_rfc3339(),
-    )
-    .await?;
+    db::upsert_setting(pool, "device_detection_last_checked_at", &now_text())
+        .await?;
     Ok(sanitize_printers(devices))
 }
 
@@ -241,42 +234,12 @@ pub async fn update_device_settings_with_provider(
         }
     }
 
-    upsert_setting_optional(
-        pool,
-        "default_scanner_id",
-        input.default_scanner_id.as_deref(),
-    )
-    .await?;
-    upsert_setting_optional(
-        pool,
-        "default_printer_id",
-        input.default_printer_id.as_deref(),
-    )
-    .await?;
-    upsert_setting(
-        pool,
-        "scan_default_dpi",
-        &input.scan_default_dpi.to_string(),
-    )
-    .await?;
-    upsert_setting(
-        pool,
-        "scan_default_color_mode",
-        &input.scan_default_color_mode,
-    )
-    .await?;
-    upsert_setting(
-        pool,
-        "scan_default_output_format",
-        &input.scan_default_output_format,
-    )
-    .await?;
-    upsert_setting(
-        pool,
-        "device_detection_last_checked_at",
-        &Utc::now().to_rfc3339(),
-    )
-    .await?;
+    db::upsert_setting(pool, "default_scanner_id", input.default_scanner_id.as_deref().unwrap_or_default()).await?;
+    db::upsert_setting(pool, "default_printer_id", input.default_printer_id.as_deref().unwrap_or_default()).await?;
+    db::upsert_setting(pool, "scan_default_dpi", &input.scan_default_dpi.to_string()).await?;
+    db::upsert_setting(pool, "scan_default_color_mode", &input.scan_default_color_mode).await?;
+    db::upsert_setting(pool, "scan_default_output_format", &input.scan_default_output_format).await?;
+    db::upsert_setting(pool, "device_detection_last_checked_at", &now_text()).await?;
     write_audit_log(
         pool,
         "UPDATE",
@@ -498,24 +461,16 @@ fn sanitize_printers(devices: Vec<PrinterDevice>) -> Vec<PrinterDevice> {
         .collect()
 }
 
-fn unsafe_device_id(value: &str) -> bool {
-    value.contains("..")
-        || value.contains('\\')
-        || value.contains('/')
-        || value.contains(':')
-        || value.contains('\0')
-}
-
 async fn read_settings(pool: &DbPool) -> AppResult<DeviceSettings> {
-    let default_scanner_id = get_optional_setting(pool, "default_scanner_id").await?;
-    let default_printer_id = get_optional_setting(pool, "default_printer_id").await?;
-    let dpi = get_setting(pool, "scan_default_dpi", "300")
+    let default_scanner_id = db::get_optional_setting(pool, "default_scanner_id").await?;
+    let default_printer_id = db::get_optional_setting(pool, "default_printer_id").await?;
+    let dpi = db::get_setting(pool, "scan_default_dpi", "300")
         .await?
         .parse::<i64>()
         .unwrap_or(300);
-    let color_mode = get_setting(pool, "scan_default_color_mode", "color").await?;
+    let color_mode = db::get_setting(pool, "scan_default_color_mode", "color").await?;
+    let last_checked = db::get_optional_setting(pool, "device_detection_last_checked_at").await?;
     let output_format = normalize_scan_default_output_format(pool).await?;
-    let last_checked = get_optional_setting(pool, "device_detection_last_checked_at").await?;
     Ok(DeviceSettings {
         default_scanner_id,
         default_printer_id,
@@ -537,48 +492,15 @@ async fn read_settings(pool: &DbPool) -> AppResult<DeviceSettings> {
 }
 
 async fn normalize_scan_default_output_format(pool: &DbPool) -> AppResult<String> {
-    let output_format = get_optional_setting(pool, "scan_default_output_format").await?;
+    let output_format = db::get_optional_setting(pool, "scan_default_output_format").await?;
     match output_format.as_deref() {
         Some("png") => Ok("png".to_owned()),
         Some("jpg") => Ok("jpg".to_owned()),
         _ => {
-            upsert_setting(pool, "scan_default_output_format", "png").await?;
+            db::upsert_setting(pool, "scan_default_output_format", "png").await?;
             Ok("png".to_owned())
         }
     }
-}
-
-async fn get_setting(pool: &DbPool, key: &str, default: &str) -> AppResult<String> {
-    Ok(get_optional_setting(pool, key)
-        .await?
-        .unwrap_or_else(|| default.to_owned()))
-}
-
-async fn get_optional_setting(pool: &DbPool, key: &str) -> AppResult<Option<String>> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ?")
-        .bind(key)
-        .fetch_optional(pool)
-        .await?;
-    Ok(row.map(|row| sqlx::Row::get::<String, _>(&row, "value")))
-}
-
-async fn upsert_setting_optional(pool: &DbPool, key: &str, value: Option<&str>) -> AppResult<()> {
-    upsert_setting(pool, key, value.unwrap_or_default()).await
-}
-
-async fn upsert_setting(pool: &DbPool, key: &str, value: &str) -> AppResult<()> {
-    let now = Utc::now().to_rfc3339();
-    sqlx::query(
-        "INSERT INTO settings (key, value, updated_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-    )
-    .bind(key)
-    .bind(value)
-    .bind(now)
-    .execute(pool)
-    .await?;
-    Ok(())
 }
 
 #[cfg(target_os = "windows")]

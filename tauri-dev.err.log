@@ -1,5 +1,0 @@
-     Running BeforeDevCommand (`pnpm dev`)
-     Running DevCommand (`cargo  run --no-default-features --color always --`)
-        Info Watching C:\Users\TESS LARON\Desktop\OVPSPEE_CDHP_v1_1_fixed\src-tauri for changes...
-[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 1.30s
-[1m[92m     Running[0m `D:\codex-target-ovpspee\debug\ovpspee-filing-system.exe`

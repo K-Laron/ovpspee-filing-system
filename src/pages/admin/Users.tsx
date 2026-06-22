@@ -2,7 +2,7 @@ import { Edit2, KeyRound, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { adminResetPassword, createUser, listUsers, updateUser } from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { passwordRulesText, validatePasswordPair } from '../../lib/passwords';
 import { useSessionStore } from '../../store/sessionStore';
@@ -41,7 +41,7 @@ export const Users = () => {
     setLoading(true);
     setError('');
     try {
-      setUsers(await listUsers(sessionId, search.trim() || null));
+      setUsers(await cmd<UserItem[]>('list_users', { sessionId, search: search.trim() || null }));
     } catch (err) {
       setError(getUserErrorMessage(err, 'Could not load users.'));
     } finally {
@@ -72,7 +72,7 @@ export const Users = () => {
         address: nullable(form.address)
       };
       if (editing) {
-        await updateUser({ ...payload, userId: editing.user_id, isActive });
+        await cmd<UserItem>('update_user', { ...payload, userId: editing.user_id, isActive });
         setNotice('User updated.');
       } else {
         const validationError = validatePasswordPair(form.password, form.confirmPassword);
@@ -81,7 +81,7 @@ export const Users = () => {
           setSaving(false);
           return;
         }
-        await createUser({ ...payload, password: form.password });
+        await cmd<UserItem>('create_user', { ...payload, password: form.password });
         setNotice('User created.');
       }
       cancelEdit();
@@ -106,7 +106,7 @@ export const Users = () => {
         setSaving(false);
         return;
       }
-      await adminResetPassword({
+      await cmd<void>('admin_reset_password', {
         sessionId,
         userId: resetTarget.user_id,
         newPassword: resetPassword

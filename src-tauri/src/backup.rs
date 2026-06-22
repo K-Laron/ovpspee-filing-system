@@ -15,7 +15,7 @@ use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 use crate::{
     auth::{require_admin_role, require_session, write_audit_log, ValidSession},
-    db::DbPool,
+    db::{self, DbPool},
     documents::StorageRoot,
     error::{AppError, AppResult},
 };
@@ -158,8 +158,8 @@ pub async fn update_backup_settings(
             .into_owned(),
         None => LOCAL_BACKUP_SENTINEL.to_owned(),
     };
-    upsert_setting(pool, "backup_destination", &destination_value).await?;
-    upsert_setting(
+    db::upsert_setting(pool, "backup_destination", &destination_value).await?;
+    db::upsert_setting(
         pool,
         "backup_schedule",
         if input.schedule_enabled {
@@ -169,8 +169,8 @@ pub async fn update_backup_settings(
         },
     )
     .await?;
-    upsert_setting(pool, "backup_time", &input.schedule_time).await?;
-    upsert_setting(
+    db::upsert_setting(pool, "backup_time", &input.schedule_time).await?;
+    db::upsert_setting(
         pool,
         "backup_retention_count",
         &input.retention_count.to_string(),
@@ -446,10 +446,10 @@ pub async fn run_scheduled_backup_check(
 }
 
 async fn read_settings(pool: &DbPool, runtime: &BackupRuntime) -> AppResult<BackupSettings> {
-    let destination = get_setting(pool, "backup_destination", LOCAL_BACKUP_SENTINEL).await?;
-    let schedule = get_setting(pool, "backup_schedule", "disabled").await?;
-    let schedule_time = get_setting(pool, "backup_time", "02:00").await?;
-    let retention = get_setting(pool, "backup_retention_count", "10").await?;
+    let destination = db::get_setting(pool, "backup_destination", LOCAL_BACKUP_SENTINEL).await?;
+    let schedule = db::get_setting(pool, "backup_schedule", "disabled").await?;
+    let schedule_time = db::get_setting(pool, "backup_time", "02:00").await?;
+    let retention = db::get_setting(pool, "backup_retention_count", "10").await?;
     let is_local = destination == LOCAL_BACKUP_SENTINEL;
     let destination_path = if is_local {
         runtime.default_backup_dir()
@@ -463,31 +463,6 @@ async fn read_settings(pool: &DbPool, runtime: &BackupRuntime) -> AppResult<Back
         schedule_time,
         retention_count: retention.parse::<i64>().unwrap_or(10).clamp(1, 100),
     })
-}
-
-async fn get_setting(pool: &DbPool, key: &str, default: &str) -> AppResult<String> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ?")
-        .bind(key)
-        .fetch_optional(pool)
-        .await?;
-    Ok(row
-        .map(|row| row.get::<String, _>("value"))
-        .unwrap_or_else(|| default.to_owned()))
-}
-
-async fn upsert_setting(pool: &DbPool, key: &str, value: &str) -> AppResult<()> {
-    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-    sqlx::query(
-        "INSERT INTO settings (key, value, updated_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-    )
-    .bind(key)
-    .bind(value)
-    .bind(now)
-    .execute(pool)
-    .await?;
-    Ok(())
 }
 
 async fn write_backup_folder(

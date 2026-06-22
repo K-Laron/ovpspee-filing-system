@@ -7,16 +7,16 @@ use crate::{
     auth::{require_session, write_audit_log},
     db::DbPool,
     documents::{
-        self, mime_for_extension, now_text, trim_optional, validate_magic, validate_source_file,
-        DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,
+        self, mime_for_extension, preview_kind, trim_optional, validate_magic, validate_source_file,
+        DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES, MAX_TEXT_PREVIEW_BYTES,
     },
     error::{AppError, AppResult},
+    util::now_text,
 };
 
 const LARGE_SCAN_WARNING_BYTES: i64 = 262_144_000;
 const MAX_SCAN_PREVIEW_BYTES: i64 = 2_097_152;
-const MAX_SCAN_TEXT_PREVIEW_BYTES: i64 = 262_144;
-const MAX_SCAN_TEXT_PREVIEW_CHARS: usize = 16_384;
+// ponytail: using documents::MAX_TEXT_PREVIEW_BYTES and MAX_TEXT_PREVIEW_CHARS
 const SCAN_EXTENSIONS: &[&str] = &["pdf", "jpg", "jpeg", "png", "tif", "tiff"];
 
 #[derive(Debug, Clone, Serialize)]
@@ -219,7 +219,7 @@ pub async fn get_scan_intake_preview_page(
             None
         };
     let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
-        read_text_preview(&path, info.file_size_bytes)?
+        documents::read_text_preview(&path, info.file_size_bytes)?
     } else {
         (None, false)
     };
@@ -530,10 +530,11 @@ fn scan_extension(path: &PathBuf) -> AppResult<String> {
 
 fn scan_preview_info(scan: &ScanIntakeItem, path: &std::path::Path) -> ScanIntakePreviewInfo {
     let file_exists = path.is_file();
-    let preview_kind = scan_preview_kind(&scan.mime_type).to_owned();
+    // ponytail: TIFF treated as Image for scan preview, not via shared preview_kind (breaks attachment preview)
+    let preview_kind = if scan.mime_type == "image/tiff" { "Image" } else { preview_kind(&scan.mime_type) }.to_owned();
     let supported = preview_kind != "Unsupported";
     let page_count = if file_exists && preview_kind == "Pdf" {
-        estimate_pdf_page_count(path)
+        documents::estimate_pdf_page_count(path)
     } else if file_exists && preview_kind == "Image" {
         Some(1)
     } else {
@@ -545,7 +546,7 @@ fn scan_preview_info(scan: &ScanIntakeItem, path: &std::path::Path) -> ScanIntak
         && scan.file_size_bytes > MAX_SCAN_PREVIEW_BYTES
     {
         "Preview is unavailable because this pending file is too large.".to_owned()
-    } else if preview_kind == "Text" && scan.file_size_bytes > MAX_SCAN_TEXT_PREVIEW_BYTES {
+    } else if preview_kind == "Text" && scan.file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
         "Text preview is unavailable because this pending file is too large.".to_owned()
     } else if preview_kind == "Unsupported" {
         "Preview not available for this scan file type.".to_owned()
@@ -570,18 +571,6 @@ fn scan_preview_info(scan: &ScanIntakeItem, path: &std::path::Path) -> ScanIntak
     }
 }
 
-fn scan_preview_kind(mime_type: &str) -> &'static str {
-    if mime_type == "application/pdf" {
-        "Pdf"
-    } else if matches!(mime_type, "image/png" | "image/jpeg") {
-        "Image"
-    } else if mime_type == "text/plain" {
-        "Text"
-    } else {
-        "Unsupported"
-    }
-}
-
 fn read_preview_data_url(
     path: &std::path::Path,
     mime_type: &str,
@@ -590,67 +579,29 @@ fn read_preview_data_url(
     if file_size > MAX_SCAN_PREVIEW_BYTES {
         return Ok(None);
     }
-    let bytes = fs::read(path)?;
+    let (bytes, response_mime) = if mime_type == "image/tiff" {
+        (convert_tiff_to_png(path)?, "image/png")
+    } else {
+        (fs::read(path)?, mime_type)
+    };
     Ok(Some(format!(
-        "data:{mime_type};base64,{}",
+        "data:{response_mime};base64,{}",
         encode_base64(&bytes)
     )))
 }
 
-fn read_text_preview(
-    path: &std::path::Path,
-    file_size_bytes: i64,
-) -> AppResult<(Option<String>, bool)> {
-    if file_size_bytes > MAX_SCAN_TEXT_PREVIEW_BYTES {
-        return Ok((None, true));
-    }
-    let bytes = fs::read(path)?;
-    let text = String::from_utf8(bytes).map_err(|_| {
-        AppError::Validation("Text preview is available only for UTF-8 text files.".into())
-    })?;
-    let mut truncated = false;
-    let mut preview = String::new();
-    for (index, ch) in text.chars().enumerate() {
-        if index >= MAX_SCAN_TEXT_PREVIEW_CHARS {
-            truncated = true;
-            break;
-        }
-        preview.push(ch);
-    }
-    Ok((Some(preview), truncated))
-}
-
-fn estimate_pdf_page_count(path: &std::path::Path) -> Option<i64> {
-    fs::read(path).ok().map(|bytes| {
-        let count = bytes
-            .windows(5)
-            .filter(|window| *window == b"/Page")
-            .count() as i64;
-        count.max(1)
-    })
+fn convert_tiff_to_png(path: &std::path::Path) -> AppResult<Vec<u8>> {
+    let img = image::open(path)
+        .map_err(|e| AppError::Validation(format!("Failed to decode TIFF for preview: {e}")))?;
+    let mut buf = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+        .map_err(|e| AppError::Validation(format!("Failed to encode TIFF as PNG for preview: {e}")))?;
+    Ok(buf)
 }
 
 fn encode_base64(bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let first = chunk[0];
-        let second = *chunk.get(1).unwrap_or(&0);
-        let third = *chunk.get(2).unwrap_or(&0);
-        output.push(TABLE[(first >> 2) as usize] as char);
-        output.push(TABLE[(((first & 0b0000_0011) << 4) | (second >> 4)) as usize] as char);
-        if chunk.len() > 1 {
-            output.push(TABLE[(((second & 0b0000_1111) << 2) | (third >> 6)) as usize] as char);
-        } else {
-            output.push('=');
-        }
-        if chunk.len() > 2 {
-            output.push(TABLE[(third & 0b0011_1111) as usize] as char);
-        } else {
-            output.push('=');
-        }
-    }
-    output
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
 async fn require_scan_user(

@@ -1,6 +1,5 @@
 use std::{ffi::OsStr, fs, path::Path};
 
-use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -9,14 +8,13 @@ use crate::{
     auth::{require_session, write_audit_log},
     db::DbPool,
     documents::{
-        self, mime_for_extension, now_text, require_len, trim_optional, validate_magic,
-        validate_source_file, AttachmentInput, DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,
+        self, estimate_pdf_page_count, extension_from_name, mime_for_extension, preview_kind,
+        read_text_preview, require_len, trim_optional, validate_magic, validate_source_file,
+        AttachmentInput, DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,         MAX_TEXT_PREVIEW_BYTES,
     },
     error::{AppError, AppResult},
+    util::{now_text, validate_date, validate_status},
 };
-
-const MAX_TEXT_PREVIEW_BYTES: i64 = 262_144;
-const MAX_TEXT_PREVIEW_CHARS: usize = 16_384;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MobileSubmissionInput {
@@ -472,24 +470,6 @@ async fn validate_mobile_location(
     Ok(())
 }
 
-fn validate_date(value: &str) -> AppResult<()> {
-    let date = NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .map_err(|_| AppError::Validation("Date must be YYYY-MM-DD.".into()))?;
-    if date > Utc::now().date_naive() {
-        return Err(AppError::Validation(
-            "Date received cannot be in the future.".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_status(value: &str) -> AppResult<()> {
-    match value {
-        "Filed" | "Archived" | "Confidential" | "Other" => Ok(()),
-        _ => Err(AppError::Validation("Invalid document status.".into())),
-    }
-}
-
 async fn get_pending_submission(
     pool: &DbPool,
     mobile_submission_id: i64,
@@ -719,7 +699,7 @@ fn mobile_preview_info(
         mobile_submission_attachment_id: attachment.mobile_submission_attachment_id,
         mobile_submission_id: attachment.mobile_submission_id,
         original_file_name: attachment.original_file_name.clone(),
-        extension: extension_from_name(&attachment.original_file_name, &attachment.mime_type),
+        extension: extension_from_name(Path::new(&attachment.original_file_name), &attachment.mime_type),
         mime_type: attachment.mime_type.clone(),
         file_size_bytes: attachment.file_size_bytes,
         preview_kind,
@@ -728,60 +708,6 @@ fn mobile_preview_info(
         supported,
         message,
     }
-}
-
-fn preview_kind(mime_type: &str) -> &'static str {
-    if mime_type == "application/pdf" {
-        "Pdf"
-    } else if matches!(mime_type, "image/png" | "image/jpeg") {
-        "Image"
-    } else if mime_type == "text/plain" {
-        "Text"
-    } else {
-        "Unsupported"
-    }
-}
-
-fn extension_from_name(name: &str, mime_type: &str) -> String {
-    Path::new(name)
-        .extension()
-        .and_then(OsStr::to_str)
-        .map(|value| value.to_ascii_lowercase())
-        .unwrap_or_else(|| match mime_type {
-            "application/pdf" => "pdf".to_owned(),
-            "image/jpeg" => "jpg".to_owned(),
-            "image/png" => "png".to_owned(),
-            "text/plain" => "txt".to_owned(),
-            _ => "unknown".to_owned(),
-        })
-}
-
-fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<String>, bool)> {
-    if file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
-        return Ok((None, true));
-    }
-    let bytes = fs::read(path)?;
-    let text = String::from_utf8(bytes).map_err(|_| {
-        AppError::Validation("Text preview is available only for UTF-8 text files.".into())
-    })?;
-    let mut truncated = false;
-    let mut preview = String::new();
-    for (index, ch) in text.chars().enumerate() {
-        if index >= MAX_TEXT_PREVIEW_CHARS {
-            truncated = true;
-            break;
-        }
-        preview.push(ch);
-    }
-    Ok((Some(preview), truncated))
-}
-
-fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
-    let bytes = fs::read(path).ok()?;
-    let text = String::from_utf8_lossy(&bytes);
-    let count =
-        text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
-    Some(count.max(1))
 }
 
 fn validate_review_status(value: &str) -> AppResult<()> {

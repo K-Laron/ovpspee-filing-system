@@ -13,6 +13,7 @@ pub mod mobile_submissions;
 pub mod printing;
 pub mod scan_intake;
 pub mod users;
+pub mod util;
 
 use db::{connect_database, DbState};
 use tauri::Manager;

@@ -3,9 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/invoke', () => ({
-  createMobileDevice: vi.fn(),
-  listMobileDevices: vi.fn(),
-  revokeMobileDevice: vi.fn()
+  cmd: vi.fn()
 }));
 
 vi.mock('../../store/sessionStore', () => ({
@@ -13,7 +11,7 @@ vi.mock('../../store/sessionStore', () => ({
     selector({ sessionId: 'session-1' })
 }));
 
-import { listMobileDevices, revokeMobileDevice } from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import type { MobileDeviceItem } from '../../types';
 
 const device: MobileDeviceItem = {
@@ -29,8 +27,11 @@ const device: MobileDeviceItem = {
 
 describe('MobileDevices', () => {
   beforeEach(() => {
-    vi.mocked(listMobileDevices).mockResolvedValue([device]);
-    vi.mocked(revokeMobileDevice).mockResolvedValue(undefined);
+    vi.mocked(cmd).mockImplementation((name: string) => {
+      if (name === 'list_mobile_devices') return Promise.resolve([device]);
+      if (name === 'revoke_mobile_device') return Promise.resolve(undefined);
+      return Promise.reject(new Error(`unexpected cmd: ${name}`));
+    });
   });
 
   it('shows device list, create token, and revoke controls', async () => {
@@ -53,13 +54,13 @@ describe('MobileDevices', () => {
 
     await user.click(await screen.findByRole('button', { name: /revoke/i }));
 
-    expect(revokeMobileDevice).not.toHaveBeenCalled();
+    expect(cmd).not.toHaveBeenCalledWith('revoke_mobile_device', expect.anything());
     expect(screen.getByRole('dialog', { name: /revoke mobile device/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /revoke device/i }));
 
     await waitFor(() =>
-      expect(revokeMobileDevice).toHaveBeenCalledWith({
+      expect(cmd).toHaveBeenCalledWith('revoke_mobile_device', {
         sessionId: 'session-1',
         deviceId: 'device-1'
       })

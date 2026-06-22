@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDateOnly } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
-import { emptyTrash, listTrashDocuments, purgeDocument } from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DocumentItem } from '../../types';
 
@@ -26,7 +26,7 @@ export const TrashManagement = () => {
 
   const loadTrash = async () => {
     if (!sessionId) return;
-    setDocuments(await listTrashDocuments(sessionId));
+    setDocuments(await cmd<DocumentItem[]>('list_trash_documents', { sessionId }));
   };
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export const TrashManagement = () => {
     if (!sessionId || busy) return;
     setBusy(true);
     try {
-      await purgeDocument({ sessionId, documentId });
+      await cmd<void>('purge_document', { sessionId, documentId });
       setMessage('Document purged.');
       await loadTrash();
     } catch (err) {
@@ -51,7 +51,7 @@ export const TrashManagement = () => {
     if (!sessionId || busy) return;
     setBusy(true);
     try {
-      const count = await emptyTrash(sessionId);
+      const count = await cmd<number>('empty_trash', { sessionId });
       setMessage(`${count} document(s) purged.`);
       await loadTrash();
     } catch (err) {

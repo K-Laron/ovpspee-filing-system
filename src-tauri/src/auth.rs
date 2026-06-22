@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::{
     db::DbPool,
     error::{AppError, AppResult},
+    util::require_non_empty,
 };
 
 const PASSWORD_SPECIALS: &str = "!@#$%^&*()-_=+[]{}|;:,.<>?";
@@ -306,10 +307,4 @@ pub async fn write_audit_log(
     Ok(())
 }
 
-fn require_non_empty(value: &str, label: &str) -> AppResult<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::Validation(format!("{label} is required.")));
-    }
-    Ok(trimmed.to_owned())
-}
+

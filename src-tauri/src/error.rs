@@ -25,3 +25,9 @@ pub enum AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+impl From<AppError> for tauri::ipc::InvokeError {
+    fn from(e: AppError) -> Self {
+        e.to_string().into()
+    }
+}

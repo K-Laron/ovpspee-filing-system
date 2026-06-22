@@ -2,19 +2,15 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/invoke', () => ({
-  approveMobileSubmission: vi.fn(),
-  getMobileApiSetup: vi.fn(),
-  getMobileSubmission: vi.fn(),
-  listMobileSubmissions: vi.fn(),
-  rejectMobileSubmission: vi.fn()
+  cmd: vi.fn()
 }));
 
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => 'session-1'
 }));
 
-import { getMobileApiSetup, getMobileSubmission, listMobileSubmissions } from '../../lib/invoke';
-import type { MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
+import { cmd } from '../../lib/invoke';
+import type { MobileApiSetup, MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
 
 const pendingSubmission: MobileSubmissionItem = {
   mobile_submission_id: 18,
@@ -62,14 +58,17 @@ const pendingDetail: MobileSubmissionDetail = {
 
 describe('MobileSubmissions', () => {
   beforeEach(() => {
-    vi.mocked(listMobileSubmissions).mockResolvedValue([pendingSubmission]);
-    vi.mocked(getMobileSubmission).mockResolvedValue(pendingDetail);
-    vi.mocked(getMobileApiSetup).mockResolvedValue({
-      enabled: true,
-      bind_addr: '0.0.0.0:1421',
-      local_ip: '192.168.1.50',
-      setup_url: 'ovpspee://setup?hub=http%3A%2F%2F192.168.1.50%3A1421',
-      device_token_required: true
+    vi.mocked(cmd).mockImplementation((name: string) => {
+      if (name === 'list_mobile_submissions') return Promise.resolve([pendingSubmission]);
+      if (name === 'get_mobile_submission') return Promise.resolve(pendingDetail);
+      if (name === 'get_mobile_api_setup') return Promise.resolve({
+        enabled: true,
+        bind_addr: '0.0.0.0:1421',
+        local_ip: '192.168.1.50',
+        setup_url: 'ovpspee://setup?hub=http%3A%2F%2F192.168.1.50%3A1421',
+        device_token_required: true
+      });
+      return Promise.reject(new Error(`unexpected cmd: ${name}`));
     });
   });
 

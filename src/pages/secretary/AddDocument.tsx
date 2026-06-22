@@ -5,13 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateInputValue } from '../../lib/dates';
-import {
-  addAttachment,
-  createDocument,
-  listDocumentOffices,
-  listPublicCategories,
-  listPublicFolders
-} from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentStatus, FolderItem, OfficeItem } from '../../types';
@@ -54,7 +48,7 @@ export const AddDocument = () => {
 
   useEffect(() => {
     if (!sessionId) return;
-    void Promise.all([listPublicCategories(), listDocumentOffices(sessionId)])
+    void Promise.all([cmd<CategoryItem[]>('list_public_categories'), cmd<OfficeItem[]>('list_document_offices', { sessionId })])
       .then(([nextCategories, nextOffices]) => {
         setCategories(nextCategories);
         setOffices(nextOffices);
@@ -68,7 +62,7 @@ export const AddDocument = () => {
       setFolders([]);
       return;
     }
-    void listPublicFolders(categoryId)
+    void cmd<FolderItem[]>('list_public_folders', { categoryId })
       .then(setFolders)
       .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [form.categoryId]);
@@ -98,7 +92,7 @@ export const AddDocument = () => {
     setSaving(true);
     setMessage('');
     try {
-      const documentId = await createDocument({
+      const documentId = await cmd<number>('create_document', {
         sessionId,
         documentName: form.documentName,
         categoryId: Number(form.categoryId),
@@ -109,7 +103,7 @@ export const AddDocument = () => {
         status: form.status
       });
       for (const [index, sourcePath] of attachmentList.entries()) {
-        await addAttachment({ sessionId, documentId, sourcePath, sortOrder: index + 1 });
+        await cmd<number>('add_attachment', { sessionId, documentId, sourcePath, sortOrder: index + 1 });
       }
       navigate(`/s/documents?created=${documentId}`, { replace: true });
     } catch (err) {

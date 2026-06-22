@@ -1,7 +1,7 @@
 import { KeyRound, RefreshCw, Save } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
-import { changeMyPassword, getMyProfile, updateMyProfile } from '../lib/invoke';
+import { cmd } from '../lib/invoke';
 import { getUserErrorMessage } from '../lib/errors';
 import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
 import { useSessionStore } from '../store/sessionStore';
@@ -31,7 +31,7 @@ export const Profile = () => {
     setLoading(true);
     setError('');
     try {
-      const next = await getMyProfile(sessionId);
+      const next = await cmd<ProfileItem>('get_my_profile', { sessionId });
       setProfile(next);
       setForm({
         firstName: next.first_name,
@@ -59,7 +59,7 @@ export const Profile = () => {
     setError('');
     setNotice('');
     try {
-      await updateMyProfile({
+      await cmd<void>('update_my_profile', {
         sessionId,
         firstName: form.firstName,
         middleName: nullable(form.middleName),
@@ -68,7 +68,7 @@ export const Profile = () => {
         contactNumber: nullable(form.contactNumber),
         address: nullable(form.address)
       });
-      const next = await getMyProfile(sessionId);
+      const next = await cmd<ProfileItem>('get_my_profile', { sessionId });
       setProfile(next);
       setSession({
         session_id: sessionId,
@@ -98,7 +98,7 @@ export const Profile = () => {
         setSaving(false);
         return;
       }
-      await changeMyPassword({
+      await cmd<void>('change_my_password', {
         sessionId,
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword

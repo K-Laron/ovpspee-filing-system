@@ -9,6 +9,7 @@ use crate::{
     devices::{PrinterDevice, SystemDeviceProvider},
     documents::{self, StorageRoot},
     error::{AppError, AppResult},
+    util::unsafe_device_id,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -176,14 +177,6 @@ fn validate_printer_id(value: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn unsafe_device_id(value: &str) -> bool {
-    value.contains("..")
-        || value.contains('\\')
-        || value.contains('/')
-        || value.contains(':')
-        || value.contains('\0')
-}
-
 #[cfg(target_os = "windows")]
 async fn system_print_pdf(
     pdf_path: &Path,
@@ -204,6 +197,7 @@ async fn system_print_pdf(
     ))
 }
 
+#[cfg(test)]
 pub mod mock {
     use std::{future::Future, path::Path};
 

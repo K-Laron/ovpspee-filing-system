@@ -7,6 +7,7 @@ use crate::{
     },
     db::DbPool,
     error::{AppError, AppResult},
+    util::{map_unique, now_text, require_non_empty},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -133,7 +134,7 @@ pub async fn create_user(pool: &DbPool, session_id: &str, input: UserInput) -> A
     let first_name = require_non_empty(&input.first_name, "First name")?;
     let last_name = require_non_empty(&input.last_name, "Last name")?;
     let username = normalize_username(&input.username)?;
-    let email = normalize_optional(input.email);
+    let email = input.email.map(|e| e.trim().to_owned()).filter(|e| !e.is_empty());
     let password_hash = hash_password(&input.password)?;
 
     let result = sqlx::query!(
@@ -179,7 +180,7 @@ pub async fn update_user(
     let first_name = require_non_empty(&input.first_name, "First name")?;
     let last_name = require_non_empty(&input.last_name, "Last name")?;
     let username = normalize_username(&input.username)?;
-    let email = normalize_optional(input.email);
+    let email = input.email.map(|e| e.trim().to_owned()).filter(|e| !e.is_empty());
     let is_active = if input.is_active { 1_i64 } else { 0_i64 };
     let now = now_text();
 
@@ -303,7 +304,7 @@ pub async fn update_my_profile(
     let session = require_session(pool, session_id).await?;
     let first_name = require_non_empty(&input.first_name, "First name")?;
     let last_name = require_non_empty(&input.last_name, "Last name")?;
-    let email = normalize_optional(input.email);
+    let email = input.email.map(|e| e.trim().to_owned()).filter(|e| !e.is_empty());
     let now = now_text();
 
     let result = sqlx::query!(
@@ -400,38 +401,6 @@ fn normalize_username(value: &str) -> AppResult<String> {
     Ok(username)
 }
 
-fn normalize_optional(value: Option<String>) -> Option<String> {
-    value.and_then(|value| {
-        let trimmed = value.trim().to_owned();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
-    })
-}
 
-fn require_non_empty(value: &str, label: &str) -> AppResult<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::Validation(format!("{label} is required.")));
-    }
-    Ok(trimmed.to_owned())
-}
 
-fn map_unique(
-    result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>,
-    message: &str,
-) -> AppResult<sqlx::sqlite::SqliteQueryResult> {
-    match result {
-        Ok(result) => Ok(result),
-        Err(sqlx::Error::Database(err)) if err.is_unique_violation() => {
-            Err(AppError::Duplicate(message.into()))
-        }
-        Err(err) => Err(AppError::Database(err)),
-    }
-}
 
-fn now_text() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-}

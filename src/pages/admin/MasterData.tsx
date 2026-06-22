@@ -2,17 +2,7 @@ import { Edit2, Lock, Plus, RefreshCw, Search, SlidersHorizontal, X } from 'luci
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
-import {
-  createCategory,
-  createFolder,
-  createOffice,
-  listCategories,
-  listFolders,
-  listOffices,
-  updateCategory,
-  updateFolder,
-  updateOffice
-} from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, FolderItem, OfficeItem } from '../../types';
@@ -113,9 +103,9 @@ export const MasterData = () => {
     setError('');
     try {
       const [nextCategories, nextFolders, nextOffices] = await Promise.all([
-        listCategories(sessionId, true),
-        listFolders(sessionId, null, true),
-        listOffices(sessionId, true)
+        cmd<CategoryItem[]>('list_categories', { sessionId, includeInactive: true }),
+        cmd<FolderItem[]>('list_folders', { sessionId, categoryId: null, includeInactive: true }),
+        cmd<OfficeItem[]>('list_offices', { sessionId, includeInactive: true })
       ]);
       setCategories(nextCategories);
       setFolders(nextFolders);
@@ -154,14 +144,14 @@ export const MasterData = () => {
         icon: nullable(categoryForm.icon)
       };
       if (editingCategory) {
-        await updateCategory({
+        await cmd<CategoryItem>('update_category', {
           ...payload,
           categoryId: editingCategory.category_id,
           isActive: categoryActive
         });
         setNotice('Category updated.');
       } else {
-        await createCategory(payload);
+        await cmd<CategoryItem>('create_category', payload);
         setNotice('Category created.');
       }
       cancelCategoryEdit();
@@ -188,14 +178,14 @@ export const MasterData = () => {
         folderColor: folderForm.folderColor
       };
       if (editingFolder) {
-        await updateFolder({
+        await cmd<FolderItem>('update_folder', {
           ...payload,
           folderId: editingFolder.folder_id,
           isActive: folderActive
         });
         setNotice('Folder updated.');
       } else {
-        await createFolder(payload);
+        await cmd<FolderItem>('create_folder', payload);
         setNotice('Folder created.');
       }
       cancelFolderEdit();
@@ -219,14 +209,14 @@ export const MasterData = () => {
         description: nullable(officeForm.description)
       };
       if (editingOffice) {
-        await updateOffice({
+        await cmd<OfficeItem>('update_office', {
           ...payload,
           officeId: editingOffice.office_id,
           isActive: officeActive
         });
         setNotice('Office updated.');
       } else {
-        await createOffice(payload);
+        await cmd<OfficeItem>('create_office', payload);
         setNotice('Office created.');
       }
       cancelOfficeEdit();

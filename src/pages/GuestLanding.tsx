@@ -6,17 +6,9 @@ import type { KeyboardEvent } from 'react';
 import { AttachmentPreview } from '../components/AttachmentPreview';
 import { EmptyState } from '../components/EmptyState';
 import { formatDateOnly } from '../lib/dates';
-import {
-  exportDocumentPdf,
-  getPublicDocument,
-  listPrintPrinters,
-  listPublicCategories,
-  listPublicDocuments,
-  listPublicFolders,
-  printDocumentPdf
-} from '../lib/invoke';
+import { cmd } from '../lib/invoke';
 import { getUserErrorMessage } from '../lib/errors';
-import type { CategoryItem, DocumentDetail, DocumentItem, FolderItem, PrinterDevice } from '../types';
+import type { CategoryItem, DocumentDetail, DocumentItem, FolderItem, PrinterDevice, PrintResult } from '../types';
 
 export const GuestLanding = () => {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -36,9 +28,9 @@ export const GuestLanding = () => {
   const isGlobalSearch = search.trim().length > 0;
 
   const load = async () => {
-    setCategories(await listPublicCategories());
+    setCategories(await cmd<CategoryItem[]>('list_public_categories'));
     try {
-      const nextPrinters = normalizePrinters(await listPrintPrinters(null));
+      const nextPrinters = normalizePrinters(await cmd<PrinterDevice[]>('list_print_printers', { sessionId: null }));
       setPrinters(nextPrinters);
       setSelectedPrinterId((current) => (
         nextPrinters.some((printer) => printer.printer_id === current)
@@ -50,13 +42,13 @@ export const GuestLanding = () => {
       setSelectedPrinterId('');
       setMessage('Printers are not available right now. You can still view and export public documents.');
     }
-    const rows = await listPublicDocuments({
+    const rows = await cmd<DocumentItem[]>('list_public_documents', {
       search: search || null,
       categoryId: isGlobalSearch ? null : categoryId ? Number(categoryId) : null,
       folderId: isGlobalSearch ? null : folderId ? Number(folderId) : null
     });
     setDocuments(rows);
-    if (!detail && rows[0]) setDetail(await getPublicDocument(rows[0].document_id));
+    if (!detail && rows[0]) setDetail(await cmd<DocumentDetail>('get_public_document', { documentId: rows[0].document_id }));
     if (detail && !rows.some((row) => row.document_id === detail.document.document_id)) setDetail(null);
   };
 
@@ -67,8 +59,8 @@ export const GuestLanding = () => {
   const selectCategory = async (id: number) => {
     setCategoryId(String(id));
     setFolderId('');
-    setFolders(await listPublicFolders(id));
-    setDocuments(await listPublicDocuments({ search: search || null, categoryId: id }));
+    setFolders(await cmd<FolderItem[]>('list_public_folders', { categoryId: id }));
+    setDocuments(await cmd<DocumentItem[]>('list_public_documents', { search: search || null, categoryId: id }));
     setDetail(null);
   };
 
@@ -81,17 +73,17 @@ export const GuestLanding = () => {
   const clearSearch = () => {
     setSearch('');
     setDetail(null);
-    void listPublicDocuments({
+    void cmd<DocumentItem[]>('list_public_documents', {
       categoryId: categoryId ? Number(categoryId) : null,
       folderId: folderId ? Number(folderId) : null
     }).then(async (rows) => {
       setDocuments(rows);
-      if (rows[0]) setDetail(await getPublicDocument(rows[0].document_id));
+      if (rows[0]) setDetail(await cmd<DocumentDetail>('get_public_document', { documentId: rows[0].document_id }));
     }).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   };
 
   const openDocument = async (documentId: number) => {
-    setDetail(await getPublicDocument(documentId));
+    setDetail(await cmd<DocumentDetail>('get_public_document', { documentId }));
   };
 
   const openDocumentFromKeyboard = (event: KeyboardEvent<HTMLTableRowElement>, documentId: number) => {
@@ -110,7 +102,7 @@ export const GuestLanding = () => {
         filters: [{ name: 'PDF', extensions: ['pdf'] }]
       });
       if (!outputPath) return;
-      const savedPath = await exportDocumentPdf({
+      const savedPath = await cmd<string>('export_document_pdf', {
         documentId: detail.document.document_id,
         outputPath,
         sessionId: null
@@ -128,7 +120,7 @@ export const GuestLanding = () => {
     setPrinting(true);
     setMessage('');
     try {
-      const result = await printDocumentPdf({
+      const result = await cmd<PrintResult>('print_document_pdf', {
         sessionId: null,
         documentId: detail.document.document_id,
         printerId: selectedPrinterId,
@@ -195,7 +187,7 @@ export const GuestLanding = () => {
                 key={folder.folder_id}
                 onClick={() => {
                   setFolderId(String(folder.folder_id));
-                  void listPublicDocuments({ search: search || null, categoryId: Number(categoryId), folderId: folder.folder_id }).then(setDocuments).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
+                                  void cmd<DocumentItem[]>('list_public_documents', { search: search || null, categoryId: Number(categoryId), folderId: folder.folder_id }).then(setDocuments).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
                 }}
                 type="button"
               >

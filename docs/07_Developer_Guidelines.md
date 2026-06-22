@@ -177,19 +177,7 @@ All file storage operations must go through the `storage/` module in Rust. **Nev
 
 ### Path Safety Contract
 
-```rust
-// storage/mod.rs — every path operation must call this
-pub fn safe_path(base: &Path, relative: &str) -> Result<PathBuf, AppError> {
-    let joined = base.join(relative);
-    let canonical = joined.canonicalize().map_err(|_| AppError::InvalidPath)?;
-    if !canonical.starts_with(base) {
-        return Err(AppError::PathTraversal);
-    }
-    Ok(canonical)
-}
-```
-
-- `attachment.file_path` is always stored as a relative path (e.g., `documents/42/uploaded/report.pdf`).
+- `attachment.file_path` and scan intake `stored_relative_path` are always stored as relative paths (e.g., `documents/42/uploaded/report.pdf`).
 - The absolute path is resolved at runtime by joining with the configured base directory.
 - The `safe_path()` check is mandatory before any file read or serve operation.
 
@@ -208,9 +196,8 @@ pub async fn protected_command(
     db: State<DbPool>,
     session_id: String,
     // ... other params
-) -> Result<SomeType, String> {
-    let session = require_session(&db, &session_id).await
-        .map_err(|e| e.to_string())?;
+) -> CmdResult<SomeType> {
+    let session = require_session(&db, &session_id).await?;
     // session.user_id and session.role are now trusted values
     // ...
 }

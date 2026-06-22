@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { createMobileDevice, listMobileDevices, revokeMobileDevice } from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CreatedMobileDevice, MobileDeviceItem } from '../../types';
@@ -31,7 +31,7 @@ export const MobileDevices = () => {
     setLoading(true);
     setMessage('');
     try {
-      setDevices(await listMobileDevices(sessionId));
+      setDevices(await cmd<MobileDeviceItem[]>('list_mobile_devices', { sessionId }));
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not load mobile devices.'));
     } finally {
@@ -49,7 +49,7 @@ export const MobileDevices = () => {
     setMessage('');
     setCreated(null);
     try {
-      const next = await createMobileDevice({
+      const next = await cmd<CreatedMobileDevice>('create_mobile_device', {
         sessionId,
         deviceName: deviceName.trim()
       });
@@ -69,7 +69,7 @@ export const MobileDevices = () => {
     setRevokingId(deviceId);
     setMessage('');
     try {
-      await revokeMobileDevice({ sessionId, deviceId });
+      await cmd<void>('revoke_mobile_device', { sessionId, deviceId });
       setMessage('Mobile device revoked.');
       await load();
     } catch (err) {

@@ -1,16 +1,11 @@
 import { RefreshCw, Save, Search, ShieldCheck } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
-import {
-  getAuditRetentionSettings,
-  listAuditEventTypes,
-  listAuditLogs,
-  updateAuditRetentionSettings
-} from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
-import type { AuditLogEntry, AuditRetentionSettings } from '../../types';
+import type { AuditLogEntry, AuditLogPage, AuditRetentionSettings } from '../../types';
 
 const pageSizeOptions = [25, 50, 100, 200];
 
@@ -36,7 +31,7 @@ export const AuditLog = () => {
     setLoading(true);
     setMessage('');
     try {
-      const page = await listAuditLogs({
+      const page = await cmd<AuditLogPage>('list_audit_logs', {
         sessionId,
         search: nullable(search),
         actorSearch: nullable(actorSearch),
@@ -59,8 +54,8 @@ export const AuditLog = () => {
   const loadLookups = async () => {
     if (!sessionId) return;
     const [types, settings] = await Promise.all([
-      listAuditEventTypes(sessionId),
-      getAuditRetentionSettings(sessionId)
+      cmd<string[]>('list_audit_event_types', { sessionId }),
+      cmd<AuditRetentionSettings>('get_audit_retention_settings', { sessionId })
     ]);
     setEventTypes(types);
     setRetention(settings);
@@ -80,7 +75,7 @@ export const AuditLog = () => {
   const saveRetention = async () => {
     if (!sessionId) return;
     try {
-      const next = await updateAuditRetentionSettings({
+      const next = await cmd<AuditRetentionSettings>('update_audit_retention_settings', {
         sessionId,
         retentionMonths: Number(retentionDraft)
       });

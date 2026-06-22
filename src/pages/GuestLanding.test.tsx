@@ -13,21 +13,10 @@ vi.mock('../components/AttachmentPreview', () => ({
 }));
 
 vi.mock('../lib/invoke', () => ({
-  exportDocumentPdf: vi.fn(),
-  getPublicDocument: vi.fn(),
-  listPrintPrinters: vi.fn(),
-  listPublicCategories: vi.fn(),
-  listPublicDocuments: vi.fn(),
-  listPublicFolders: vi.fn(),
-  printDocumentPdf: vi.fn()
+  cmd: vi.fn()
 }));
 
-import {
-  getPublicDocument,
-  listPrintPrinters,
-  listPublicCategories,
-  listPublicDocuments
-} from '../lib/invoke';
+import { cmd } from '../lib/invoke';
 
 const documentRow: DocumentItem = {
   document_id: 1,
@@ -57,14 +46,24 @@ const documentDetail: DocumentDetail = {
 
 describe('GuestLanding printer loading', () => {
   beforeEach(() => {
-    vi.mocked(listPublicCategories).mockResolvedValue([]);
-    vi.mocked(listPublicDocuments).mockResolvedValue([documentRow]);
-    vi.mocked(getPublicDocument).mockResolvedValue(documentDetail);
-    vi.mocked(listPrintPrinters).mockReset();
+    vi.mocked(cmd).mockReset();
+    vi.mocked(cmd).mockImplementation((name: string) => {
+      if (name === 'list_public_categories') return Promise.resolve([]);
+      if (name === 'list_public_documents') return Promise.resolve([documentRow]);
+      if (name === 'get_public_document') return Promise.resolve(documentDetail);
+      if (name === 'list_print_printers') return Promise.resolve([]);
+      throw new Error(`Unexpected cmd: ${name}`);
+    });
   });
 
   it.each([null, undefined])('keeps public documents usable when printer list is %s', async (value) => {
-    vi.mocked(listPrintPrinters).mockResolvedValue(value as never);
+    vi.mocked(cmd).mockImplementation((name: string) => {
+      if (name === 'list_public_categories') return Promise.resolve([]);
+      if (name === 'list_public_documents') return Promise.resolve([documentRow]);
+      if (name === 'get_public_document') return Promise.resolve(documentDetail);
+      if (name === 'list_print_printers') return Promise.resolve(value);
+      throw new Error(`Unexpected cmd: ${name}`);
+    });
 
     render(<GuestLanding />);
 
@@ -75,7 +74,13 @@ describe('GuestLanding printer loading', () => {
   });
 
   it('keeps public documents usable when printer loading fails', async () => {
-    vi.mocked(listPrintPrinters).mockRejectedValue(new Error('C:\\driver\\printer failed'));
+    vi.mocked(cmd).mockImplementation((name: string) => {
+      if (name === 'list_public_categories') return Promise.resolve([]);
+      if (name === 'list_public_documents') return Promise.resolve([documentRow]);
+      if (name === 'get_public_document') return Promise.resolve(documentDetail);
+      if (name === 'list_print_printers') return Promise.reject(new Error('C:\\driver\\printer failed'));
+      throw new Error(`Unexpected cmd: ${name}`);
+    });
 
     render(<GuestLanding />);
 

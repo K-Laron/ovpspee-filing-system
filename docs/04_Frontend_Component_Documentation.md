@@ -22,7 +22,7 @@ src/
     Login.tsx
     FirstRunSetup.tsx
     secretary/
-      Dashboard.tsx
+      Dashboard.tsx  (planned, not implemented — status counts integrated into Documents.tsx)
       Documents.tsx
       ScanIntake.tsx
       AddDocument.tsx
@@ -110,7 +110,7 @@ Use **React Router v6** (browser-history mode is not needed — use memory route
 
   {/* Secretary routes — protected by RoleGuard role="Secretary" */}
   <Route element={<SecretaryLayout />}>
-    <Route path="/s/dashboard"       element={<Dashboard />} />
+    {/* ponytail: Dashboard page not separately implemented; status counts shown on Documents page */}
     <Route path="/s/documents"       element={<Documents />} />
     <Route path="/s/scan-intake"     element={<ScanIntake />} />
     <Route path="/s/add-document"    element={<AddDocument />} />
@@ -477,19 +477,7 @@ The `CategoryTabStrip` component described in the original plan is **removed**. 
 
 ### `Dashboard.tsx`
 
-Displays stats widgets in a responsive grid and a recent documents list.
-
-```typescript
-// Widgets:
-//   - Total Documents (count + trend vs last month)
-//   - Categories (count)
-//   - Hidden Documents (count)
-//   - Pending Intake Scans (count + "Go to Scan Intake" link)
-//   - Documents This Month (count)
-//   - Trashed Documents (count + "Open Trash" link)
-// Recent Documents table (last 10; clicking a row navigates to Documents page
-//   with that document's category + folder pre-selected and document detail open)
-```
+Not implemented as a separate page. Document status counts are rendered inline at the top of `Documents.tsx` as a summary bar (counts by Filed/Archived/Confidential/Other from the current search results). See Documents.tsx for the inline summary implementation.
 
 ---
 
@@ -738,20 +726,13 @@ Four sections within one scrollable page:
 All `invoke()` calls must go through typed wrapper functions in `src/lib/invoke.ts`. Never call `invoke()` directly in components.
 
 ```typescript
-// src/lib/invoke.ts (excerpt)
+// src/lib/invoke.ts (full file)
 import { invoke } from '@tauri-apps/api/core';
 
-export async function login(username: string, password: string): Promise<SessionPayload> {
-  return invoke<SessionPayload>('login', { username, password });
-}
-
-export async function listDocuments(params: ListDocumentsParams): Promise<PaginatedDocuments> {
-  return invoke<PaginatedDocuments>('list_documents', params);
-}
-// ... one function per Tauri command
+export const cmd = <T>(name: string, args?: Record<string, unknown>): Promise<T> => invoke(name, args);
 ```
 
-This ensures TypeScript catches mismatched parameter names at compile time.
+Individual named wrappers were removed — callers use `cmd<ReturnType>('command_name', { param })` directly.
 
 ---
 

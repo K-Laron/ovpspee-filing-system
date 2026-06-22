@@ -7,14 +7,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateOnly, formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
-import {
-  approveMobileSubmission,
-  getMobileApiSetup,
-  getMobileSubmissionAttachmentPreviewPage,
-  getMobileSubmission,
-  listMobileSubmissions,
-  rejectMobileSubmission
-} from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   MobileReviewStatus,
@@ -90,7 +83,7 @@ export const MobileSubmissions = () => {
     if (!sessionId) return;
 
     try {
-      const nextDetail = await getMobileSubmission({
+      const nextDetail = await cmd<MobileSubmissionDetail>('get_mobile_submission', {
         sessionId,
         mobileSubmissionId: submission.mobile_submission_id
       });
@@ -105,7 +98,7 @@ export const MobileSubmissions = () => {
 
   const loadSubmissions = async () => {
     if (!sessionId) return;
-    const rows = await listMobileSubmissions({
+    const rows = await cmd<MobileSubmissionItem[]>('list_mobile_submissions', {
       sessionId,
       reviewStatus: filter || null,
       search: search.trim() || null,
@@ -127,7 +120,7 @@ export const MobileSubmissions = () => {
   }, [sessionId, filter]);
 
   useEffect(() => {
-    void getMobileApiSetup()
+    void cmd<MobileApiSetup>('get_mobile_api_setup')
       .then(setSetup)
       .catch(() => setSetup(null));
   }, []);
@@ -137,7 +130,7 @@ export const MobileSubmissions = () => {
     setBusy(true);
     setMessage('');
     try {
-      const documentId = await approveMobileSubmission({
+      const documentId = await cmd<number>('approve_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
         reviewNotes: reviewNotes.trim() || null
@@ -158,7 +151,7 @@ export const MobileSubmissions = () => {
     setBusy(true);
     setMessage('');
     try {
-      await rejectMobileSubmission({
+      await cmd<void>('reject_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
         rejectionReason: rejectReason.trim()
@@ -189,7 +182,7 @@ export const MobileSubmissions = () => {
     setSelectedAttachmentId(attachment.mobile_submission_attachment_id);
     setPreviewLoading(true);
     try {
-      setPreview(await getMobileSubmissionAttachmentPreviewPage({
+      setPreview(await cmd<MobileSubmissionAttachmentPreviewPage>('get_mobile_submission_attachment_preview_page', {
         sessionId,
         mobileSubmissionAttachmentId: attachment.mobile_submission_attachment_id,
         pageNumber

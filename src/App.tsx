@@ -5,7 +5,8 @@ import { AdminLayout } from './components/layout/AdminLayout';
 import { GuestLayout } from './components/layout/GuestLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { SecretaryLayout } from './components/layout/SecretaryLayout';
-import { firstRunCheck, validateSession } from './lib/invoke';
+import { cmd } from './lib/invoke';
+import type { SessionPayload } from './types';
 import { AdminHome } from './pages/admin/AdminHome';
 import { AuditLog } from './pages/admin/AuditLog';
 import { BackupRestore } from './pages/admin/BackupRestore';
@@ -36,7 +37,7 @@ export const App = () => {
 
     const bootstrap = async () => {
       try {
-        const needsSetup = await firstRunCheck();
+        const needsSetup = await cmd<boolean>('first_run_check');
         if (!mounted) return;
         if (needsSetup) {
           navigate('/first-run', { replace: true });
@@ -44,7 +45,7 @@ export const App = () => {
         }
 
         if (sessionId) {
-          const session = await validateSession(sessionId);
+          const session = await cmd<SessionPayload>('validate_session', { sessionId });
           if (mounted) setSession(session);
         }
       } catch {

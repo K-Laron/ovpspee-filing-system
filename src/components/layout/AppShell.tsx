@@ -2,7 +2,7 @@ import { LogOut, Menu, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
-import { logout } from '../../lib/invoke';
+import { cmd } from '../../lib/invoke';
 import { useSessionStore } from '../../store/sessionStore';
 
 export interface NavItem {
@@ -32,7 +32,7 @@ export const AppShell = ({ title, subtitle, navItems, profileItem }: AppShellPro
 
   const handleLogout = async () => {
     if (sessionId) {
-      await logout(sessionId).catch(() => undefined);
+      await cmd<void>('logout', { sessionId }).catch(() => undefined);
     }
     clearSession();
     navigate('/', { replace: true });
