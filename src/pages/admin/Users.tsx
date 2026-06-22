@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { nullable } from '../../lib/helpers';
 import { passwordRulesText, validatePasswordPair } from '../../lib/passwords';
 import { useSessionStore } from '../../store/sessionStore';
 import type { Role, UserItem } from '../../types';
@@ -258,11 +259,6 @@ export const Users = () => {
       </section>
     </div>
   );
-};
-
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
 };
 
 const Status = ({ active }: { active: boolean }) => (

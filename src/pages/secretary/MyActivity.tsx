@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { cmd } from '../../lib/invoke';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
+import { nullable } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
 import type { AuditLogEntry, AuditLogPage } from '../../types';
 
@@ -138,9 +139,4 @@ export const MyActivity = () => {
       </div>
     </section>
   );
-};
-
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
 };

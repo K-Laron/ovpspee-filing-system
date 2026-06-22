@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { cmd } from '../../lib/invoke';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
+import { nullable } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
 import type { AuditLogEntry, AuditLogPage, AuditRetentionSettings } from '../../types';
 
@@ -199,7 +200,4 @@ const Pager = ({ count, limit, offset, onPage }: { count: number; limit: number;
   </div>
 );
 
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-};
+

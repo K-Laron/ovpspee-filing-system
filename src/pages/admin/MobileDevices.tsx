@@ -1,19 +1,12 @@
 import { Ban, KeyRound, RefreshCw, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CreatedMobileDevice, MobileDeviceItem } from '../../types';
-
-interface ConfirmAction {
-  title: string;
-  body: ReactNode;
-  confirmLabel: string;
-  onConfirm: () => Promise<void>;
-}
 
 export const MobileDevices = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -24,7 +17,7 @@ export const MobileDevices = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
 
   const load = async () => {
     if (!sessionId) return;
@@ -95,7 +88,7 @@ export const MobileDevices = () => {
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
-      setConfirmAction(null);
+      clearConfirmAction();
     }
   };
 
@@ -105,7 +98,7 @@ export const MobileDevices = () => {
         <ConfirmDialog
           body={confirmAction.body}
           confirmLabel={confirmAction.confirmLabel}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => clearConfirmAction()}
           onConfirm={() => handleConfirmAction()}
           title={confirmAction.title}
         />

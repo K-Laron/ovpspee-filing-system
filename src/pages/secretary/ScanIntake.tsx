@@ -1,7 +1,7 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileScan, FileText, Link2, RefreshCw, Save, ScanLine, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -9,6 +9,8 @@ import { EmptyState } from '../../components/EmptyState';
 import { formatDateInputValue, formatDateTime } from '../../lib/dates';
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { extensionFromName, fileNameFromPath, normalizeSelectedPaths, sizeLabel } from '../../lib/helpers';
+import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   CategoryItem,
@@ -142,21 +144,8 @@ const ScanIntakePreview = ({ item, loading, onPageChange, page, preview }: ScanI
   );
 };
 
-const fileNameFromPath = (path: string) => path.split(/[\\/]/).pop() ?? path;
-const normalizeSelectedPaths = (selected: string | string[] | null) => {
-  if (!selected) return [];
-  return Array.isArray(selected) ? selected : [selected];
-};
-const sizeLabel = (bytes: number) => `${Math.ceil(bytes / 1024)} KB`;
-const extensionFromName = (name: string) => name.split('.').pop()?.toLowerCase() ?? 'file';
 
-interface ConfirmAction {
-  title: string;
-  body: ReactNode;
-  confirmLabel: string;
-  requiredText?: string;
-  onConfirm: () => Promise<void>;
-}
+
 
 export const ScanIntake = () => {
   const navigate = useNavigate();
@@ -186,7 +175,7 @@ export const ScanIntake = () => {
   const [preview, setPreview] = useState<ScanIntakePreviewPage | null>(null);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.scan_intake_id)),
@@ -350,7 +339,7 @@ export const ScanIntake = () => {
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
-      setConfirmAction(null);
+      clearConfirmAction();
     }
   };
 
@@ -461,7 +450,7 @@ export const ScanIntake = () => {
         <ConfirmDialog
           body={confirmAction.body}
           confirmLabel={confirmAction.confirmLabel}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => clearConfirmAction()}
           onConfirm={() => handleConfirmAction()}
           requiredText={confirmAction.requiredText}
           title={confirmAction.title}

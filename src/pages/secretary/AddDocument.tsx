@@ -7,6 +7,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { formatDateInputValue } from '../../lib/dates';
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { fileNameFromPath, normalizeSelectedPaths } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentStatus, FolderItem, OfficeItem } from '../../types';
 
@@ -28,12 +29,6 @@ const attachmentFilters = [
   }
 ];
 
-const fileNameFromPath = (path: string) => path.split(/[\\/]/).pop() ?? path;
-
-const normalizeSelectedPaths = (selected: string | string[] | null) => {
-  if (!selected) return [];
-  return Array.isArray(selected) ? selected : [selected];
-};
 
 export const AddDocument = () => {
   const navigate = useNavigate();

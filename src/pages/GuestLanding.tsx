@@ -8,6 +8,7 @@ import { EmptyState } from '../components/EmptyState';
 import { formatDateOnly } from '../lib/dates';
 import { cmd } from '../lib/invoke';
 import { getUserErrorMessage } from '../lib/errors';
+import { safeFileName } from '../lib/helpers';
 import type { CategoryItem, DocumentDetail, DocumentItem, FolderItem, PrinterDevice, PrintResult } from '../types';
 
 export const GuestLanding = () => {
@@ -301,7 +302,5 @@ export const GuestLanding = () => {
     </section>
   );
 };
-
-const safeFileName = (value: string) => value.replace(/[<>:"/\\|?*]+/g, '-').slice(0, 80) || 'document';
 
 const normalizePrinters = (value: unknown): PrinterDevice[] => (Array.isArray(value) ? value : []);

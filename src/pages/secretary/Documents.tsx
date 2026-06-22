@@ -1,13 +1,15 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Download, Edit3, Eye, EyeOff, MoveRight, Paperclip, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDateOnly } from '../../lib/dates';
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { fileNameFromPath, normalizeSelectedPaths, safeFileName } from '../../lib/helpers';
+import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentDetail, DocumentItem, DocumentStatus, FolderItem, OfficeItem, PrinterDevice } from '../../types';
 
@@ -18,20 +20,6 @@ const attachmentFilters = [
   }
 ];
 
-const fileNameFromPath = (path: string) => path.split(/[\\/]/).pop() ?? path;
-
-const normalizeSelectedPaths = (selected: string | string[] | null) => {
-  if (!selected) return [];
-  return Array.isArray(selected) ? selected : [selected];
-};
-
-interface ConfirmAction {
-  title: string;
-  body: ReactNode;
-  confirmLabel: string;
-  requiredText?: string;
-  onConfirm: () => Promise<void>;
-}
 
 export const Documents = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -60,7 +48,7 @@ export const Documents = () => {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -341,7 +329,7 @@ export const Documents = () => {
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
-      setConfirmAction(null);
+      clearConfirmAction();
     }
   };
 
@@ -353,7 +341,7 @@ export const Documents = () => {
         <ConfirmDialog
           body={confirmAction.body}
           confirmLabel={confirmAction.confirmLabel}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => clearConfirmAction()}
           onConfirm={() => handleConfirmAction()}
           requiredText={confirmAction.requiredText}
           title={confirmAction.title}
@@ -634,5 +622,3 @@ export const Documents = () => {
     </section>
   );
 };
-
-const safeFileName = (value: string) => value.replace(/[<>:"/\\|?*]+/g, '-').slice(0, 80) || 'document';

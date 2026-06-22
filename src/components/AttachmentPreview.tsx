@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { getUserErrorMessage } from '../lib/errors';
 import { cmd } from '../lib/invoke';
+import { extensionFromName, formatBytes } from '../lib/helpers';
 import type { AttachmentItem, AttachmentPreviewPage } from '../types';
 
 interface AttachmentPreviewProps {
@@ -131,11 +132,3 @@ const Unavailable = ({ message }: { message: string }) => (
     <p className="mt-1">{message}</p>
   </div>
 );
-
-const formatBytes = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-};
-
-const extensionFromName = (name: string) => name.split('.').pop()?.toLowerCase() ?? 'unknown';

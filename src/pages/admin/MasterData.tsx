@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from 'react';
 
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { nullable } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, FolderItem, OfficeItem } from '../../types';
 
@@ -445,10 +446,6 @@ export const MasterData = () => {
   );
 };
 
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-};
 
 const normalizeColor = (value: string) => (/^#[0-9A-Fa-f]{6}$/.test(value) ? value.toUpperCase() : '#6B7280');
 

@@ -1,13 +1,15 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, FileText, Paperclip, QrCode, RefreshCw, Search, Smartphone, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateOnly, formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { cmd } from '../../lib/invoke';
+import { sizeLabel } from '../../lib/helpers';
+import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   MobileReviewStatus,
@@ -19,13 +21,6 @@ import type {
 } from '../../types';
 
 type FilterStatus = MobileReviewStatus | '';
-
-interface ConfirmAction {
-  title: string;
-  body: ReactNode;
-  confirmLabel: string;
-  onConfirm: () => Promise<void>;
-}
 
 const reviewStatuses: FilterStatus[] = ['', 'Pending', 'Approved', 'Rejected', 'Removed'];
 const rejectionTemplates = [
@@ -41,7 +36,6 @@ const statusClass = (status: MobileReviewStatus) => {
   return 'bg-amber-50 text-amber-800 border-amber-200';
 };
 
-const sizeLabel = (bytes: number) => `${Math.ceil(bytes / 1024)} KB`;
 
 const detailFromItem = (submission: MobileSubmissionItem): MobileSubmissionDetail => ({
   submission,
@@ -62,7 +56,7 @@ export const MobileSubmissions = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<number | null>(null);
   const [preview, setPreview] = useState<MobileSubmissionAttachmentPreviewPage | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -141,7 +135,7 @@ export const MobileSubmissions = () => {
       setMessage(getUserErrorMessage(err, 'Could not approve the mobile submission. Please review metadata and try again.'));
     } finally {
       setBusy(false);
-      setConfirmAction(null);
+      clearConfirmAction();
     }
   };
 
@@ -221,7 +215,7 @@ export const MobileSubmissions = () => {
         <ConfirmDialog
           body={confirmAction.body}
           confirmLabel={confirmAction.confirmLabel}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => clearConfirmAction()}
           onConfirm={() => void confirmAction.onConfirm()}
           title={confirmAction.title}
           tone="default"

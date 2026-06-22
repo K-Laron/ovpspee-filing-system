@@ -1,28 +1,20 @@
 import { RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDateOnly } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { cmd } from '../../lib/invoke';
+import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DocumentItem } from '../../types';
-
-interface ConfirmAction {
-  title: string;
-  body: ReactNode;
-  confirmLabel: string;
-  requiredText?: string;
-  onConfirm: () => Promise<void>;
-}
 
 export const TrashManagement = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
 
   const loadTrash = async () => {
     if (!sessionId) return;
@@ -88,7 +80,7 @@ export const TrashManagement = () => {
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
-      setConfirmAction(null);
+      clearConfirmAction();
     }
   };
 
@@ -98,7 +90,7 @@ export const TrashManagement = () => {
         <ConfirmDialog
           body={confirmAction.body}
           confirmLabel={confirmAction.confirmLabel}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => clearConfirmAction()}
           onConfirm={() => handleConfirmAction()}
           requiredText={confirmAction.requiredText}
           title={confirmAction.title}

@@ -1,23 +1,16 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Archive, DatabaseBackup, FolderOpen, RefreshCw, RotateCcw, Save, ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateTime } from '../../lib/dates';
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
+import { formatBytes } from '../../lib/helpers';
+import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { BackupSettings, BackupSummary, BackupValidation, RestoreResult } from '../../types';
-
-interface ConfirmAction {
-  title: string;
-  body: ReactNode;
-  confirmLabel: string;
-  requiredText?: string;
-  onConfirm: () => Promise<void>;
-}
 
 export const BackupRestore = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
@@ -30,7 +23,7 @@ export const BackupRestore = () => {
   const [selected, setSelected] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
 
   const load = async () => {
     if (!sessionId) return;
@@ -161,7 +154,7 @@ export const BackupRestore = () => {
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
-      setConfirmAction(null);
+      clearConfirmAction();
     }
   };
 
@@ -171,7 +164,7 @@ export const BackupRestore = () => {
         <ConfirmDialog
           body={confirmAction.body}
           confirmLabel={confirmAction.confirmLabel}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => clearConfirmAction()}
           onConfirm={() => handleConfirmAction()}
           requiredText={confirmAction.requiredText}
           title={confirmAction.title}
@@ -305,8 +298,5 @@ export const BackupRestore = () => {
   );
 };
 
-const formatBytes = (value: number) => {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
-};
+
+

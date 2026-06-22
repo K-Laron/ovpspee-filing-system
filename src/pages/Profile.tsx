@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from 'react';
 
 import { cmd } from '../lib/invoke';
 import { getUserErrorMessage } from '../lib/errors';
+import { nullable } from '../lib/helpers';
 import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
 import { useSessionStore } from '../store/sessionStore';
 import type { ProfileItem } from '../types';
@@ -172,10 +173,6 @@ export const Profile = () => {
   );
 };
 
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-};
 
 const TextField = ({ label, onChange, required = false, type = 'text', value }: { label: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) => (
   <label className="block text-sm font-medium text-secondary">
