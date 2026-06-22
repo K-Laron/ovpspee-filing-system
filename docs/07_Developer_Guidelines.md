@@ -205,7 +205,36 @@ pub async fn protected_command(
 
 ---
 
-## 7. Audit Logging Rules
+## 7. Shared Frontend Utilities
+
+### `src/lib/helpers.ts`
+
+Common utility functions extracted from duplicated code. Never redefine these locally:
+
+| Function | Purpose |
+|---|---|
+| `nullable(value)` | Trim → null for empty optional fields |
+| `fileNameFromPath(path)` | Extract filename from full path |
+| `normalizeSelectedPaths(selected)` | Normalize Tauri dialog result to `string[]` |
+| `safeFileName(value)` | Sanitize string for filesystem-safe filename |
+| `sizeLabel(bytes)` | Format as KB (ceil) |
+| `extensionFromName(name)` | Extract lowercase extension, fallback `'unknown'` |
+| `formatBytes(value)` | Format as B/KB/MB with one decimal |
+
+### `src/lib/confirm.ts`
+
+Shared `ConfirmAction` interface + `useConfirmAction()` hook. Replaces manually-duplicated interface + state + handler in every page that shows a confirmation dialog. Usage:
+
+```typescript
+import { useConfirmAction } from '../../lib/confirm';
+const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+// setConfirmAction({ title, body, confirmLabel, onConfirm }) opens dialog
+// clearConfirmAction() closes it
+```
+
+---
+
+## 8. Audit Logging Rules
 
 Every create, update, delete, move, hide, trash, restore, purge, backup, scan, and login/logout operation must write to `audit_log`. Use the shared `write_audit_log()` helper:
 

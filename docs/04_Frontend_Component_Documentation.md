@@ -40,8 +40,10 @@ src/
     useIntake.ts
     useToast.ts       ← thin wrapper around Shadcn sonner
   lib/
-    invoke.ts         ← typed wrappers around Tauri invoke()
+    invoke.ts         ← generic cmd<T>() wrapper (80+ named wrappers removed)
     errors.ts         ← handleError() utility
+    helpers.ts        ← nullable, fileNameFromPath, normalizeSelectedPaths, safeFileName, sizeLabel, extensionFromName, formatBytes
+    confirm.ts        ← ConfirmAction interface + useConfirmAction() hook
     utils.ts          ← cn(), formatDate(), formatFileSize()
   store/
     sessionStore.ts   ← Zustand store for session state
@@ -336,8 +338,12 @@ The no-login Staff/Head Viewer experience has four pages. All share `GuestLayout
 //    - Clicking a card → navigate('/category/:categoryId')
 //
 // Data fetching:
-//   useQuery(['recent-documents']) → list_documents({ page: 1, page_size: 10, sort_by: 'date_added', sort_dir: 'desc' })
-//   useQuery(['public-categories']) → list_public_categories()
+//   cmd<DocumentItem[]>('list_public_documents', { search, categoryId, folderId })
+//
+// UX features:
+//   Debounced auto-search (300ms) — type in search, results update automatically.
+//   `/` key focuses search from anywhere.
+//   Clear button resets search and reloads.
 //
 // Empty states:
 //   No recent documents → "No documents have been filed yet."
@@ -503,6 +509,19 @@ Secretary's primary file system view. File-explorer style navigation: category c
 | Trash | Not trashed | `ConfirmDialog` → `trash_document` |
 | Restore | Trashed only | `ConfirmDialog` → `restore_document` |
 
+**UX features added:**
+- **Debounced auto-search** (300ms) on search input and all filter changes — no manual Apply needed.
+- **`/` key** focuses the search input from anywhere (skips if already in an input/textarea/select).
+- **Escape** closes the document detail panel.
+- **Close (X) button** on detail panel header.
+- **Window title** updates to document name when detail is open (e.g., "Invoice #42 — Documents").
+- **Document count** shown next to Refresh button (e.g., "23 documents").
+
+**Bulk actions (checkbox column added):**
+- Select-all checkbox in table header.
+- "Trash selected" button appears when ≥1 row selected.
+- `Promise.all` loop calls `trash_document` per ID (frontend-only, no backend batch needed).
+
 **Note:** Purge actions are not available to Secretary at all — no Purge button is rendered for Secretary sessions. Purge is Admin-only.
 
 ---
@@ -620,6 +639,7 @@ Staging area for scanned pages. See `11_Scan_Intake_Specification.md` for full d
 //   Toolbar (appears when ≥1 selected):
 //     "Delete Selected" (destructive, ConfirmDialog required)
 //   Empty state: illustration + "No scans in intake. Import scan files to begin."
+// Polling: 10s auto-refresh, skips when tab hidden (document.hidden check)
 ```
 
 ---

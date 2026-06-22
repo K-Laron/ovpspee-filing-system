@@ -55,11 +55,11 @@
 
 ---
 
-### ADR-007: SQLx compile-time query checking
+### ADR-007: SQLx query approach — hybrid compile-time and runtime
 
-**Decision:** Use `sqlx::query_as!` macro throughout the Rust backend (not `sqlx::query_as` at runtime).
+**Decision:** Use `sqlx::query!` for static queries where a cached schema snapshot is available. Use `sqlx::query` (runtime) for dynamically-built queries (e.g., `IN` clauses with variable placeholder count) and when no compiled schema cache is maintained.
 
-**Rationale:** The macro verifies SQL syntax and column type compatibility at compile time against a cached schema snapshot (`.sqlx/` folder). This catches typos, missing columns, and type mismatches before the code ever runs. The trade-off is that `cargo sqlx prepare` must be run after every schema change — documented in the developer guidelines.
+**Rationale:** `sqlx::query!` verifies SQL syntax and column type compatibility at compile time against a cached schema snapshot. However, it requires running `cargo sqlx prepare` after schema changes. For dynamic SQL (variable `IN (...)` placeholders, FTS5 subqueries) and in environments where maintaining a schema cache is impractical, `sqlx::query` with manual `row.get()` extraction is the pragmatic alternative. Both approaches coexist in the codebase — `query!` for stable queries, `query` for dynamic ones.
 
 ---
 
@@ -126,6 +126,28 @@ These were open questions from the README; all are resolved here.
 
 ---
 
+## 3b. Performance Optimizations
+
+### FTS5 Full-Text Search
+
+`document_fts` FTS5 virtual table is created in migration 0003 and populated on every document INSERT/UPDATE/MOVE/TRASH/RESTORE via `refresh_document_fts()`. Previously, search used `LIKE '%term%'` (full table scan, no index). Now uses `document_fts MATCH ?` with a subquery (`d.document_id IN (SELECT rowid FROM document_fts WHERE document_fts MATCH ?)`). Search terms are split into whitespace-delimited, double-quoted tokens for AND semantics. See `src-tauri/src/documents.rs:fts5_query()`.
+
+### N+1 Query Elimination
+
+`validate_pending_scans()` in `scan_intake.rs` previously looped over each scan_intake_id and issued a separate `SELECT` per item. Replaced with a single `WHERE scan_intake_id IN (?, ?, ...)` batch query using `sqlx::query` with dynamic placeholder generation.
+
+### Database Indexes (Migration 0008)
+
+Added 9 indexes:
+- FK indexes: `user(role_id)`, `scan_intake(created_by)`, `mobile_submission(category_id, folder_id, office_id, reviewed_by)`, `mobile_device(created_by)`
+- Compound indexes: `document(category_id, date_received DESC)` for listing sort, `document(is_trashed, category_id, date_received DESC)` for filtered listings
+
+### Bundle Size
+
+Removed unused `@tanstack/react-query` dependency. Bundle reduced by ~24 KB (7 KB gzipped).
+
+---
+
 ## 4. Future Improvements (Post-MVP)
 
 These are explicitly out of scope for the initial release but are tracked here for future development cycles.
@@ -137,8 +159,8 @@ These are explicitly out of scope for the initial release but are tracked here f
 | **Dark mode** | Tailwind `dark:` variants can be added incrementally. Requires updating all component color definitions. |
 | **Storage health check** | Admin dashboard widget that verifies all `attachment.file_path` values point to existing files. Reports orphaned files and missing references. |
 | **PDF thumbnail in scan intake** | Render the first page of a PDF scan as a thumbnail using a Rust PDF rendering crate. |
-| **Bulk document operations** | Secretary can select multiple documents and trash, move, or export them in one action. |
-| **Keyboard shortcut reference** | In-app shortcut help panel (e.g., `Ctrl+K` for search, `Ctrl+N` for new document). |
+| **Bulk move / status change** | Bulk trash is done (checkbox + Promise.all), but bulk move to folder and bulk status change remain. |
+| **Keyboard shortcut reference** | In-app shortcut help panel (e.g., `Ctrl+K` for search, `Ctrl+N` for new document). `/` focuses search, Escape closes detail — partially implemented. |
 | **Multi-language support (i18n)** | If the system is ever deployed in a non-English context. Use `react-i18next`. |
 | **Document version history** | Track edits to document metadata over time. Requires a `document_history` table. |
 
