@@ -5,6 +5,7 @@ import type { FormEvent, KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { EmptyState } from '../../components/EmptyState';
 import { formatDateOnly } from '../../lib/dates';
 import { cmd } from '../../lib/invoke';
 import { getUserErrorMessage } from '../../lib/errors';
@@ -478,7 +479,16 @@ export const Documents = () => {
               </tr>
             </thead>
             <tbody>
-              {documents.map((doc) => (
+              {documents.length === 0 ? (
+                <tr>
+                  <td className="p-4" colSpan={4}>
+                    <EmptyState
+                      message={view === 'trash' ? 'No documents in trash.' : 'Try adjusting your search or filter criteria.'}
+                      title={view === 'trash' ? 'Trash is empty' : 'No documents found'}
+                    />
+                  </td>
+                </tr>
+              ) : documents.map((doc) => (
                   <tr
                     aria-label={`Open document ${doc.document_name}`}
                     className="border-b border-border hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"

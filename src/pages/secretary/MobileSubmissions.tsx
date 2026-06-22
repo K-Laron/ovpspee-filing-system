@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, FileText, Paperclip, QrCode, RefreshCw, Search, Smartphone, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -48,6 +48,7 @@ export const MobileSubmissions = () => {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   const [submissions, setSubmissions] = useState<MobileSubmissionItem[]>([]);
   const [detail, setDetail] = useState<MobileSubmissionDetail | null>(null);
   const [setup, setSetup] = useState<MobileApiSetup | null>(null);
@@ -112,6 +113,26 @@ export const MobileSubmissions = () => {
   useEffect(() => {
     void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')));
   }, [sessionId, filter]);
+
+  // ponytail: debounced auto-search on filter changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, dateFrom, dateTo]);
+
+  // ponytail: / key focuses search input
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     void cmd<MobileApiSetup>('get_mobile_api_setup')
@@ -324,6 +345,7 @@ export const MobileSubmissions = () => {
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 text-muted" size={16} />
             <input
+              ref={searchRef}
               aria-label="Search submissions"
               className="input pl-9"
               onChange={(event) => setSearch(event.target.value)}
