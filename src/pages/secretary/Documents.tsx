@@ -126,6 +126,10 @@ export const Documents = () => {
   }, [sessionId]);
 
   useEffect(() => {
+    document.title = detail ? `${detail.document.document_name} — Documents` : 'Documents — OVPSPEE Filing System';
+  }, [detail]);
+
+  useEffect(() => {
     setSelectedIds(new Set());
     void loadDocuments().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [sessionId, view]);
@@ -138,6 +142,15 @@ export const Documents = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [search, categoryId, folderId, officeId, statusFilter, dateFrom, dateTo]);
+
+  // ponytail: Escape closes detail panel
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' && detail) setDetail(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detail]);
 
   // ponytail: / key focuses search input
   useEffect(() => {
@@ -376,6 +389,7 @@ export const Documents = () => {
           <p className="mt-1 text-sm text-muted">Secretary filing list and document detail.</p>
         </div>
         <button className="btn" onClick={() => void loadDocuments()} type="button"><RefreshCw size={16} />Refresh</button>
+        <span className="text-xs text-muted">{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
       </div>
 
       <div className="inline-flex rounded border border-border bg-surface p-1 text-sm shadow-sm">
@@ -501,6 +515,7 @@ export const Documents = () => {
           {!detail ? <p className="text-sm text-muted">Select a document.</p> : (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
+                <button aria-label="Close detail" className="icon-btn shrink-0" onClick={() => setDetail(null)} title="Close (Esc)" type="button"><X size={16} /></button>
                 <div>
                   {editing ? (
                     <input className="input text-lg font-semibold" value={detail.document.document_name} onChange={(e) => setDetail({ ...detail, document: { ...detail.document, document_name: e.target.value } })} />
