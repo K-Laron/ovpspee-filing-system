@@ -516,6 +516,7 @@ Secretary's primary file system view. File-explorer style navigation: category c
 - **Close (X) button** on detail panel header.
 - **Window title** updates to document name when detail is open (e.g., "Invoice #42 — Documents").
 - **Document count** shown next to Refresh button (e.g., "23 documents").
+- **Empty states** for zero search results and empty trash (uses EmptyState component).
 
 **Bulk actions (checkbox column added):**
 - Select-all checkbox in table header.
