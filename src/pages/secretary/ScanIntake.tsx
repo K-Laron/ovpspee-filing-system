@@ -224,7 +224,7 @@ export const ScanIntake = () => {
 
   useEffect(() => {
     void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.')));
-    const interval = setInterval(() => { void loadIntake(); }, 10000);
+    const interval = setInterval(() => { if (!document.hidden) void loadIntake(); }, 10000);
     return () => clearInterval(interval);
   }, [sessionId]);
 

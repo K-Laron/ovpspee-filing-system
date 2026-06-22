@@ -429,15 +429,45 @@ async fn validate_pending_scans(
     if scan_intake_ids.is_empty() {
         return Err(AppError::Validation("Select at least one scan.".into()));
     }
-    let mut scans = Vec::with_capacity(scan_intake_ids.len());
-    for scan_intake_id in scan_intake_ids {
-        let scan = fetch_scan(pool, *scan_intake_id).await?;
-        if scan.status != "Pending" || scan.is_deleted {
-            return Err(AppError::Validation(
-                "Only pending scans can be filed.".into(),
-            ));
+    let placeholders = scan_intake_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!(
+        "SELECT scan_intake_id, original_file_name, stored_relative_path,
+            mime_type, file_size_bytes, status, notes,
+            is_deleted, created_by, created_at, updated_at,
+            filed_document_id
+         FROM scan_intake WHERE scan_intake_id IN ({placeholders})"
+    );
+    let mut q = sqlx::query(&sql);
+    for id in scan_intake_ids {
+        q = q.bind(id);
+    }
+    let rows = q.fetch_all(pool).await?;
+    if rows.len() != scan_intake_ids.len() {
+        return Err(AppError::NotFound("One or more scan intake items not found.".into()));
+    }
+    let mut scans = Vec::with_capacity(rows.len());
+    use sqlx::Row;
+    for row in rows {
+        let scan_intake_id: i64 = row.get("scan_intake_id");
+        let status: String = row.get("status");
+        let is_deleted: i64 = row.get("is_deleted");
+        if status != "Pending" || is_deleted != 0 {
+            return Err(AppError::Validation("Only pending scans can be filed.".into()));
         }
-        scans.push(scan);
+        scans.push(scan_item(
+            scan_intake_id,
+            row.get("original_file_name"),
+            row.get("stored_relative_path"),
+            row.get("mime_type"),
+            row.get("file_size_bytes"),
+            status,
+            row.get("notes"),
+            is_deleted,
+            row.get("created_by"),
+            row.get("created_at"),
+            row.get("updated_at"),
+            row.get("filed_document_id"),
+        ));
     }
     Ok(scans)
 }

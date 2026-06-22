@@ -1020,18 +1020,18 @@ async fn fetch_documents(
     public_only: bool,
     trash_only: bool,
 ) -> AppResult<Vec<DocumentItem>> {
-    let search = like_filter(filter.search.as_deref());
+    let search = fts5_query(filter.search.as_deref());
     let date_from = normalize_optional_date(filter.date_from.as_deref())?;
     let date_to = normalize_optional_date(filter.date_to.as_deref())?;
     let public_only = if public_only { 1_i64 } else { 0_i64 };
     let trash_mode = if trash_only { 1_i64 } else { 0_i64 };
-    let rows = sqlx::query!(
-        "SELECT d.document_id AS \"document_id!: i64\", d.document_name, d.category_id AS \"category_id!: i64\",
+    let rows = sqlx::query(
+        "SELECT d.document_id, d.document_name, d.category_id,
             c.category_name, d.folder_id, f.folder_name, d.office_id, o.office_name, d.date_received,
-            d.date_added, d.remarks, d.status, d.is_hidden AS \"is_hidden!: i64\",
-            d.is_trashed AS \"is_trashed!: i64\", d.created_by AS \"created_by!: i64\", d.updated_at,
-            u.first_name || ' ' || u.last_name AS \"created_by_name!: String\",
-            COUNT(a.attachment_id) AS \"attachment_count!: i64\"
+            d.date_added, d.remarks, d.status, d.is_hidden,
+            d.is_trashed, d.created_by, d.updated_at,
+            u.first_name || ' ' || u.last_name AS created_by_name,
+            COUNT(a.attachment_id) AS attachment_count
          FROM document d
          JOIN category c ON c.category_id = d.category_id
          JOIN user u ON u.user_id = d.created_by
@@ -1045,50 +1045,47 @@ async fn fetch_documents(
            AND (? IS NULL OR d.office_id = ?)
            AND (? IS NULL OR d.date_received >= ?)
            AND (? IS NULL OR d.date_received <= ?)
-           AND (? IS NULL OR d.document_name LIKE ? OR d.remarks LIKE ? OR o.office_name LIKE ?)
+           AND (? IS NULL OR d.document_id IN (SELECT rowid FROM document_fts WHERE document_fts MATCH ?))
          GROUP BY d.document_id
-         ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC",
-        public_only,
-        trash_mode,
-        trash_mode,
-        filter.category_id,
-        filter.category_id,
-        filter.folder_id,
-        filter.folder_id,
-        filter.office_id,
-        filter.office_id,
-        date_from,
-        date_from,
-        date_to,
-        date_to,
-        search,
-        search,
-        search,
-        search
-    )
-    .fetch_all(pool)
-    .await?;
+         ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC")
+         .bind(public_only)
+        .bind(trash_mode)
+        .bind(trash_mode)
+        .bind(filter.category_id)
+        .bind(filter.category_id)
+        .bind(filter.folder_id)
+        .bind(filter.folder_id)
+        .bind(filter.office_id)
+        .bind(filter.office_id)
+        .bind(&date_from)
+        .bind(&date_from)
+        .bind(&date_to)
+        .bind(&date_to)
+        .bind(search.as_deref())
+        .bind(search.as_deref())
+        .fetch_all(pool)
+        .await?;
     Ok(rows
         .into_iter()
         .map(|row| DocumentItem {
-            document_id: row.document_id,
-            document_name: row.document_name,
-            category_id: row.category_id,
-            category_name: row.category_name,
-            folder_id: row.folder_id,
-            folder_name: row.folder_name,
-            office_id: row.office_id,
-            office_name: row.office_name,
-            date_received: row.date_received,
-            date_added: row.date_added,
-            remarks: row.remarks,
-            status: row.status,
-            is_hidden: row.is_hidden == 1,
-            is_trashed: row.is_trashed == 1,
-            attachment_count: row.attachment_count,
-            created_by: row.created_by,
-            created_by_name: row.created_by_name,
-            updated_at: row.updated_at,
+            document_id: row.get("document_id"),
+            document_name: row.get("document_name"),
+            category_id: row.get("category_id"),
+            category_name: row.get("category_name"),
+            folder_id: row.get("folder_id"),
+            folder_name: row.get("folder_name"),
+            office_id: row.get("office_id"),
+            office_name: row.get("office_name"),
+            date_received: row.get("date_received"),
+            date_added: row.get("date_added"),
+            remarks: row.get("remarks"),
+            status: row.get("status"),
+            is_hidden: row.get::<i64, _>("is_hidden") == 1,
+            is_trashed: row.get::<i64, _>("is_trashed") == 1,
+            attachment_count: row.get("attachment_count"),
+            created_by: row.get("created_by"),
+            created_by_name: row.get("created_by_name"),
+            updated_at: row.get("updated_at"),
         })
         .collect())
 }
@@ -1305,8 +1302,11 @@ pub(crate) fn extension_from_name(path: &Path, mime_type: &str) -> String {
 }
 
 pub(crate) fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
-    let bytes = fs::read(path).ok()?;
-    let text = String::from_utf8_lossy(&bytes);
+    let mut buf = vec![0u8; 10_240];
+    let mut file = fs::File::open(path).ok()?;
+    let n = std::io::Read::read(&mut file, &mut buf).ok()?;
+    buf.truncate(n);
+    let text = String::from_utf8_lossy(&buf);
     let count =
         text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
     Some(count.max(1))
@@ -1863,10 +1863,16 @@ fn normalize_optional_date(value: Option<&str>) -> AppResult<Option<String>> {
 
 
 
-fn like_filter(value: Option<&str>) -> Option<String> {
+fn fts5_query(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|value| format!("%{value}%"))
+        .map(|value| {
+            value
+                .split_whitespace()
+                .map(|w| format!("\"{}\"", w.replace('"', "\"\"")))
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
 }
 
