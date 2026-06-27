@@ -73,6 +73,33 @@
 
 ---
 
+### ADR-010: Custom Toast system replaces inline setMessage pattern
+
+**Decision:** Replaced per-page `useState<string | null>` message state with a global Toast context (`src/components/Toast.tsx`). Pages call `addToast(type, text)` instead of `setMessage(...)`.
+
+**Rationale:** The inline `setMessage()` pattern resulted in inconsistent UX across pages (some showed colored banners, some neutral). A shared toast system ensures:
+- Consistent positioning (top-right, fixed, z-50)
+- Auto-dismiss (5 seconds)
+- Stacking (multiple toasts without overlap)
+- Type distinction (success/error/info via colored left border)
+
+**Trade-off:** The Toast context adds a small amount of global state. This is acceptable for the consistency gain. If per-page inline banners are ever needed, they can coexist — the toast system replaces transient notification messages only.
+
+---
+
+### ADR-011: Shared form components extracted from duplicated definitions
+
+**Decision:** `FormTitle`, `Status`, `IconButton`, `TextField` were defined identically in `Users.tsx`, `MasterData.tsx`, and `Profile.tsx`. Extracted to `src/components/forms/` with a barrel `index.ts`.
+
+**Rationale:** Duplication made it harder to add features consistently (required field indicators, inline validation). A shared home for form primitives ensures:
+- One place to add aria attributes, error displays, and styling
+- All form pages benefit from improvements simultaneously
+- New form pages start from the shared library
+
+**Trade-off:** Barrel imports add a level of indirection. This is acceptable for the reduction in duplicated code and the consistency guarantee. The form components are simple presentational wrappers — no business logic is shared.
+
+---
+
 ### ADR-009: Restore falls back to category root if original folder is deleted
 
 **Decision:** When `restore_document` is called and the original folder no longer exists (is inactive or was deleted), the document is restored to the original category with `folder_id = NULL` (category root / unfiled state), rather than raising an error.
@@ -148,7 +175,26 @@ Removed unused `@tanstack/react-query` dependency. Bundle reduced by ~24 KB (7 K
 
 ---
 
-## 4. Future Improvements (Post-MVP)
+## 4. Future Improvements (Post-MVP) and Completed Enhancements
+
+### Completed
+
+| Improvement | Notes |
+|---|---|
+| **Toast notification system** | Global toast context replaces per-page setMessage. Auto-dismiss, stacked, type-colored. |
+| **Breadcrumb navigation** | Breadcrumbs component added to all 13 sub-pages. |
+| **Loading skeletons** | TableSkeleton and Skeleton components replace "Loading..." text across all pages. |
+| **Inline field validation** | FieldError component shows per-field error messages. Aria attributes for accessibility. |
+| **Required field indicators** | Red asterisk on all required form labels. |
+| **Shared form components** | FormTitle, Status, IconButton, TextField extracted to src/components/forms/. |
+| **Search filters** | TrashManagement and ScanIntake document dropdown have client-side text search. |
+| **AuditLog pagination context** | Total count from COUNT(*) OVER(), "Showing X-Y of Z". |
+| **Mobile a11y** | Focus trap, aria-expanded, Escape close on mobile nav. |
+| **ConfirmDialog requiredText** | Type-to-confirm for high-severity actions (revoke, purge). |
+| **No auto-select first detail** | Documents and MobileSubmissions no longer auto-open first item. |
+| **MyActivity filter consistency** | Entity filter changed from text input to select dropdown. |
+
+### Future Improvements
 
 These are explicitly out of scope for the initial release but are tracked here for future development cycles.
 

@@ -1,6 +1,6 @@
 # QA Usability Fixes
 
-Date: May 18, 2026
+Date: May 18, 2026 (updated June 27, 2026)
 
 ## What Changed
 
@@ -12,6 +12,20 @@ Date: May 18, 2026
 - The app shell supports smaller desktop windows with a collapsible menu.
 - Scanner settings no longer offer unsupported direct PDF capture.
 - Dates are displayed in a readable long format.
+
+### UI/UX Batch (June 27, 2026)
+
+- **Toast notifications** replace per-page inline message banners. Global, stacked, auto-dismiss, color-coded (success/error/info).
+- **Breadcrumb navigation** on all sub-pages with clickable path segments.
+- **Loading skeletons** replace "Loading..." text with animated pulse placeholders.
+- **Inline field validation** shows error messages below specific fields instead of only in the top banner.
+- **Required field indicators** — red asterisk on all required form labels.
+- **Search filters** on TrashManagement list and ScanIntake document dropdown (client-side text search).
+- **AuditLog pagination context** — "Showing X-Y of Z" and "Page X of Y" with total count.
+- **ConfirmDialog requiredText** — high-severity actions (device revoke, purge) require typing the item name.
+- **No auto-select** — Documents and MobileSubmissions no longer open the first item on page load.
+- **Mobile nav a11y** — focus trap, aria-expanded, Escape to close.
+- **Shared form components** — FormTitle, Status, IconButton, TextField extracted to `src/components/forms/`.
 
 ## Manual QA Checklist
 

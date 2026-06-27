@@ -13,10 +13,15 @@ src/
   components/
     ui/               ← Shadcn/ui base components (installed via CLI, first-party)
     layout/           ← Shell, Sidebar, TopNav, Breadcrumb
-    common/           ← Shared reusable components (StatusBadge, ConfirmDialog, etc.)
+    common/           ← Shared reusable components (StatusBadge, ConfirmDialog, EmptyState, etc.)
+    forms/            ← Shared form components (FormTitle, Status, IconButton, TextField, FieldError)
     documents/        ← Document-specific components
     scan-intake/      ← Scan Intake page components
     admin/            ← Admin-only page components
+    Breadcrumbs.tsx   ← Navigation breadcrumb component
+    Skeleton.tsx      ← Pulse-animated loading placeholder
+    TableSkeleton.tsx ← Table-shaped skeleton grid
+    Toast.tsx         ← Global toast notification system (context + provider + container)
   pages/
     GuestLanding.tsx
     Login.tsx
@@ -34,11 +39,9 @@ src/
       AuditLog.tsx
       BackupRestore.tsx
       Profile.tsx
-  hooks/
-    useSession.ts     ← session state, role guard
-    useDocuments.ts
-    useIntake.ts
-    useToast.ts       ← thin wrapper around Shadcn sonner
+      DeviceSettings.tsx
+      MobileDevices.tsx
+      TrashManagement.tsx
   lib/
     invoke (from `@tauri-apps/api/core`)
     errors.ts         ← handleError() utility
@@ -47,10 +50,10 @@ src/
     utils.ts          ← cn(), formatDate(), formatFileSize()
   store/
     sessionStore.ts   ← Zustand store for session state
-    uiStore.ts        ← view mode (icon/list), current breadcrumb path
+    uiStore.ts        ← view mode (icon/list)
   styles/
     globals.css       ← CSS variables, Tailwind base
-  App.tsx             ← Router root
+  App.tsx             ← Router root + ToastProvider
   main.tsx            ← Tauri app entry point
 ```
 
@@ -230,10 +233,13 @@ interface ConfirmDialogProps {
   confirmLabel?: string;      // Default: "Confirm"
   cancelLabel?: string;       // Default: "Cancel"
   variant?: 'default' | 'destructive';
+  requiredText?: string;      // If set, user must type this string to enable confirm
   onConfirm: () => void;
   onCancel: () => void;
 }
 // Always required before any destructive action (trash, purge, delete, restore)
+// When requiredText is set, the confirm button is disabled until the user types
+// the exact string. Used for high-severity actions: purge, restore, revoke device.
 ```
 
 ---
@@ -249,6 +255,131 @@ interface EmptyStateProps {
   illustration?: 'documents' | 'folder' | 'search' | 'scan';
 }
 // Centered in its container; uses SVG illustrations from src/assets/images/
+```
+
+---
+
+### `Breadcrumbs`
+
+```typescript
+// components/Breadcrumbs.tsx
+interface BreadcrumbSegment {
+  label: string;
+  href?: string;          // Omitted for current (last) segment
+}
+
+interface BreadcrumbsProps {
+  segments: BreadcrumbSegment[];
+}
+// Renders: Label1 › Label2 › Label3
+// Last segment is plain text (current page)
+// Non-last segments are React Router <Link> for navigation
+// Used on all sub-pages with depth > 1: Users › Edit, Documents › Category, etc.
+```
+
+---
+
+### `Skeleton` / `TableSkeleton`
+
+```typescript
+// components/Skeleton.tsx
+interface SkeletonProps {
+  className?: string;
+}
+// Renders: <div className="animate-pulse bg-gray-200 rounded" />
+// Generic pulse-animated placeholder for any content shape
+
+// components/TableSkeleton.tsx
+interface TableSkeletonProps {
+  rows?: number;    // Default: 5
+  columns?: number; // Default: 4
+}
+// Renders a grid of Skeleton cells matching table column layout
+// Column widths vary (first column wider, last narrower) for natural look
+// Replaces "Loading..." text across all list/table pages
+```
+
+---
+
+### `Toast` — Global Notification System
+
+```typescript
+// components/Toast.tsx
+type ToastType = 'success' | 'error' | 'info';
+
+// Usage via context hook:
+const { addToast, removeToast } = useToast();
+addToast('success', 'Document filed successfully.');
+addToast('error', 'Failed to save document.');
+addToast('info', 'Scan import completed.');
+
+// ToastContainer renders at the app root (inside ToastProvider):
+//   position: fixed, top-4 right-4, z-50
+//   Stacked vertically, newest at top
+//   Auto-dismiss after 5 seconds
+//   Each toast: colored left border (green/red/blue), text, close button
+//   Clicking toast dismisses it immediately
+
+// App.tsx wraps the app:
+<ToastProvider>
+  <Router>
+    <Routes>...</Routes>
+  </Router>
+  <ToastContainer />
+</ToastProvider>
+```
+
+Supersedes the previous inline `setMessage<string | null>(...)` pattern across all pages. Each page imports `useToast` and calls `addToast` instead.
+
+---
+
+### Form Components (`src/components/forms/`)
+
+Shared form components extracted from duplicated local definitions in Users.tsx, MasterData.tsx, and Profile.tsx.
+
+```typescript
+// components/forms/FormTitle.tsx
+interface FormTitleProps {
+  children: React.ReactNode;
+}
+// Renders: <h1 className="text-xl font-semibold">{children}</h1>
+
+// components/forms/Status.tsx
+interface StatusProps {
+  status: string;  // e.g., 'Active', 'Inactive'
+}
+// Renders a colored pill badge (green for active, slate for inactive)
+
+// components/forms/IconButton.tsx
+interface IconButtonProps {
+  icon: React.ReactNode;  // Lucide icon component instance
+  onClick: () => void;
+  label: string;          // aria-label for accessibility
+}
+// Renders a ghost-style icon button
+
+// components/forms/TextField.tsx
+interface TextFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string | null;    // Field-level error message
+  required?: boolean;       // Shows red asterisk on label
+  type?: string;            // Input type (default: 'text')
+  placeholder?: string;
+}
+// Renders: label (with * if required) + <input> + FieldError (if error set)
+// Adds aria-required, aria-invalid, aria-describedby for accessibility
+
+// components/forms/FieldError.tsx
+interface FieldErrorProps {
+  message?: string | null;
+}
+// Renders: <p className="text-red-500 text-sm" role="alert">{message}</p>
+// Returns null if no message (renders nothing)
+
+// Barrel export:
+import { FormTitle, Status, IconButton, TextField, FieldError } from '../components/forms';
 ```
 
 ---
@@ -269,6 +400,9 @@ interface SearchFilterBarProps {
 // Chips have × button to remove individual filters
 // Debounces search input 300ms
 ```
+
+**Simpler search pattern:** Some pages (TrashManagement, ScanIntake dropdown) use a lightweight inline search with `useState` + `Array.filter()` instead of the full SearchFilterBar. This is appropriate for single-field client-side filtering without sort/filter options.
+
 
 ---
 
@@ -517,6 +651,9 @@ Secretary's primary file system view. File-explorer style navigation: category c
 - **Window title** updates to document name when detail is open (e.g., "Invoice #42 — Documents").
 - **Document count** shown next to Refresh button (e.g., "23 documents").
 - **Empty states** for zero search results and empty trash (uses EmptyState component).
+- **Paginated listing** with "Load More" button (offset-based, 25 per page) and total count from `COUNT(*) OVER()`.
+- **No auto-select** first document on page load — user clicks to view details.
+- **Skeleton loading** replaces "Loading..." text during data fetch.
 
 **Bulk actions (checkbox column added):**
 - Select-all checkbox in table header.
@@ -547,6 +684,12 @@ When the Secretary navigates into the TRASH category card, the content area swit
 - Original Location (e.g. "BAC › PPMP 2025" — links back to that folder if it still exists)
 - Purge Countdown (color-coded; see below)
 - Actions kebab `⋮`
+
+**Search:** Text input filters trashed documents by name client-side.
+
+**Empty states:**
+- No documents in trash → "Trash is empty"
+- Search with no matches → "No documents match your search"
 
 **Purge countdown color coding:**
 
@@ -640,7 +783,10 @@ Staging area for scanned pages. See `11_Scan_Intake_Specification.md` for full d
 //   Toolbar (appears when ≥1 selected):
 //     "Delete Selected" (destructive, ConfirmDialog required)
 //   Empty state: illustration + "No scans in intake. Import scan files to begin."
-// Polling: 10s auto-refresh, skips when tab hidden (document.hidden check)
+// Polling: 30s auto-refresh, skips when tab hidden (document.hidden check)
+// Preview: lazy-loads preview images for selected scan
+// Status filter: status column filtered via backend SQL, not client-side .filter()
+// Document dropdown: search input filters documents by name client-side
 ```
 
 ---
@@ -684,7 +830,8 @@ Three tabs: Categories, Folders, Offices.
 ```typescript
 // Table: Action | Description | Username | IP | Timestamp
 // Search bar + filter (Action type, User, Date range)
-// Pagination (50/page): "Page X of Y"
+// Pagination (50/page): "Page X of Y", "Showing start-end of total"
+// Total count from backend: COUNT(*) OVER() window function
 // "Export PDF" button → calls export_audit_log_pdf → Tauri save dialog
 // ⚙ Settings icon → RetentionPolicyModal
 //   - Input: "Delete entries older than [N] months"
@@ -757,17 +904,23 @@ const result = await invoke<ReturnType>('command_name', { param });
 
 ```typescript
 // src/lib/errors.ts
-export function handleError(error: unknown, toast: ToastFn, fallback = 'An error occurred') {
+import { addToast } from '../components/Toast'; // or useToast() hook
+
+export function handleError(error: unknown, fallback = 'An error occurred') {
   const message = typeof error === 'string' ? error : fallback;
-  toast.error(message);
+  addToast('error', message);
   console.error('[AppError]', error);
 }
 
 // Usage in components:
+import { useToast } from '../components/Toast';
+
+const { addToast } = useToast();
 try {
   await login(username, password);
+  addToast('success', 'Login successful.');
 } catch (e) {
-  handleError(e, toast, 'Login failed. Please check your credentials.');
+  handleError(e, 'Login failed. Please check your credentials.');
 }
 ```
 
@@ -786,7 +939,6 @@ try {
 | `tailwindcss` | 3.x | Utility CSS |
 | `lucide-react` | Latest | Icons |
 | `@dnd-kit/core` | Latest | Drag-and-drop (attachment reorder, scan picker) |
-| `sonner` | Latest | Toast notifications |
 | `date-fns` | Latest | Date formatting utilities |
 
 ---

@@ -5,8 +5,8 @@
 **Client:** Office of the Vice President for Special Programs and External/Extension Engagement — University of Eastern Philippines
 **Stack:** Tauri v2 + Rust + React + TypeScript + SQLite
 **Target Platform:** Windows 10+ (64-bit), Windows-first build; Linux deferred post-MVP
-**CDHP Version:** 1.1
-**Last Updated:** May 14, 2026
+**CDHP Version:** 1.2
+**Last Updated:** June 27, 2026
 
 ---
 

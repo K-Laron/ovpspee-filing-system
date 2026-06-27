@@ -261,7 +261,23 @@ Each breadcrumb segment is clickable.
 | `destructive` (red outline → fill on hover) | Destructive action (Delete, Purge) |
 | `ghost` | Icon-only buttons, toolbar actions |
 
-All destructive actions must be followed by a confirmation dialog before execution.
+All destructive actions must be followed by a confirmation dialog before execution. For high-severity actions (purge, restore, revoke device), the ConfirmDialog supports `requiredText` — user must type the exact string to enable the confirm button.
+
+### Toasts
+
+Use the custom `Toast` component (see `src/components/Toast.tsx`). Rules:
+- Duration: 5 seconds auto-dismiss for all types
+- Position: top-right, stacked vertically
+- Types: success (green left border), error (red left border), info (blue left border)
+- Usage via `useToast()` hook: `addToast('success', 'message')`, `addToast('error', 'message')`
+- Supersedes the previous inline `setMessage()` pattern and the `sonner` library
+
+### Loading States
+
+Use `TableSkeleton` for table/list loading states instead of "Loading..." text:
+- `TableSkeleton rows={5} columns={4}` renders an animated pulse grid
+- `Skeleton` for individual placeholder elements (preview panels, text lines)
+- Both use Tailwind `animate-pulse` for subtle animation
 
 ### Modals / Dialogs
 
@@ -290,13 +306,17 @@ Use Shadcn/ui `<Table>` components. Rules:
 Document statuses displayed as colored badges:
 
 | Status | Color |
-|---|---|
+|---|---|---|
 | Filed | `bg-green-100 text-green-800` |
 | Confidential | `bg-yellow-100 text-yellow-800` |
 | Archived | `bg-slate-100 text-slate-700` |
 | Other | `bg-blue-100 text-blue-800` |
 | Hidden | `bg-purple-100 text-purple-800` (Secretary only) |
 | Trashed | `bg-red-100 text-red-700` (TRASH view only) |
+
+### Forms
+
+Required fields show a red asterisk (`*`) after the label text. Invalid fields display an inline error message via the `FieldError` component directly below the input. Inputs use `aria-required`, `aria-invalid`, and `aria-describedby` for accessibility.
 
 ---
 

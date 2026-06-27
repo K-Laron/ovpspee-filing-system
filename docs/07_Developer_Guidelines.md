@@ -225,6 +225,33 @@ Common utility functions extracted from duplicated code. Never redefine these lo
 
 Confirmation dialogs use inline `useState<ConfirmAction | null>` — see `src/components/ConfirmDialog.tsx` for the `ConfirmAction` interface.
 
+For high-severity actions (purge, revoke device, restore), pass `requiredText` to force the user to type the item name before confirm is enabled.
+
+## Toast Notifications
+
+Use the global toast system instead of per-page message state:
+
+```typescript
+import { useToast } from '../components/Toast';
+
+const { addToast } = useToast();
+addToast('success', 'Document saved.');
+addToast('error', 'Operation failed.');
+addToast('info', 'Scan complete.');
+```
+
+Toasts auto-dismiss after 5 seconds, stack vertically, and are color-coded by type. Do not use `setMessage`/`useState<string|null>` for transient notifications — use this system instead.
+
+## Form Components
+
+Use the shared form components from `src/components/forms/` instead of defining local helpers:
+
+```typescript
+import { FormTitle, Status, IconButton, TextField, FieldError } from '../components/forms';
+```
+
+These handle required field indicators (red asterisk), inline validation (FieldError), and accessibility attributes consistently. If you need a new form primitive, add it to the shared library rather than defining it locally.
+
 ---
 
 ## 8. Audit Logging Rules
