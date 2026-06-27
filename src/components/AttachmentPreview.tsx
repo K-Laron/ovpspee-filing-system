@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileText, Info } from 'l
 import { useEffect, useState } from 'react';
 
 import { getUserErrorMessage } from '../lib/errors';
-import { cmd } from '../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { extensionFromName, formatBytes } from '../lib/helpers';
 import type { AttachmentItem, AttachmentPreviewPage } from '../types';
 
@@ -25,7 +25,7 @@ export const AttachmentPreview = ({ attachment, onError, sessionId = null }: Att
     }
     setLoading(true);
     try {
-      const next = await cmd<AttachmentPreviewPage>('get_attachment_preview_page', {
+      const next = await invoke<AttachmentPreviewPage>('get_attachment_preview_page', {
         attachmentId: attachment.attachment_id,
         sessionId,
         pageNumber: nextPage

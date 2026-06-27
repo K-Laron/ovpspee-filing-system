@@ -1,10 +1,9 @@
 import { Ban, KeyRound, RefreshCw, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { cmd } from '../../lib/invoke';
+import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
-import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CreatedMobileDevice, MobileDeviceItem } from '../../types';
 
@@ -17,14 +16,15 @@ export const MobileDevices = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
-  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const clearConfirmAction = () => setConfirmAction(null);
 
   const load = async () => {
     if (!sessionId) return;
     setLoading(true);
     setMessage('');
     try {
-      setDevices(await cmd<MobileDeviceItem[]>('list_mobile_devices', { sessionId }));
+      setDevices(await invoke<MobileDeviceItem[]>('list_mobile_devices', { sessionId }));
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not load mobile devices.'));
     } finally {
@@ -42,7 +42,7 @@ export const MobileDevices = () => {
     setMessage('');
     setCreated(null);
     try {
-      const next = await cmd<CreatedMobileDevice>('create_mobile_device', {
+      const next = await invoke<CreatedMobileDevice>('create_mobile_device', {
         sessionId,
         deviceName: deviceName.trim()
       });
@@ -62,7 +62,7 @@ export const MobileDevices = () => {
     setRevokingId(deviceId);
     setMessage('');
     try {
-      await cmd<void>('revoke_mobile_device', { sessionId, deviceId });
+      await invoke<void>('revoke_mobile_device', { sessionId, deviceId });
       setMessage('Mobile device revoked.');
       await load();
     } catch (err) {

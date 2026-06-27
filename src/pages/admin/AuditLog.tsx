@@ -1,7 +1,7 @@
 import { RefreshCw, Save, Search, ShieldCheck } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { nullable } from '../../lib/helpers';
@@ -32,7 +32,7 @@ export const AuditLog = () => {
     setLoading(true);
     setMessage('');
     try {
-      const page = await cmd<AuditLogPage>('list_audit_logs', {
+      const page = await invoke<AuditLogPage>('list_audit_logs', {
         sessionId,
         search: nullable(search),
         actorSearch: nullable(actorSearch),
@@ -55,8 +55,8 @@ export const AuditLog = () => {
   const loadLookups = async () => {
     if (!sessionId) return;
     const [types, settings] = await Promise.all([
-      cmd<string[]>('list_audit_event_types', { sessionId }),
-      cmd<AuditRetentionSettings>('get_audit_retention_settings', { sessionId })
+      invoke<string[]>('list_audit_event_types', { sessionId }),
+      invoke<AuditRetentionSettings>('get_audit_retention_settings', { sessionId })
     ]);
     setEventTypes(types);
     setRetention(settings);
@@ -76,7 +76,7 @@ export const AuditLog = () => {
   const saveRetention = async () => {
     if (!sessionId) return;
     try {
-      const next = await cmd<AuditRetentionSettings>('update_audit_retention_settings', {
+      const next = await invoke<AuditRetentionSettings>('update_audit_retention_settings', {
         sessionId,
         retentionMonths: Number(retentionDraft)
       });

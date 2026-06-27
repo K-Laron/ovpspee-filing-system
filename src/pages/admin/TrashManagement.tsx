@@ -1,11 +1,10 @@
 import { RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
 import { formatDateOnly } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
-import { cmd } from '../../lib/invoke';
-import { useConfirmAction } from '../../lib/confirm';
+import { invoke } from '@tauri-apps/api/core';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DocumentItem } from '../../types';
 
@@ -14,11 +13,12 @@ export const TrashManagement = () => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const clearConfirmAction = () => setConfirmAction(null);
 
   const loadTrash = async () => {
     if (!sessionId) return;
-    setDocuments(await cmd<DocumentItem[]>('list_trash_documents', { sessionId }));
+    setDocuments(await invoke<DocumentItem[]>('list_trash_documents', { sessionId }));
   };
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export const TrashManagement = () => {
     if (!sessionId || busy) return;
     setBusy(true);
     try {
-      await cmd<void>('purge_document', { sessionId, documentId });
+      await invoke<void>('purge_document', { sessionId, documentId });
       setMessage('Document purged.');
       await loadTrash();
     } catch (err) {
@@ -43,7 +43,7 @@ export const TrashManagement = () => {
     if (!sessionId || busy) return;
     setBusy(true);
     try {
-      const count = await cmd<number>('empty_trash', { sessionId });
+      const count = await invoke<number>('empty_trash', { sessionId });
       setMessage(`${count} document(s) purged.`);
       await loadTrash();
     } catch (err) {

@@ -5,9 +5,8 @@ import { AdminLayout } from './components/layout/AdminLayout';
 import { GuestLayout } from './components/layout/GuestLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { SecretaryLayout } from './components/layout/SecretaryLayout';
-import { cmd } from './lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import type { SessionPayload } from './types';
-import { AdminHome } from './pages/admin/AdminHome';
 import { AuditLog } from './pages/admin/AuditLog';
 import { BackupRestore } from './pages/admin/BackupRestore';
 import { DeviceSettingsPage } from './pages/admin/DeviceSettings';
@@ -24,7 +23,6 @@ import { Documents } from './pages/secretary/Documents';
 import { MobileSubmissions } from './pages/secretary/MobileSubmissions';
 import { MyActivity } from './pages/secretary/MyActivity';
 import { ScanIntake } from './pages/secretary/ScanIntake';
-import { SecretaryHome } from './pages/secretary/SecretaryHome';
 import { useSessionStore } from './store/sessionStore';
 
 export const App = () => {
@@ -37,7 +35,7 @@ export const App = () => {
 
     const bootstrap = async () => {
       try {
-        const needsSetup = await cmd<boolean>('first_run_check');
+        const needsSetup = await invoke<boolean>('first_run_check');
         if (!mounted) return;
         if (needsSetup) {
           navigate('/first-run', { replace: true });
@@ -45,7 +43,7 @@ export const App = () => {
         }
 
         if (sessionId) {
-          const session = await cmd<SessionPayload>('validate_session', { sessionId });
+          const session = await invoke<SessionPayload>('validate_session', { sessionId });
           if (mounted) setSession(session);
         }
       } catch {
@@ -86,7 +84,7 @@ export const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<AdminHome />} />
+        <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<Users />} />
         <Route path="master-data" element={<MasterData />} />
         <Route path="trash" element={<TrashManagement />} />
@@ -104,7 +102,7 @@ export const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<SecretaryHome />} />
+        <Route index element={<Navigate to="documents" replace />} />
         <Route path="profile" element={<Profile />} />
         <Route path="documents" element={<Documents />} />
         <Route path="documents/new" element={<AddDocument />} />

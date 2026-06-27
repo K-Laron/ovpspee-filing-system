@@ -4,13 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../../components/AttachmentPreview';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateOnly } from '../../lib/dates';
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { fileNameFromPath, normalizeSelectedPaths, safeFileName } from '../../lib/helpers';
-import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { CategoryItem, DocumentDetail, DocumentItem, DocumentStatus, FolderItem, OfficeItem, PrinterDevice } from '../../types';
 
@@ -49,7 +48,8 @@ export const Documents = () => {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
-  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const clearConfirmAction = () => setConfirmAction(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -58,9 +58,9 @@ export const Documents = () => {
   const loadLookups = async () => {
     if (!sessionId) return;
     const [nextCategories, nextOffices, nextPrinters] = await Promise.all([
-      cmd<CategoryItem[]>('list_public_categories'),
-      cmd<OfficeItem[]>('list_document_offices', { sessionId }),
-      cmd<PrinterDevice[]>('list_print_printers', { sessionId })
+      invoke<CategoryItem[]>('list_public_categories'),
+      invoke<OfficeItem[]>('list_document_offices', { sessionId }),
+      invoke<PrinterDevice[]>('list_print_printers', { sessionId })
     ]);
     setCategories(nextCategories);
     setOffices(nextOffices);
@@ -74,14 +74,14 @@ export const Documents = () => {
       setFolders([]);
       return;
     }
-    setFolders(await cmd<FolderItem[]>('list_public_folders', { categoryId: Number(nextCategoryId) }));
+    setFolders(await invoke<FolderItem[]>('list_public_folders', { categoryId: Number(nextCategoryId) }));
   };
 
   const loadDocuments = async () => {
     if (!sessionId) return;
     let rows = view === 'trash'
-      ? await cmd<DocumentItem[]>('list_trash_documents', { sessionId })
-      : await cmd<DocumentItem[]>('list_documents', {
+      ? await invoke<DocumentItem[]>('list_trash_documents', { sessionId })
+      : await invoke<DocumentItem[]>('list_documents', {
           sessionId,
           search: search || null,
           categoryId: categoryId ? Number(categoryId) : null,
@@ -104,12 +104,12 @@ export const Documents = () => {
 
   const openDetail = async (documentId: number) => {
     if (!sessionId) return;
-    const nextDetail = await cmd<DocumentDetail>('get_document', { sessionId, documentId });
+    const nextDetail = await invoke<DocumentDetail>('get_document', { sessionId, documentId });
     setDetail(nextDetail);
     setStatusDraft(nextDetail.document.status);
     setMoveCategoryId(String(nextDetail.document.category_id));
     setMoveFolderId(nextDetail.document.folder_id ? String(nextDetail.document.folder_id) : '');
-    setMoveFolders(await cmd<FolderItem[]>('list_public_folders', { categoryId: nextDetail.document.category_id }));
+    setMoveFolders(await invoke<FolderItem[]>('list_public_folders', { categoryId: nextDetail.document.category_id }));
     setEditing(false);
     setMoving(false);
     setPreviewAttachmentId(nextDetail.attachments[0]?.attachment_id ?? null);
@@ -172,7 +172,7 @@ export const Documents = () => {
 
   const saveEdit = async () => {
     if (!sessionId || !detail) return;
-    await cmd<void>('update_document', {
+    await invoke<void>('update_document', {
       sessionId,
       documentId: detail.document.document_id,
       documentName: detail.document.document_name,
@@ -203,7 +203,7 @@ export const Documents = () => {
   const attach = async () => {
     if (!sessionId || !detail || pendingAttachmentPaths.length === 0) return;
     for (const [index, sourcePath] of pendingAttachmentPaths.entries()) {
-      await cmd<number>('add_attachment', {
+      await invoke<number>('add_attachment', {
         sessionId,
         documentId: detail.document.document_id,
         sourcePath,
@@ -217,7 +217,7 @@ export const Documents = () => {
 
   const remove = async (attachmentId: number) => {
     if (!sessionId || !detail) return;
-    await cmd<void>('remove_attachment', { sessionId, attachmentId });
+    await invoke<void>('remove_attachment', { sessionId, attachmentId });
     setMessage('Attachment removed.');
     await openDetail(detail.document.document_id);
   };
@@ -225,7 +225,7 @@ export const Documents = () => {
   const toggleHidden = async () => {
     if (!sessionId || !detail) return;
     const nextHidden = !detail.document.is_hidden;
-    await cmd<void>('set_document_hidden', {
+    await invoke<void>('set_document_hidden', {
       sessionId,
       documentId: detail.document.document_id,
       isHidden: nextHidden
@@ -237,7 +237,7 @@ export const Documents = () => {
 
   const moveToTrash = async () => {
     if (!sessionId || !detail) return;
-    await cmd<void>('trash_document', { sessionId, documentId: detail.document.document_id });
+    await invoke<void>('trash_document', { sessionId, documentId: detail.document.document_id });
     setMessage('Document moved to trash.');
     setDetail(null);
     await loadDocuments();
@@ -245,7 +245,7 @@ export const Documents = () => {
 
   const restore = async () => {
     if (!sessionId || !detail) return;
-    await cmd<void>('restore_document', { sessionId, documentId: detail.document.document_id });
+    await invoke<void>('restore_document', { sessionId, documentId: detail.document.document_id });
     setMessage('Document restored.');
     setDetail(null);
     await loadDocuments();
@@ -254,12 +254,12 @@ export const Documents = () => {
   const loadMoveFolders = async (nextCategoryId: string) => {
     setMoveCategoryId(nextCategoryId);
     setMoveFolderId('');
-    setMoveFolders(nextCategoryId ? await cmd<FolderItem[]>('list_public_folders', { categoryId: Number(nextCategoryId) }) : []);
+    setMoveFolders(nextCategoryId ? await invoke<FolderItem[]>('list_public_folders', { categoryId: Number(nextCategoryId) }) : []);
   };
 
   const saveMove = async () => {
     if (!sessionId || !detail || !moveCategoryId) return;
-    await cmd<void>('move_document', {
+    await invoke<void>('move_document', {
       sessionId,
       documentId: detail.document.document_id,
       categoryId: Number(moveCategoryId),
@@ -272,7 +272,7 @@ export const Documents = () => {
 
   const saveStatus = async () => {
     if (!sessionId || !detail) return;
-    await cmd<void>('set_document_status', {
+    await invoke<void>('set_document_status', {
       sessionId,
       documentId: detail.document.document_id,
       status: statusDraft
@@ -292,7 +292,7 @@ export const Documents = () => {
         filters: [{ name: 'PDF', extensions: ['pdf'] }]
       });
       if (!outputPath) return;
-      const savedPath = await cmd<string>('export_document_pdf', {
+      const savedPath = await invoke<string>('export_document_pdf', {
         sessionId,
         documentId: detail.document.document_id,
         outputPath
@@ -310,7 +310,7 @@ export const Documents = () => {
     setPrinting(true);
     setMessage('');
     try {
-      const result = await cmd<{ printer_name: string }>('print_document_pdf', {
+      const result = await invoke<{ printer_name: string }>('print_document_pdf', {
         sessionId,
         documentId: detail.document.document_id,
         printerId: selectedPrinterId,
@@ -341,7 +341,7 @@ export const Documents = () => {
       confirmLabel: 'Trash',
       onConfirm: async () => {
         await Promise.all([...selectedIds].map((id) =>
-          cmd<void>('trash_document', { sessionId, documentId: id })
+          invoke<void>('trash_document', { sessionId, documentId: id })
         ));
         setSelectedIds(new Set());
         await loadDocuments();

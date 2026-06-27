@@ -1,5 +1,4 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EmptyState } from './EmptyState';
@@ -18,7 +17,7 @@ describe('EmptyState', () => {
 
     expect(screen.getByText('No scanner detected')).toBeInTheDocument();
     expect(screen.getByText('Connect a scanner, turn it on, then refresh devices.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh Devices' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Devices' }));
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 

@@ -1,7 +1,7 @@
 import { KeyRound, RefreshCw, Save } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
-import { cmd } from '../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../lib/errors';
 import { nullable } from '../lib/helpers';
 import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
@@ -32,7 +32,7 @@ export const Profile = () => {
     setLoading(true);
     setError('');
     try {
-      const next = await cmd<ProfileItem>('get_my_profile', { sessionId });
+      const next = await invoke<ProfileItem>('get_my_profile', { sessionId });
       setProfile(next);
       setForm({
         firstName: next.first_name,
@@ -60,7 +60,7 @@ export const Profile = () => {
     setError('');
     setNotice('');
     try {
-      await cmd<void>('update_my_profile', {
+      await invoke<void>('update_my_profile', {
         sessionId,
         firstName: form.firstName,
         middleName: nullable(form.middleName),
@@ -69,7 +69,7 @@ export const Profile = () => {
         contactNumber: nullable(form.contactNumber),
         address: nullable(form.address)
       });
-      const next = await cmd<ProfileItem>('get_my_profile', { sessionId });
+      const next = await invoke<ProfileItem>('get_my_profile', { sessionId });
       setProfile(next);
       setSession({
         session_id: sessionId,
@@ -99,7 +99,7 @@ export const Profile = () => {
         setSaving(false);
         return;
       }
-      await cmd<void>('change_my_password', {
+      await invoke<void>('change_my_password', {
         sessionId,
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword

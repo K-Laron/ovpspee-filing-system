@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { invoke } from '@tauri-apps/api/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GuestLanding } from './GuestLanding';
@@ -12,11 +13,9 @@ vi.mock('../components/AttachmentPreview', () => ({
   AttachmentPreview: () => <div>Attachment preview</div>
 }));
 
-vi.mock('../lib/invoke', () => ({
-  cmd: vi.fn()
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn()
 }));
-
-import { cmd } from '../lib/invoke';
 
 const documentRow: DocumentItem = {
   document_id: 1,
@@ -46,23 +45,23 @@ const documentDetail: DocumentDetail = {
 
 describe('GuestLanding printer loading', () => {
   beforeEach(() => {
-    vi.mocked(cmd).mockReset();
-    vi.mocked(cmd).mockImplementation((name: string) => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockImplementation((name: string) => {
       if (name === 'list_public_categories') return Promise.resolve([]);
       if (name === 'list_public_documents') return Promise.resolve([documentRow]);
       if (name === 'get_public_document') return Promise.resolve(documentDetail);
       if (name === 'list_print_printers') return Promise.resolve([]);
-      throw new Error(`Unexpected cmd: ${name}`);
+      throw new Error(`Unexpected invoke: ${name}`);
     });
   });
 
   it.each([null, undefined])('keeps public documents usable when printer list is %s', async (value) => {
-    vi.mocked(cmd).mockImplementation((name: string) => {
+    vi.mocked(invoke).mockImplementation((name: string) => {
       if (name === 'list_public_categories') return Promise.resolve([]);
       if (name === 'list_public_documents') return Promise.resolve([documentRow]);
       if (name === 'get_public_document') return Promise.resolve(documentDetail);
       if (name === 'list_print_printers') return Promise.resolve(value);
-      throw new Error(`Unexpected cmd: ${name}`);
+      throw new Error(`Unexpected invoke: ${name}`);
     });
 
     render(<GuestLanding />);
@@ -74,12 +73,12 @@ describe('GuestLanding printer loading', () => {
   });
 
   it('keeps public documents usable when printer loading fails', async () => {
-    vi.mocked(cmd).mockImplementation((name: string) => {
+    vi.mocked(invoke).mockImplementation((name: string) => {
       if (name === 'list_public_categories') return Promise.resolve([]);
       if (name === 'list_public_documents') return Promise.resolve([documentRow]);
       if (name === 'get_public_document') return Promise.resolve(documentDetail);
       if (name === 'list_print_printers') return Promise.reject(new Error('C:\\driver\\printer failed'));
-      throw new Error(`Unexpected cmd: ${name}`);
+      throw new Error(`Unexpected invoke: ${name}`);
     });
 
     render(<GuestLanding />);

@@ -1,7 +1,7 @@
 import { RefreshCw, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { nullable } from '../../lib/helpers';
@@ -29,7 +29,7 @@ export const MyActivity = () => {
     setLoading(true);
     setMessage('');
     try {
-      const page = await cmd<AuditLogPage>('list_my_activity', {
+      const page = await invoke<AuditLogPage>('list_my_activity', {
         sessionId,
         search: nullable(search),
         action: nullable(action),
@@ -50,7 +50,7 @@ export const MyActivity = () => {
 
   useEffect(() => {
     if (!sessionId) return;
-    void cmd<string[]>('list_my_activity_event_types', { sessionId }).then(setEventTypes).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
+    void invoke<string[]>('list_my_activity_event_types', { sessionId }).then(setEventTypes).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
     void load(0);
   }, [sessionId]);
 

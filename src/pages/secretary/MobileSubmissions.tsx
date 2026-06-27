@@ -3,13 +3,12 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, Fi
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateOnly, formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { sizeLabel } from '../../lib/helpers';
-import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   MobileReviewStatus,
@@ -57,7 +56,8 @@ export const MobileSubmissions = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const clearConfirmAction = () => setConfirmAction(null);
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<number | null>(null);
   const [preview, setPreview] = useState<MobileSubmissionAttachmentPreviewPage | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -78,7 +78,7 @@ export const MobileSubmissions = () => {
     if (!sessionId) return;
 
     try {
-      const nextDetail = await cmd<MobileSubmissionDetail>('get_mobile_submission', {
+      const nextDetail = await invoke<MobileSubmissionDetail>('get_mobile_submission', {
         sessionId,
         mobileSubmissionId: submission.mobile_submission_id
       });
@@ -93,7 +93,7 @@ export const MobileSubmissions = () => {
 
   const loadSubmissions = async () => {
     if (!sessionId) return;
-    const rows = await cmd<MobileSubmissionItem[]>('list_mobile_submissions', {
+    const rows = await invoke<MobileSubmissionItem[]>('list_mobile_submissions', {
       sessionId,
       reviewStatus: filter || null,
       search: search.trim() || null,
@@ -135,7 +135,7 @@ export const MobileSubmissions = () => {
   }, []);
 
   useEffect(() => {
-    void cmd<MobileApiSetup>('get_mobile_api_setup')
+    void invoke<MobileApiSetup>('get_mobile_api_setup')
       .then(setSetup)
       .catch(() => setSetup(null));
   }, []);
@@ -145,7 +145,7 @@ export const MobileSubmissions = () => {
     setBusy(true);
     setMessage('');
     try {
-      const documentId = await cmd<number>('approve_mobile_submission', {
+      const documentId = await invoke<number>('approve_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
         reviewNotes: reviewNotes.trim() || null
@@ -166,7 +166,7 @@ export const MobileSubmissions = () => {
     setBusy(true);
     setMessage('');
     try {
-      await cmd<void>('reject_mobile_submission', {
+      await invoke<void>('reject_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
         rejectionReason: rejectReason.trim()
@@ -197,7 +197,7 @@ export const MobileSubmissions = () => {
     setSelectedAttachmentId(attachment.mobile_submission_attachment_id);
     setPreviewLoading(true);
     try {
-      setPreview(await cmd<MobileSubmissionAttachmentPreviewPage>('get_mobile_submission_attachment_preview_page', {
+      setPreview(await invoke<MobileSubmissionAttachmentPreviewPage>('get_mobile_submission_attachment_preview_page', {
         sessionId,
         mobileSubmissionAttachmentId: attachment.mobile_submission_attachment_id,
         pageNumber

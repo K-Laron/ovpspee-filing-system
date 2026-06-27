@@ -2,7 +2,7 @@ import { Edit2, Lock, Plus, RefreshCw, Search, SlidersHorizontal, X } from 'luci
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { nullable } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
@@ -104,9 +104,9 @@ export const MasterData = () => {
     setError('');
     try {
       const [nextCategories, nextFolders, nextOffices] = await Promise.all([
-        cmd<CategoryItem[]>('list_categories', { sessionId, includeInactive: true }),
-        cmd<FolderItem[]>('list_folders', { sessionId, categoryId: null, includeInactive: true }),
-        cmd<OfficeItem[]>('list_offices', { sessionId, includeInactive: true })
+        invoke<CategoryItem[]>('list_categories', { sessionId, includeInactive: true }),
+        invoke<FolderItem[]>('list_folders', { sessionId, categoryId: null, includeInactive: true }),
+        invoke<OfficeItem[]>('list_offices', { sessionId, includeInactive: true })
       ]);
       setCategories(nextCategories);
       setFolders(nextFolders);
@@ -145,14 +145,14 @@ export const MasterData = () => {
         icon: nullable(categoryForm.icon)
       };
       if (editingCategory) {
-        await cmd<CategoryItem>('update_category', {
+        await invoke<CategoryItem>('update_category', {
           ...payload,
           categoryId: editingCategory.category_id,
           isActive: categoryActive
         });
         setNotice('Category updated.');
       } else {
-        await cmd<CategoryItem>('create_category', payload);
+        await invoke<CategoryItem>('create_category', payload);
         setNotice('Category created.');
       }
       cancelCategoryEdit();
@@ -179,14 +179,14 @@ export const MasterData = () => {
         folderColor: folderForm.folderColor
       };
       if (editingFolder) {
-        await cmd<FolderItem>('update_folder', {
+        await invoke<FolderItem>('update_folder', {
           ...payload,
           folderId: editingFolder.folder_id,
           isActive: folderActive
         });
         setNotice('Folder updated.');
       } else {
-        await cmd<FolderItem>('create_folder', payload);
+        await invoke<FolderItem>('create_folder', payload);
         setNotice('Folder created.');
       }
       cancelFolderEdit();
@@ -210,14 +210,14 @@ export const MasterData = () => {
         description: nullable(officeForm.description)
       };
       if (editingOffice) {
-        await cmd<OfficeItem>('update_office', {
+        await invoke<OfficeItem>('update_office', {
           ...payload,
           officeId: editingOffice.office_id,
           isActive: officeActive
         });
         setNotice('Office updated.');
       } else {
-        await cmd<OfficeItem>('create_office', payload);
+        await invoke<OfficeItem>('create_office', payload);
         setNotice('Office created.');
       }
       cancelOfficeEdit();

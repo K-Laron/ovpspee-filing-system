@@ -1,15 +1,16 @@
 import { render, screen } from '@testing-library/react';
+import { invoke } from '@tauri-apps/api/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../lib/invoke', () => ({
-  cmd: vi.fn()
+vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: (path: string) => path,
+  invoke: vi.fn()
 }));
 
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => 'session-1'
 }));
 
-import { cmd } from '../../lib/invoke';
 import type { MobileApiSetup, MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
 
 const pendingSubmission: MobileSubmissionItem = {
@@ -58,7 +59,7 @@ const pendingDetail: MobileSubmissionDetail = {
 
 describe('MobileSubmissions', () => {
   beforeEach(() => {
-    vi.mocked(cmd).mockImplementation((name: string) => {
+    vi.mocked(invoke).mockImplementation((name: string) => {
       if (name === 'list_mobile_submissions') return Promise.resolve([pendingSubmission]);
       if (name === 'get_mobile_submission') return Promise.resolve(pendingDetail);
       if (name === 'get_mobile_api_setup') return Promise.resolve({
@@ -68,7 +69,7 @@ describe('MobileSubmissions', () => {
         setup_url: 'ovpspee://setup?hub=http%3A%2F%2F192.168.1.50%3A1421',
         device_token_required: true
       });
-      return Promise.reject(new Error(`unexpected cmd: ${name}`));
+      return Promise.reject(new Error(`unexpected invoke: ${name}`));
     });
   });
 

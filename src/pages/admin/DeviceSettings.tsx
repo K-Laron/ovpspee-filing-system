@@ -2,7 +2,7 @@ import { RefreshCw, Save, ScanLine, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { EmptyState } from '../../components/EmptyState';
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
 import type { DeviceSettings, PrinterDevice, ScannerDevice } from '../../types';
@@ -33,10 +33,10 @@ export const DeviceSettingsPage = () => {
     setMessage('');
     try {
       const [nextSettings, nextScanners, nextPrinters] = await Promise.all([
-        cmd<DeviceSettings>('get_device_settings', { sessionId }),
-        cmd<ScannerDevice[]>('list_scanners', { sessionId }),
-        cmd<PrinterDevice[]>('list_printers', { sessionId }),
-        cmd<PrinterDevice | null>('get_default_printer', { sessionId })
+        invoke<DeviceSettings>('get_device_settings', { sessionId }),
+        invoke<ScannerDevice[]>('list_scanners', { sessionId }),
+        invoke<PrinterDevice[]>('list_printers', { sessionId }),
+        invoke<PrinterDevice | null>('get_default_printer', { sessionId })
       ]);
       setSettings(nextSettings);
       setScanners(nextScanners);
@@ -58,7 +58,7 @@ export const DeviceSettingsPage = () => {
     setSaving(true);
     setMessage('');
     try {
-      const updated = await cmd<DeviceSettings>('update_device_settings', {
+      const updated = await invoke<DeviceSettings>('update_device_settings', {
         sessionId,
         defaultScannerId: settings.default_scanner_id,
         defaultPrinterId: settings.default_printer_id,

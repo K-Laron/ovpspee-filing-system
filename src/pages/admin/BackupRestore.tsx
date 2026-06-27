@@ -2,13 +2,12 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { Archive, DatabaseBackup, FolderOpen, RefreshCw, RotateCcw, Save, ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateTime } from '../../lib/dates';
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { formatBytes } from '../../lib/helpers';
-import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type { BackupSettings, BackupSummary, BackupValidation, RestoreResult } from '../../types';
 
@@ -23,13 +22,14 @@ export const BackupRestore = () => {
   const [selected, setSelected] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const clearConfirmAction = () => setConfirmAction(null);
 
   const load = async () => {
     if (!sessionId) return;
     const [nextSettings, nextHistory] = await Promise.all([
-      cmd<BackupSettings>('get_backup_settings', { sessionId }),
-      cmd<BackupSummary[]>('list_backup_history', { sessionId })
+      invoke<BackupSettings>('get_backup_settings', { sessionId }),
+      invoke<BackupSummary[]>('list_backup_history', { sessionId })
     ]);
     setSettings(nextSettings);
     setDestination(nextSettings.destination_path);
@@ -53,7 +53,7 @@ export const BackupRestore = () => {
     if (!sessionId) return;
     setBusy(true);
     try {
-      const updated = await cmd<BackupSettings>('update_backup_settings', {
+      const updated = await invoke<BackupSettings>('update_backup_settings', {
         sessionId,
         destinationPath: destination || null,
         scheduleEnabled,
@@ -74,7 +74,7 @@ export const BackupRestore = () => {
     if (!sessionId || busy) return;
     setBusy(true);
     try {
-      const backup = await cmd<BackupSummary>('create_backup', { sessionId });
+      const backup = await invoke<BackupSummary>('create_backup', { sessionId });
       setMessage(`Backup created: ${backup.backup_name}`);
       await load();
     } catch (err) {
@@ -93,7 +93,7 @@ export const BackupRestore = () => {
     if (!outputPath) return;
     setBusy(true);
     try {
-      const path = await cmd<string>('export_backup_archive', { sessionId, backupName: selected, outputPath });
+      const path = await invoke<string>('export_backup_archive', { sessionId, backupName: selected, outputPath });
       setMessage(`Portable backup exported: ${path}`);
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not export backup.'));
@@ -111,8 +111,8 @@ export const BackupRestore = () => {
     if (typeof path !== 'string') return;
     setBusy(true);
     try {
-      const validation = await cmd<BackupValidation>('validate_backup_archive', { sessionId, archivePath: path });
-      const imported = await cmd<BackupSummary>('import_backup_archive', { sessionId, archivePath: path });
+      const validation = await invoke<BackupValidation>('validate_backup_archive', { sessionId, archivePath: path });
+      const imported = await invoke<BackupSummary>('import_backup_archive', { sessionId, archivePath: path });
       setSelected(imported.backup_name);
       setMessage(`Imported valid backup: ${validation.backup_name}`);
       await load();
@@ -127,7 +127,7 @@ export const BackupRestore = () => {
     if (!sessionId || busy) return;
     setBusy(true);
     try {
-      const result = await cmd<RestoreResult>('restore_from_backup', { sessionId, backupName });
+      const result = await invoke<RestoreResult>('restore_from_backup', { sessionId, backupName });
       setMessage(`${result.message} Safety backup: ${result.pre_restore_backup_name}`);
       await load();
     } catch (err) {

@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { cmd } from '../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../lib/errors';
 import { passwordRulesText, validatePasswordPair } from '../lib/passwords';
 import type { SessionPayload } from '../types';
@@ -30,13 +30,13 @@ export const FirstRunSetup = () => {
     }
 
     try {
-      await cmd<void>('first_run_setup', {
+      await invoke<void>('first_run_setup', {
         firstName: String(data.get('firstName') ?? ''),
         lastName: String(data.get('lastName') ?? ''),
         username,
         password
       });
-      const session = await cmd<SessionPayload>('login', { username, password });
+      const session = await invoke<SessionPayload>('login', { username, password });
       setSession(session);
       navigate('/a', { replace: true });
     } catch (err) {

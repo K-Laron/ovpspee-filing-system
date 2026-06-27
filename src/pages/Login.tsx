@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { getUserErrorMessage } from '../lib/errors';
-import { cmd } from '../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import type { SessionPayload } from '../types';
 import { useSessionStore } from '../store/sessionStore';
 
@@ -19,7 +19,7 @@ export const Login = () => {
     const data = new FormData(event.currentTarget);
 
     try {
-      const session = await cmd<SessionPayload>('login', {
+      const session = await invoke<SessionPayload>('login', {
         username: String(data.get('username') ?? ''),
         password: String(data.get('password') ?? '')
       });

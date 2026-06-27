@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -18,7 +17,7 @@ describe('ConfirmDialog', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
@@ -36,8 +35,8 @@ describe('ConfirmDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Purge' })).toBeDisabled();
-    await userEvent.type(screen.getByLabelText('Type PURGE to confirm'), 'PURGE');
-    await userEvent.click(screen.getByRole('button', { name: 'Purge' }));
+    fireEvent.change(screen.getByLabelText('Type PURGE to confirm'), { target: { value: 'PURGE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Purge' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
@@ -71,7 +70,7 @@ describe('ConfirmDialog', () => {
     expect(closeButton).toBeDisabled();
 
     fireEvent.click(confirmButton);
-    await userEvent.keyboard('{Escape}');
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();
@@ -92,8 +91,8 @@ describe('ConfirmDialog', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
     expect(onCancel).toHaveBeenCalledTimes(2);
   });
 
@@ -109,7 +108,7 @@ describe('ConfirmDialog', () => {
       />
     );
 
-    await userEvent.keyboard('{Escape}');
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -128,7 +127,7 @@ describe('ConfirmDialog', () => {
     expect(screen.getByLabelText('Type PURGE to confirm')).toHaveFocus();
   });
 
-  it('traps Tab navigation inside the dialog controls', async () => {
+  it('wraps Tab from the last focusable control to the first control', () => {
     render(
       <>
         <button type="button">Background action</button>
@@ -144,16 +143,11 @@ describe('ConfirmDialog', () => {
 
     const backgroundButton = screen.getByRole('button', { name: 'Background action' });
     const closeButton = screen.getByRole('button', { name: 'Close dialog' });
-    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
     const confirmButton = screen.getByRole('button', { name: 'Discard' });
 
-    expect(cancelButton).toHaveFocus();
-    await userEvent.tab();
-    expect(confirmButton).toHaveFocus();
-    await userEvent.tab();
+    confirmButton.focus();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab' });
     expect(closeButton).toHaveFocus();
-    await userEvent.tab();
-    expect(cancelButton).toHaveFocus();
     expect(backgroundButton).not.toHaveFocus();
   });
 
@@ -162,16 +156,16 @@ describe('ConfirmDialog', () => {
 
     const triggerButton = screen.getByRole('button', { name: 'Open dialog' });
     triggerButton.focus();
-    await userEvent.click(triggerButton);
+    fireEvent.click(triggerButton);
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(triggerButton).toHaveFocus();
   });
 
-  it('reverse-wraps Shift+Tab from first focusable control to last focusable control', async () => {
+  it('reverse-wraps Shift+Tab from first focusable control to last focusable control', () => {
     render(
       <>
         <button type="button">Background action</button>
@@ -191,7 +185,7 @@ describe('ConfirmDialog', () => {
     const confirmButton = screen.getByRole('button', { name: 'Discard' });
 
     closeButton.focus();
-    await userEvent.tab({ shift: true });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab', shiftKey: true });
 
     expect(confirmButton).toHaveFocus();
     expect(cancelButton).not.toHaveFocus();

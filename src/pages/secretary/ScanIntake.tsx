@@ -4,13 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateInputValue, formatDateTime } from '../../lib/dates';
-import { cmd } from '../../lib/invoke';
+import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { extensionFromName, fileNameFromPath, normalizeSelectedPaths, sizeLabel } from '../../lib/helpers';
-import { useConfirmAction } from '../../lib/confirm';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   CategoryItem,
@@ -175,7 +174,8 @@ export const ScanIntake = () => {
   const [preview, setPreview] = useState<ScanIntakePreviewPage | null>(null);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const clearConfirmAction = () => setConfirmAction(null);
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.scan_intake_id)),
@@ -185,9 +185,9 @@ export const ScanIntake = () => {
   const loadLookups = async () => {
     if (!sessionId) return;
     const [nextCategories, nextOffices, nextDocuments] = await Promise.all([
-      cmd<CategoryItem[]>('list_public_categories'),
-      cmd<OfficeItem[]>('list_document_offices', { sessionId }),
-      cmd<DocumentItem[]>('list_documents', { sessionId })
+      invoke<CategoryItem[]>('list_public_categories'),
+      invoke<OfficeItem[]>('list_document_offices', { sessionId }),
+      invoke<DocumentItem[]>('list_documents', { sessionId })
     ]);
     setCategories(nextCategories);
     setOffices(nextOffices);
@@ -197,8 +197,8 @@ export const ScanIntake = () => {
   const loadScanners = async () => {
     if (!sessionId) return;
     const [rows, settings] = await Promise.all([
-      cmd<ScannerDevice[]>('list_scanners', { sessionId }),
-      cmd<DeviceSettings>('get_device_settings', { sessionId })
+      invoke<ScannerDevice[]>('list_scanners', { sessionId }),
+      invoke<DeviceSettings>('get_device_settings', { sessionId })
     ]);
     setScanners(rows);
     const preferred = settings.default_scanner_id && rows.some((scanner) => scanner.device_id === settings.default_scanner_id)
@@ -216,7 +216,7 @@ export const ScanIntake = () => {
 
   const loadIntake = async () => {
     if (!sessionId) return [];
-    const rows = await cmd<ScanIntakeItem[]>('list_scan_intake', { sessionId });
+    const rows = await invoke<ScanIntakeItem[]>('list_scan_intake', { sessionId });
     setItems(rows);
     setSelectedIds((current) => current.filter((id) => rows.some((row) => row.scan_intake_id === id)));
     return rows;
@@ -233,7 +233,7 @@ export const ScanIntake = () => {
       setScannerCapabilities(null);
       return;
     }
-    void cmd<ScannerCapabilities>('get_scanner_capabilities', { sessionId, scannerId: selectedScannerId })
+    void invoke<ScannerCapabilities>('get_scanner_capabilities', { sessionId, scannerId: selectedScannerId })
       .then((capabilities) => {
         setScannerCapabilities(capabilities);
         setScanOptions((current) => ({
@@ -255,7 +255,7 @@ export const ScanIntake = () => {
       setFolders([]);
       return;
     }
-    void cmd<FolderItem[]>('list_public_folders', { categoryId })
+    void invoke<FolderItem[]>('list_public_folders', { categoryId })
       .then(setFolders)
       .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
   }, [form.categoryId]);
@@ -264,7 +264,7 @@ export const ScanIntake = () => {
     if (!sessionId) return;
     setPreviewLoading(true);
     try {
-      const next = await cmd<ScanIntakePreviewPage>('get_scan_intake_preview_page', { sessionId, scanIntakeId, pageNumber: nextPage });
+      const next = await invoke<ScanIntakePreviewPage>('get_scan_intake_preview_page', { sessionId, scanIntakeId, pageNumber: nextPage });
       setPreview(next);
       setPreviewPage(next.page_number);
     } catch (err) {
@@ -305,7 +305,7 @@ export const ScanIntake = () => {
     setBusy(true);
     setMessage('');
     try {
-      const importedIds = await cmd<number[]>('import_scan_files', { sessionId, sourcePaths: selectedPaths });
+      const importedIds = await invoke<number[]>('import_scan_files', { sessionId, sourcePaths: selectedPaths });
       setSelectedPaths([]);
       setMessage('Scan file(s) imported.');
       await loadIntake();
@@ -348,7 +348,7 @@ export const ScanIntake = () => {
     setScanBusy(true);
     setMessage('Scanner capture started...');
     try {
-      const item = await cmd<ScanIntakeItem>('scan_to_intake', {
+      const item = await invoke<ScanIntakeItem>('scan_to_intake', {
         sessionId,
         scannerId: selectedScannerId,
         options: scanOptions
@@ -369,7 +369,7 @@ export const ScanIntake = () => {
 
   const saveNotes = async () => {
     if (!sessionId || selectedItems.length !== 1) return;
-    await cmd<void>('update_scan_intake_notes', {
+    await invoke<void>('update_scan_intake_notes', {
       sessionId,
       scanIntakeId: selectedItems[0].scan_intake_id,
       notes: notesDraft || null
@@ -384,7 +384,7 @@ export const ScanIntake = () => {
     setMessage('');
     try {
       for (const scanIntakeId of selectedIds) {
-        await cmd<void>('remove_scan_intake', { sessionId, scanIntakeId });
+        await invoke<void>('remove_scan_intake', { sessionId, scanIntakeId });
       }
       setSelectedIds([]);
       setMessage('Pending scan removed from active intake.');
@@ -402,7 +402,7 @@ export const ScanIntake = () => {
     setBusy(true);
     setMessage('');
     try {
-      const documentId = await cmd<number>('file_scan_as_document', {
+      const documentId = await invoke<number>('file_scan_as_document', {
         sessionId,
         scanIntakeIds: selectedIds,
         documentName: form.documentName,
@@ -428,7 +428,7 @@ export const ScanIntake = () => {
     setBusy(true);
     setMessage('');
     try {
-      await cmd<number[]>('attach_scan_to_document', {
+      await invoke<number[]>('attach_scan_to_document', {
         sessionId,
         scanIntakeIds: selectedIds,
         documentId: Number(existingDocumentId)

@@ -13,6 +13,14 @@ interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
 }
 
+export interface ConfirmAction {
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  requiredText?: string;
+  onConfirm: () => Promise<void>;
+}
+
 export const ConfirmDialog = ({
   title,
   body,
