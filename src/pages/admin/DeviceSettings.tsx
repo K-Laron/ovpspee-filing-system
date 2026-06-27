@@ -13,7 +13,7 @@ const defaultSettings: DeviceSettings = {
   scan_default_dpi: 300,
   scan_default_color_mode: 'color',
   scan_default_output_format: 'png',
-  device_detection_last_checked_at: null
+  device_detection_last_checked_at: null,
 };
 
 export const DeviceSettingsPage = () => {
@@ -36,7 +36,7 @@ export const DeviceSettingsPage = () => {
         invoke<DeviceSettings>('get_device_settings', { sessionId }),
         invoke<ScannerDevice[]>('list_scanners', { sessionId }),
         invoke<PrinterDevice[]>('list_printers', { sessionId }),
-        invoke<PrinterDevice | null>('get_default_printer', { sessionId })
+        invoke<PrinterDevice | null>('get_default_printer', { sessionId }),
       ]);
       setSettings(nextSettings);
       setScanners(nextScanners);
@@ -64,7 +64,7 @@ export const DeviceSettingsPage = () => {
         defaultPrinterId: settings.default_printer_id,
         scanDefaultDpi: settings.scan_default_dpi,
         scanDefaultColorMode: settings.scan_default_color_mode,
-        scanDefaultOutputFormat: settings.scan_default_output_format
+        scanDefaultOutputFormat: settings.scan_default_output_format,
       });
       setSettings(updated);
       setMessage('Device defaults saved.');
@@ -86,11 +86,18 @@ export const DeviceSettingsPage = () => {
         </div>
         <div className="flex gap-2">
           <button className="btn" disabled={loading} onClick={() => void load()} type="button">
-            <RefreshCw size={16} />{loading ? 'Refreshing...' : 'Refresh Devices'}
+            <RefreshCw size={16} />
+            {loading ? 'Refreshing...' : 'Refresh Devices'}
           </button>
           {!readOnly && (
-            <button className="btn btn-primary" disabled={saving} onClick={() => void saveSettings()} type="button">
-              <Save size={16} />{saving ? 'Saving...' : 'Save Defaults'}
+            <button
+              className="btn btn-primary"
+              disabled={saving}
+              onClick={() => void saveSettings()}
+              type="button"
+            >
+              <Save size={16} />
+              {saving ? 'Saving...' : 'Save Defaults'}
             </button>
           )}
         </div>
@@ -101,7 +108,11 @@ export const DeviceSettingsPage = () => {
           Device defaults are read-only for Secretary accounts.
         </div>
       )}
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-2">
         <div className="rounded border border-border bg-surface p-5 shadow-sm">
@@ -119,22 +130,34 @@ export const DeviceSettingsPage = () => {
           ) : (
             <div className="space-y-3">
               {scanners.map((scanner) => (
-                <label className="flex cursor-pointer items-start gap-3 rounded border border-border p-3 text-sm" key={scanner.device_id}>
+                <label
+                  className="flex cursor-pointer items-start gap-3 rounded border border-border p-3 text-sm"
+                  key={scanner.device_id}
+                >
                   <input
                     checked={settings.default_scanner_id === scanner.device_id}
                     className="mt-1"
                     disabled={readOnly}
                     name="default-scanner"
-                    onChange={() => setSettings((current) => ({ ...current, default_scanner_id: scanner.device_id }))}
+                    onChange={() =>
+                      setSettings((current) => ({
+                        ...current,
+                        default_scanner_id: scanner.device_id,
+                      }))
+                    }
                     type="radio"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold text-secondary">{scanner.name}</span>
                     <span className="block text-xs text-muted">
-                      {scanner.manufacturer ?? 'Unknown maker'} · {scanner.connection_type ?? 'Unknown connection'}
+                      {scanner.manufacturer ?? 'Unknown maker'} ·{' '}
+                      {scanner.connection_type ?? 'Unknown connection'}
                     </span>
                   </span>
-                  <StatusBadge ok={scanner.is_available} text={scanner.status ?? (scanner.is_available ? 'Available' : 'Unavailable')} />
+                  <StatusBadge
+                    ok={scanner.is_available}
+                    text={scanner.status ?? (scanner.is_available ? 'Available' : 'Unavailable')}
+                  />
                 </label>
               ))}
             </div>
@@ -147,7 +170,12 @@ export const DeviceSettingsPage = () => {
                 className="input"
                 disabled={readOnly}
                 value={settings.scan_default_dpi}
-                onChange={(event) => setSettings((current) => ({ ...current, scan_default_dpi: Number(event.target.value) }))}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    scan_default_dpi: Number(event.target.value),
+                  }))
+                }
               >
                 <option value={200}>200</option>
                 <option value={300}>300</option>
@@ -160,7 +188,13 @@ export const DeviceSettingsPage = () => {
                 className="input"
                 disabled={readOnly}
                 value={settings.scan_default_color_mode}
-                onChange={(event) => setSettings((current) => ({ ...current, scan_default_color_mode: event.target.value as DeviceSettings['scan_default_color_mode'] }))}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    scan_default_color_mode: event.target
+                      .value as DeviceSettings['scan_default_color_mode'],
+                  }))
+                }
               >
                 <option value="color">Color</option>
                 <option value="grayscale">Grayscale</option>
@@ -173,12 +207,20 @@ export const DeviceSettingsPage = () => {
                 className="input"
                 disabled={readOnly}
                 value={settings.scan_default_output_format}
-                onChange={(event) => setSettings((current) => ({ ...current, scan_default_output_format: event.target.value as DeviceSettings['scan_default_output_format'] }))}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    scan_default_output_format: event.target
+                      .value as DeviceSettings['scan_default_output_format'],
+                  }))
+                }
               >
                 <option value="png">PNG</option>
                 <option value="jpg">JPG</option>
               </select>
-              <p className="mt-1 text-xs text-muted">PDF files can be imported in Scan Intake. Direct scanner capture saves image files.</p>
+              <p className="mt-1 text-xs text-muted">
+                PDF files can be imported in Scan Intake. Direct scanner capture saves image files.
+              </p>
             </label>
           </div>
         </div>
@@ -198,19 +240,28 @@ export const DeviceSettingsPage = () => {
           ) : (
             <div className="space-y-3">
               {printers.map((printer) => (
-                <label className="flex cursor-pointer items-start gap-3 rounded border border-border p-3 text-sm" key={printer.printer_id}>
+                <label
+                  className="flex cursor-pointer items-start gap-3 rounded border border-border p-3 text-sm"
+                  key={printer.printer_id}
+                >
                   <input
                     checked={settings.default_printer_id === printer.printer_id}
                     className="mt-1"
                     disabled={readOnly}
                     name="default-printer"
-                    onChange={() => setSettings((current) => ({ ...current, default_printer_id: printer.printer_id }))}
+                    onChange={() =>
+                      setSettings((current) => ({
+                        ...current,
+                        default_printer_id: printer.printer_id,
+                      }))
+                    }
                     type="radio"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold text-secondary">{printer.name}</span>
                     <span className="block text-xs text-muted">
-                      {printer.is_network ? 'Network printer' : 'Local printer'}{printer.is_default ? ' · Windows default' : ''}
+                      {printer.is_network ? 'Network printer' : 'Local printer'}
+                      {printer.is_default ? ' · Windows default' : ''}
                     </span>
                   </span>
                   <StatusBadge ok={printer.is_available} text={printer.status} />
@@ -225,7 +276,9 @@ export const DeviceSettingsPage = () => {
 };
 
 const StatusBadge = ({ ok, text }: { ok: boolean; text: string }) => (
-  <span className={`shrink-0 rounded px-2 py-1 text-xs font-semibold ${ok ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-muted'}`}>
+  <span
+    className={`shrink-0 rounded px-2 py-1 text-xs font-semibold ${ok ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-muted'}`}
+  >
     {text}
   </span>
 );

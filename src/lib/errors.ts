@@ -14,7 +14,7 @@ const technicalPatterns = [
   /\bstack\b/i,
   /\.rs:\d+/i,
   /\.tsx?:\d+/i,
-  /Error:.*failed at/i
+  /Error:.*failed at/i,
 ];
 
 const safePrefixes = [
@@ -31,7 +31,7 @@ const safePrefixes = [
   'Printer',
   'Required',
   'Invalid',
-  'Could not'
+  'Could not',
 ];
 
 const safeBackendPrefixPattern = /^ERR_(?:VALIDATION|DUPLICATE):\s*/;

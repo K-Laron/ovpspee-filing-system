@@ -3,7 +3,7 @@ use std::{future::Future, path::Path};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    auth::{require_admin_role, require_session, write_audit_log},
+    auth::{require_admin_role, require_role, require_session, write_audit_log},
     db::{self, DbPool},
     documents::{mime_for_extension, validate_magic, StorageRoot, MAX_ATTACHMENT_BYTES},
     util::now_text,
@@ -136,8 +136,7 @@ pub async fn get_default_printer(
 }
 
 pub async fn get_device_settings(pool: &DbPool, session_id: &str) -> AppResult<DeviceSettings> {
-    let session = require_session(pool, session_id).await?;
-    require_device_reader(&session.role)?;
+    require_role(pool, session_id, &["Secretary", "Admin"]).await?;
     read_settings(pool).await
 }
 
@@ -181,8 +180,7 @@ pub async fn list_scanners_with_provider(
     session_id: &str,
     provider: &impl DeviceProvider,
 ) -> AppResult<Vec<ScannerDevice>> {
-    let session = require_session(pool, session_id).await?;
-    require_device_reader(&session.role)?;
+    require_role(pool, session_id, &["Secretary", "Admin"]).await?;
     let devices = provider.list_scanners().await?;
     db::upsert_setting(pool, "device_detection_last_checked_at", &now_text())
         .await?;
@@ -194,8 +192,7 @@ pub async fn list_printers_with_provider(
     session_id: &str,
     provider: &impl DeviceProvider,
 ) -> AppResult<Vec<PrinterDevice>> {
-    let session = require_session(pool, session_id).await?;
-    require_device_reader(&session.role)?;
+    require_role(pool, session_id, &["Secretary", "Admin"]).await?;
     let devices = provider.list_printers().await?;
     db::upsert_setting(pool, "device_detection_last_checked_at", &now_text())
         .await?;
@@ -258,8 +255,7 @@ pub async fn get_scanner_capabilities_with_provider(
     scanner_id: &str,
     provider: &impl DeviceProvider,
 ) -> AppResult<ScannerCapabilities> {
-    let session = require_session(pool, session_id).await?;
-    require_device_reader(&session.role)?;
+    require_role(pool, session_id, &["Secretary", "Admin"]).await?;
     validate_device_id(scanner_id)?;
     let scanners = sanitize_scanners(provider.list_scanners().await?);
     let scanner = scanners
@@ -360,14 +356,6 @@ pub async fn scan_to_intake_with_provider(
         "Captured scan into intake",
     )
     .await
-}
-
-fn require_device_reader(role: &str) -> AppResult<()> {
-    if role == "Admin" || role == "Secretary" {
-        Ok(())
-    } else {
-        Err(AppError::Unauthorized)
-    }
 }
 
 fn validate_settings(input: DeviceSettingsInput) -> AppResult<DeviceSettingsInput> {

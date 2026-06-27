@@ -195,7 +195,7 @@ async fn list_documents_for_secretary_includes_normal_documents() {
         .await
         .expect("documents");
 
-    assert!(rows.iter().any(|row| row.document_name == "Visible Doc"));
+    assert!(rows.documents.iter().any(|row| row.document_name == "Visible Doc"));
 }
 
 #[tokio::test]
@@ -222,9 +222,9 @@ async fn viewer_list_excludes_hidden_and_trashed_documents() {
         .await
         .expect("public documents");
 
-    assert!(rows.iter().any(|row| row.document_id == visible));
-    assert!(!rows.iter().any(|row| row.document_id == hidden));
-    assert!(!rows.iter().any(|row| row.document_id == trashed));
+    assert!(rows.documents.iter().any(|row| row.document_id == visible));
+    assert!(!rows.documents.iter().any(|row| row.document_id == hidden));
+    assert!(!rows.documents.iter().any(|row| row.document_id == trashed));
 }
 
 #[tokio::test]

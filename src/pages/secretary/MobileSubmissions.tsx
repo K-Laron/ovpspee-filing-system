@@ -1,5 +1,19 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, FileText, Paperclip, QrCode, RefreshCw, Search, Smartphone, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Eye,
+  FileText,
+  Paperclip,
+  QrCode,
+  RefreshCw,
+  Search,
+  Smartphone,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
@@ -16,7 +30,7 @@ import type {
   MobileSubmissionAttachmentItem,
   MobileSubmissionAttachmentPreviewPage,
   MobileSubmissionDetail,
-  MobileSubmissionItem
+  MobileSubmissionItem,
 } from '../../types';
 
 type FilterStatus = MobileReviewStatus | '';
@@ -25,7 +39,7 @@ const reviewStatuses: FilterStatus[] = ['', 'Pending', 'Approved', 'Rejected', '
 const rejectionTemplates = [
   'Metadata does not match the attached document.',
   'Wrong category or folder selected.',
-  'Attachment is unreadable. Please recapture and resend.'
+  'Attachment is unreadable. Please recapture and resend.',
 ];
 
 const statusClass = (status: MobileReviewStatus) => {
@@ -35,10 +49,9 @@ const statusClass = (status: MobileReviewStatus) => {
   return 'bg-amber-50 text-amber-800 border-amber-200';
 };
 
-
 const detailFromItem = (submission: MobileSubmissionItem): MobileSubmissionDetail => ({
   submission,
-  attachments: []
+  attachments: [],
 });
 
 export const MobileSubmissions = () => {
@@ -67,7 +80,7 @@ export const MobileSubmissions = () => {
   const selectedId = selected?.mobile_submission_id ?? null;
   const pendingCount = useMemo(
     () => submissions.filter((submission) => submission.review_status === 'Pending').length,
-    [submissions]
+    [submissions],
   );
 
   const openDetail = async (submission: MobileSubmissionItem) => {
@@ -80,14 +93,19 @@ export const MobileSubmissions = () => {
     try {
       const nextDetail = await invoke<MobileSubmissionDetail>('get_mobile_submission', {
         sessionId,
-        mobileSubmissionId: submission.mobile_submission_id
+        mobileSubmissionId: submission.mobile_submission_id,
       });
       if (nextDetail) {
         setDetail(nextDetail);
         setReviewNotes(nextDetail.submission.review_notes ?? '');
       }
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not load mobile submission attachments. Metadata is still available.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not load mobile submission attachments. Metadata is still available.',
+        ),
+      );
     }
   };
 
@@ -98,7 +116,7 @@ export const MobileSubmissions = () => {
       reviewStatus: filter || null,
       search: search.trim() || null,
       dateFrom: dateFrom || null,
-      dateTo: dateTo || null
+      dateTo: dateTo || null,
     });
     setSubmissions(rows);
     if (rows.length === 0) {
@@ -111,13 +129,27 @@ export const MobileSubmissions = () => {
   };
 
   useEffect(() => {
-    void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')));
+    void loadSubmissions().catch((err) =>
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not load mobile submissions. Please refresh and try again.',
+        ),
+      ),
+    );
   }, [sessionId, filter]);
 
   // ponytail: debounced auto-search on filter changes
   useEffect(() => {
     const timer = setTimeout(() => {
-      void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')));
+      void loadSubmissions().catch((err) =>
+        setMessage(
+          getUserErrorMessage(
+            err,
+            'Could not load mobile submissions. Please refresh and try again.',
+          ),
+        ),
+      );
     }, 300);
     return () => clearTimeout(timer);
   }, [search, dateFrom, dateTo]);
@@ -125,7 +157,10 @@ export const MobileSubmissions = () => {
   // ponytail: / key focuses search input
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+      if (
+        e.key === '/' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -148,12 +183,17 @@ export const MobileSubmissions = () => {
       const documentId = await invoke<number>('approve_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
-        reviewNotes: reviewNotes.trim() || null
+        reviewNotes: reviewNotes.trim() || null,
       });
       setMessage(`Mobile submission approved as document #${documentId}.`);
       await loadSubmissions();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not approve the mobile submission. Please review metadata and try again.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not approve the mobile submission. Please review metadata and try again.',
+        ),
+      );
     } finally {
       setBusy(false);
       clearConfirmAction();
@@ -169,14 +209,19 @@ export const MobileSubmissions = () => {
       await invoke<void>('reject_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
-        rejectionReason: rejectReason.trim()
+        rejectionReason: rejectReason.trim(),
       });
       setMessage('Mobile submission rejected.');
       setRejecting(false);
       setRejectReason('');
       await loadSubmissions();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not reject the mobile submission. Please enter a reason and try again.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not reject the mobile submission. Please enter a reason and try again.',
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -186,9 +231,14 @@ export const MobileSubmissions = () => {
     if (!detail) return;
     setConfirmAction({
       title: 'Approve mobile submission?',
-      body: <>Create an official document from <strong>{detail.submission.document_name}</strong> with its submitted metadata and attachments.</>,
+      body: (
+        <>
+          Create an official document from <strong>{detail.submission.document_name}</strong> with
+          its submitted metadata and attachments.
+        </>
+      ),
       confirmLabel: 'Approve Submission',
-      onConfirm: approveSelected
+      onConfirm: approveSelected,
     });
   };
 
@@ -197,11 +247,16 @@ export const MobileSubmissions = () => {
     setSelectedAttachmentId(attachment.mobile_submission_attachment_id);
     setPreviewLoading(true);
     try {
-      setPreview(await invoke<MobileSubmissionAttachmentPreviewPage>('get_mobile_submission_attachment_preview_page', {
-        sessionId,
-        mobileSubmissionAttachmentId: attachment.mobile_submission_attachment_id,
-        pageNumber
-      }));
+      setPreview(
+        await invoke<MobileSubmissionAttachmentPreviewPage>(
+          'get_mobile_submission_attachment_preview_page',
+          {
+            sessionId,
+            mobileSubmissionAttachmentId: attachment.mobile_submission_attachment_id,
+            pageNumber,
+          },
+        ),
+      );
     } catch (err) {
       setPreview(null);
       setMessage(getUserErrorMessage(err, 'Could not preview this mobile attachment.'));
@@ -245,12 +300,17 @@ export const MobileSubmissions = () => {
 
       {rejecting && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-secondary/40 p-6">
-          <form className="w-full max-w-lg rounded border border-border bg-surface p-5 shadow-xl" onSubmit={submitReject}>
+          <form
+            className="w-full max-w-lg rounded border border-border bg-surface p-5 shadow-xl"
+            onSubmit={submitReject}
+          >
             <div className="mb-4 flex items-start gap-3">
               <XCircle className="mt-0.5 shrink-0 text-primary" size={22} />
               <div>
                 <h2 className="font-semibold text-secondary">Reject mobile submission</h2>
-                <p className="mt-1 text-sm text-muted">Return {selected.document_name} to the Android submitter with a clear reason.</p>
+                <p className="mt-1 text-sm text-muted">
+                  Return {selected.document_name} to the Android submitter with a clear reason.
+                </p>
               </div>
             </div>
             <label>
@@ -276,8 +336,19 @@ export const MobileSubmissions = () => {
               ))}
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button className="btn" disabled={busy} onClick={() => setRejecting(false)} type="button">Cancel</button>
-              <button className="btn btn-primary" disabled={busy || !rejectReason.trim()} type="submit">
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => setRejecting(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !rejectReason.trim()}
+                type="submit"
+              >
                 {busy ? 'Rejecting...' : 'Reject Submission'}
               </button>
             </div>
@@ -288,10 +359,26 @@ export const MobileSubmissions = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Mobile Submissions</h1>
-          <p className="mt-1 text-sm text-muted">Review Android-captured files before they become official document records.</p>
+          <p className="mt-1 text-sm text-muted">
+            Review Android-captured files before they become official document records.
+          </p>
         </div>
-        <button className="btn" onClick={() => void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')))} type="button">
-          <RefreshCw size={16} />Refresh
+        <button
+          className="btn"
+          onClick={() =>
+            void loadSubmissions().catch((err) =>
+              setMessage(
+                getUserErrorMessage(
+                  err,
+                  'Could not load mobile submissions. Please refresh and try again.',
+                ),
+              ),
+            )
+          }
+          type="button"
+        >
+          <RefreshCw size={16} />
+          Refresh
         </button>
       </div>
 
@@ -303,13 +390,21 @@ export const MobileSubmissions = () => {
           <div>
             <h2 className="font-semibold text-secondary">Android Setup</h2>
             <p className="text-sm text-muted">
-              {setup ? `${setup.local_ip} · ${setup.enabled ? 'Mobile API enabled' : 'Enable OVPSPEE_MOBILE_API_ENABLED=1'}` : 'Setup details unavailable'}
+              {setup
+                ? `${setup.local_ip} · ${setup.enabled ? 'Mobile API enabled' : 'Enable OVPSPEE_MOBILE_API_ENABLED=1'}`
+                : 'Setup details unavailable'}
             </p>
           </div>
         </div>
         <div className="min-w-0 rounded border border-border bg-background p-3 text-xs text-muted">
-          <p className="truncate font-mono text-secondary">{setup?.setup_url ?? 'ovpspee://setup unavailable'}</p>
-          <p className="mt-1">{setup?.device_token_required ? 'Device token required.' : 'Device token optional for this hub.'}</p>
+          <p className="truncate font-mono text-secondary">
+            {setup?.setup_url ?? 'ovpspee://setup unavailable'}
+          </p>
+          <p className="mt-1">
+            {setup?.device_token_required
+              ? 'Device token required.'
+              : 'Device token optional for this hub.'}
+          </p>
         </div>
         <button
           className="btn self-center"
@@ -328,15 +423,25 @@ export const MobileSubmissions = () => {
             <Smartphone size={19} />
           </span>
           <div>
-            <p className="text-sm font-semibold text-secondary">{pendingCount} pending in current view</p>
-            <p className="text-xs text-muted">Approve clean uploads or reject with instructions for correction.</p>
+            <p className="text-sm font-semibold text-secondary">
+              {pendingCount} pending in current view
+            </p>
+            <p className="text-xs text-muted">
+              Approve clean uploads or reject with instructions for correction.
+            </p>
           </div>
         </div>
         <label>
           <span className="form-label">Review status</span>
-          <select className="input" value={filter} onChange={(event) => setFilter(event.target.value as FilterStatus)}>
+          <select
+            className="input"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as FilterStatus)}
+          >
             {reviewStatuses.map((status) => (
-              <option key={status || 'All'} value={status}>{status || 'All'}</option>
+              <option key={status || 'All'} value={status}>
+                {status || 'All'}
+              </option>
             ))}
           </select>
         </label>
@@ -374,12 +479,29 @@ export const MobileSubmissions = () => {
             value={dateTo}
           />
         </label>
-        <button className="btn btn-primary self-end" onClick={() => void loadSubmissions().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load mobile submissions. Please refresh and try again.')))} type="button">
+        <button
+          className="btn btn-primary self-end"
+          onClick={() =>
+            void loadSubmissions().catch((err) =>
+              setMessage(
+                getUserErrorMessage(
+                  err,
+                  'Could not load mobile submissions. Please refresh and try again.',
+                ),
+              ),
+            )
+          }
+          type="button"
+        >
           Apply
         </button>
       </div>
 
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
         <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
@@ -405,17 +527,24 @@ export const MobileSubmissions = () => {
                 >
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
-                      <span className="block truncate font-semibold text-secondary">{submission.document_name}</span>
+                      <span className="block truncate font-semibold text-secondary">
+                        {submission.document_name}
+                      </span>
                       <span className="mt-1 block text-xs text-muted">
-                        {submission.submitter_name} · {formatDateOnly(submission.date_received)} · {submission.attachment_count} file(s)
+                        {submission.submitter_name} · {formatDateOnly(submission.date_received)} ·{' '}
+                        {submission.attachment_count} file(s)
                       </span>
                     </span>
-                    <span className={`shrink-0 rounded border px-2 py-0.5 text-[11px] font-semibold ${statusClass(submission.review_status)}`}>
+                    <span
+                      className={`shrink-0 rounded border px-2 py-0.5 text-[11px] font-semibold ${statusClass(submission.review_status)}`}
+                    >
                       {submission.review_status}
                     </span>
                   </span>
                   <span className="mt-2 block truncate text-xs text-muted">
-                    {submission.category_name}{submission.folder_name ? ` / ${submission.folder_name}` : ''}{submission.office_name ? ` · ${submission.office_name}` : ''}
+                    {submission.category_name}
+                    {submission.folder_name ? ` / ${submission.folder_name}` : ''}
+                    {submission.office_name ? ` · ${submission.office_name}` : ''}
                   </span>
                 </button>
               ))}
@@ -435,7 +564,11 @@ export const MobileSubmissions = () => {
                 <div className="min-w-0">
                   <div className="mb-2 flex items-center gap-2">
                     <FileText size={18} className="text-primary" />
-                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${statusClass(selected.review_status)}`}>{selected.review_status}</span>
+                    <span
+                      className={`rounded border px-2 py-0.5 text-xs font-semibold ${statusClass(selected.review_status)}`}
+                    >
+                      {selected.review_status}
+                    </span>
                   </div>
                   <h2 className="text-xl font-bold text-secondary">{selected.document_name}</h2>
                   <p className="mt-1 text-sm text-muted">
@@ -443,26 +576,59 @@ export const MobileSubmissions = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button className="btn btn-primary" disabled={busy || selected.review_status !== 'Pending'} onClick={confirmApprove} type="button">
-                    <CheckCircle2 size={16} />Approve
+                  <button
+                    className="btn btn-primary"
+                    disabled={busy || selected.review_status !== 'Pending'}
+                    onClick={confirmApprove}
+                    type="button"
+                  >
+                    <CheckCircle2 size={16} />
+                    Approve
                   </button>
-                  <button className="btn" disabled={busy || selected.review_status !== 'Pending'} onClick={() => setRejecting(true)} type="button">
-                    <XCircle size={16} />Reject
+                  <button
+                    className="btn"
+                    disabled={busy || selected.review_status !== 'Pending'}
+                    onClick={() => setRejecting(true)}
+                    type="button"
+                  >
+                    <XCircle size={16} />
+                    Reject
                   </button>
                 </div>
               </div>
 
               <dl className="grid gap-3 md:grid-cols-2">
                 <MetadataItem label="Submitted by" value={selected.submitter_name} />
-                <MetadataItem label="Device" value={selected.submitted_device_name ?? selected.submitted_device_id ?? 'Not reported'} />
+                <MetadataItem
+                  label="Device"
+                  value={
+                    selected.submitted_device_name ?? selected.submitted_device_id ?? 'Not reported'
+                  }
+                />
                 <MetadataItem label="Category" value={selected.category_name} />
                 <MetadataItem label="Folder" value={selected.folder_name ?? 'Category root'} />
-                <MetadataItem label="Sender office" value={selected.office_name ?? 'Not specified'} />
-                <MetadataItem label="Date received" value={formatDateOnly(selected.date_received)} />
+                <MetadataItem
+                  label="Sender office"
+                  value={selected.office_name ?? 'Not specified'}
+                />
+                <MetadataItem
+                  label="Date received"
+                  value={formatDateOnly(selected.date_received)}
+                />
                 <MetadataItem label="Document status" value={selected.status} />
-                <MetadataItem label="Attachment count" value={`${selected.attachment_count} file(s)`} />
-                <MetadataItem label="Client submission" value={selected.client_submission_id ?? 'Not reported'} />
-                <MetadataItem className="md:col-span-2" label="Remarks" value={selected.remarks ?? 'None'} />
+                <MetadataItem
+                  label="Attachment count"
+                  value={`${selected.attachment_count} file(s)`}
+                />
+                <MetadataItem
+                  label="Client submission"
+                  value={selected.client_submission_id ?? 'Not reported'}
+                />
+                <MetadataItem
+                  className="md:col-span-2"
+                  label="Remarks"
+                  value={selected.remarks ?? 'None'}
+                />
               </dl>
 
               {selected.review_status === 'Rejected' && selected.rejection_reason && (
@@ -503,7 +669,9 @@ export const MobileSubmissions = () => {
                 <MobileAttachmentPreview
                   loading={previewLoading}
                   onPageChange={(pageNumber) => {
-                    const attachment = attachments.find((item) => item.mobile_submission_attachment_id === selectedAttachmentId);
+                    const attachment = attachments.find(
+                      (item) => item.mobile_submission_attachment_id === selectedAttachmentId,
+                    );
                     if (attachment) void loadPreview(attachment, pageNumber);
                   }}
                   preview={preview}
@@ -511,9 +679,20 @@ export const MobileSubmissions = () => {
               </div>
 
               <div className="rounded border border-border bg-background p-3 text-xs text-muted">
-                <div className="flex items-center gap-2 font-semibold text-secondary"><Clock3 size={15} />Audit trail</div>
-                <p className="mt-1">Created {formatDateTime(selected.created_at)} · Updated {formatDateTime(selected.updated_at)}</p>
-                {selected.reviewed_at && <p>Reviewed {formatDateTime(selected.reviewed_at)}{selected.reviewer_name ? ` by ${selected.reviewer_name}` : ''}</p>}
+                <div className="flex items-center gap-2 font-semibold text-secondary">
+                  <Clock3 size={15} />
+                  Audit trail
+                </div>
+                <p className="mt-1">
+                  Created {formatDateTime(selected.created_at)} · Updated{' '}
+                  {formatDateTime(selected.updated_at)}
+                </p>
+                {selected.reviewed_at && (
+                  <p>
+                    Reviewed {formatDateTime(selected.reviewed_at)}
+                    {selected.reviewer_name ? ` by ${selected.reviewer_name}` : ''}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -523,7 +702,15 @@ export const MobileSubmissions = () => {
   );
 };
 
-const MetadataItem = ({ className = '', label, value }: { className?: string; label: string; value: string }) => (
+const MetadataItem = ({
+  className = '',
+  label,
+  value,
+}: {
+  className?: string;
+  label: string;
+  value: string;
+}) => (
   <div className={`rounded border border-border bg-background p-3 ${className}`}>
     <dt className="text-xs font-semibold uppercase text-muted">{label}</dt>
     <dd className="mt-1 break-words text-sm font-medium text-secondary">{value}</dd>
@@ -534,7 +721,7 @@ const AttachmentList = ({
   attachments,
   expectedCount,
   onPreview,
-  selectedAttachmentId
+  selectedAttachmentId,
 }: {
   attachments: MobileSubmissionAttachmentItem[];
   expectedCount: number;
@@ -544,7 +731,11 @@ const AttachmentList = ({
   if (attachments.length === 0) {
     return (
       <EmptyState
-        message={expectedCount > 0 ? `${expectedCount} file(s) submitted. Attachment names will appear when backend detail is available.` : 'No attachments are listed for this submission.'}
+        message={
+          expectedCount > 0
+            ? `${expectedCount} file(s) submitted. Attachment names will appear when backend detail is available.`
+            : 'No attachments are listed for this submission.'
+        }
         title={expectedCount > 0 ? 'Attachment metadata pending' : 'No attachments'}
       />
     );
@@ -553,15 +744,23 @@ const AttachmentList = ({
   return (
     <div className="space-y-2">
       {attachments.map((attachment) => (
-        <div className={`flex items-center justify-between gap-3 rounded border p-3 text-sm ${selectedAttachmentId === attachment.mobile_submission_attachment_id ? 'border-primary bg-primary/5' : 'border-border'}`} key={attachment.mobile_submission_attachment_id}>
+        <div
+          className={`flex items-center justify-between gap-3 rounded border p-3 text-sm ${selectedAttachmentId === attachment.mobile_submission_attachment_id ? 'border-primary bg-primary/5' : 'border-border'}`}
+          key={attachment.mobile_submission_attachment_id}
+        >
           <div className="min-w-0">
             <p className="truncate font-medium text-secondary">{attachment.original_file_name}</p>
-            <p className="truncate text-xs text-muted">{attachment.mime_type} · {sizeLabel(attachment.file_size_bytes)}</p>
+            <p className="truncate text-xs text-muted">
+              {attachment.mime_type} · {sizeLabel(attachment.file_size_bytes)}
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">#{attachment.sort_order}</span>
+            <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">
+              #{attachment.sort_order}
+            </span>
             <button className="btn" onClick={() => onPreview(attachment)} type="button">
-              <Eye size={15} />Preview
+              <Eye size={15} />
+              Preview
             </button>
           </div>
         </div>
@@ -573,17 +772,25 @@ const AttachmentList = ({
 const MobileAttachmentPreview = ({
   loading,
   onPageChange,
-  preview
+  preview,
 }: {
   loading: boolean;
   onPageChange: (pageNumber: number) => void;
   preview: MobileSubmissionAttachmentPreviewPage | null;
 }) => {
   if (loading) {
-    return <div className="mt-3 rounded border border-border bg-background p-4 text-sm text-muted">Loading preview...</div>;
+    return (
+      <div className="mt-3 rounded border border-border bg-background p-4 text-sm text-muted">
+        Loading preview...
+      </div>
+    );
   }
   if (!preview) {
-    return <div className="mt-3 rounded border border-border bg-background p-4 text-sm text-muted">Select Preview on an attachment.</div>;
+    return (
+      <div className="mt-3 rounded border border-border bg-background p-4 text-sm text-muted">
+        Select Preview on an attachment.
+      </div>
+    );
   }
 
   const info = preview.info;
@@ -596,15 +803,33 @@ const MobileAttachmentPreview = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-secondary">{info.original_file_name}</p>
-          <p className="text-xs text-muted">{info.preview_kind} · {info.extension} · {sizeLabel(info.file_size_bytes)}</p>
+          <p className="text-xs text-muted">
+            {info.preview_kind} · {info.extension} · {sizeLabel(info.file_size_bytes)}
+          </p>
         </div>
         {canPage ? (
           <div className="flex items-center gap-2">
-            <button aria-label="Previous mobile attachment preview page" className="icon-btn" disabled={preview.page_number <= 1} onClick={() => onPageChange(preview.page_number - 1)} title="Previous page" type="button">
+            <button
+              aria-label="Previous mobile attachment preview page"
+              className="icon-btn"
+              disabled={preview.page_number <= 1}
+              onClick={() => onPageChange(preview.page_number - 1)}
+              title="Previous page"
+              type="button"
+            >
               <ChevronLeft size={15} />
             </button>
-            <span className="text-xs font-semibold text-secondary">PAGE {preview.page_number} of {maxPage}</span>
-            <button aria-label="Next mobile attachment preview page" className="icon-btn" disabled={preview.page_number >= maxPage} onClick={() => onPageChange(preview.page_number + 1)} title="Next page" type="button">
+            <span className="text-xs font-semibold text-secondary">
+              PAGE {preview.page_number} of {maxPage}
+            </span>
+            <button
+              aria-label="Next mobile attachment preview page"
+              className="icon-btn"
+              disabled={preview.page_number >= maxPage}
+              onClick={() => onPageChange(preview.page_number + 1)}
+              title="Next page"
+              type="button"
+            >
               <ChevronRight size={15} />
             </button>
           </div>
@@ -613,23 +838,38 @@ const MobileAttachmentPreview = ({
 
       {!info.file_exists ? (
         <div className="rounded border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-          <div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />File unavailable</div>
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle size={16} />
+            File unavailable
+          </div>
           <p className="mt-1">{info.message}</p>
         </div>
       ) : null}
       {info.file_exists && info.preview_kind === 'Text' ? (
-        <pre className="max-h-[26rem] overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-white p-3 text-xs leading-relaxed text-secondary">{preview.text_content ?? info.message}</pre>
+        <pre className="max-h-[26rem] overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-white p-3 text-xs leading-relaxed text-secondary">
+          {preview.text_content ?? info.message}
+        </pre>
       ) : null}
       {info.file_exists && info.preview_kind === 'Image' && fileUrl ? (
         <div className="max-h-[32rem] overflow-auto rounded border border-border bg-white p-3">
-          <img alt={info.original_file_name} className="mx-auto max-h-[30rem] max-w-full object-contain" src={fileUrl} />
+          <img
+            alt={info.original_file_name}
+            className="mx-auto max-h-[30rem] max-w-full object-contain"
+            src={fileUrl}
+          />
         </div>
       ) : null}
       {info.file_exists && info.preview_kind === 'Pdf' && fileUrl ? (
-        <iframe className="h-[32rem] w-full rounded border border-border bg-white" src={`${fileUrl}#page=${preview.page_number}`} title={info.original_file_name} />
+        <iframe
+          className="h-[32rem] w-full rounded border border-border bg-white"
+          src={`${fileUrl}#page=${preview.page_number}`}
+          title={info.original_file_name}
+        />
       ) : null}
       {info.file_exists && info.preview_kind === 'Unsupported' ? (
-        <div className="rounded border border-border bg-surface p-4 text-sm text-secondary">{info.message}</div>
+        <div className="rounded border border-border bg-surface p-4 text-sm text-secondary">
+          {info.message}
+        </div>
       ) : null}
     </div>
   );

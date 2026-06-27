@@ -1,4 +1,13 @@
-import { Activity, FilePlus, Files, FileScan, LayoutDashboard, Printer, Smartphone, UserCircle } from 'lucide-react';
+import {
+  Activity,
+  FilePlus,
+  Files,
+  FileScan,
+  LayoutDashboard,
+  Printer,
+  Smartphone,
+  UserCircle,
+} from 'lucide-react';
 
 import { AppShell } from './AppShell';
 
@@ -14,21 +23,23 @@ export const SecretaryLayout = () => (
         label: 'Scan Intake',
         path: '/s/scan-intake',
         icon: FileScan,
-        description: 'Use Scan Intake for scanned/imported files that still need to be reviewed and filed.'
+        description:
+          'Use Scan Intake for scanned/imported files that still need to be reviewed and filed.',
       },
       {
         label: 'Mobile Submissions',
         path: '/s/mobile-submissions',
         icon: Smartphone,
-        description: 'Review Android submissions before approving them as official documents.'
+        description: 'Review Android submissions before approving them as official documents.',
       },
       {
         label: 'Add Document',
         path: '/s/documents/new',
         icon: FilePlus,
-        description: 'Use Add Document to create an official document record with metadata and attachments.'
+        description:
+          'Use Add Document to create an official document record with metadata and attachments.',
       },
-      { label: 'Activity', path: '/s/my-activity', icon: Activity }
+      { label: 'Activity', path: '/s/my-activity', icon: Activity },
     ]}
     profileItem={{ label: 'Profile', path: '/s/profile', icon: UserCircle }}
   />

@@ -5,14 +5,14 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{
-    auth::{require_session, write_audit_log},
+    auth::{require_role, write_audit_log},
     db::DbPool,
     documents::{
-        self, estimate_pdf_page_count, extension_from_name, mime_for_extension, preview_kind,
-        read_text_preview, require_len, trim_optional, validate_magic, validate_source_file,
-        AttachmentInput, DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,         MAX_TEXT_PREVIEW_BYTES,
+        self, mime_for_extension, require_len, trim_optional, validate_magic, validate_source_file,
+        AttachmentInput, DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,
     },
     error::{AppError, AppResult},
+    preview,
     util::{now_text, validate_date, validate_status},
 };
 
@@ -116,7 +116,7 @@ pub async fn create_mobile_submission(
     input: MobileSubmissionInput,
     uploads: Vec<MobileSubmissionAttachmentUpload>,
 ) -> AppResult<i64> {
-    let session = require_secretary(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let client_submission_id = trim_optional(input.client_submission_id.clone(), 120)?;
     let submitted_device_id = trim_optional(input.device_id.clone(), 120)?;
     let submitted_device_name = trim_optional(input.device_name.clone(), 120)?;
@@ -182,7 +182,7 @@ pub async fn list_mobile_submissions(
     date_from: Option<String>,
     date_to: Option<String>,
 ) -> AppResult<Vec<MobileSubmissionItem>> {
-    require_secretary(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     let status = review_status
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty());
@@ -197,7 +197,7 @@ pub async fn get_mobile_submission(
     session_id: &str,
     mobile_submission_id: i64,
 ) -> AppResult<MobileSubmissionDetail> {
-    require_secretary(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     let submission = fetch_submission(pool, mobile_submission_id).await?;
     let attachments = fetch_attachments(pool, mobile_submission_id).await?;
     Ok(MobileSubmissionDetail {
@@ -213,7 +213,7 @@ pub async fn get_mobile_submission_attachment_preview_page(
     mobile_submission_attachment_id: i64,
     page_number: Option<i64>,
 ) -> AppResult<MobileSubmissionAttachmentPreviewPage> {
-    require_secretary(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     let attachment = fetch_attachment(pool, mobile_submission_attachment_id).await?;
     let path = storage.resolve_checked(&attachment.stored_relative_path)?;
     let info = mobile_preview_info(&attachment, &path);
@@ -223,7 +223,7 @@ pub async fn get_mobile_submission_attachment_preview_page(
         return Err(AppError::Validation("Preview page is out of range.".into()));
     }
     let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
-        read_text_preview(&path, info.file_size_bytes)?
+        preview::read_text_preview(&path, info.file_size_bytes)?
     } else {
         (None, false)
     };
@@ -248,7 +248,7 @@ pub async fn approve_mobile_submission(
     mobile_submission_id: i64,
     review_notes: Option<String>,
 ) -> AppResult<i64> {
-    let session = require_secretary(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let detail = get_pending_submission(pool, mobile_submission_id).await?;
     let document_id = documents::create_document(
         pool,
@@ -319,7 +319,7 @@ pub async fn reject_mobile_submission(
     mobile_submission_id: i64,
     rejection_reason: String,
 ) -> AppResult<()> {
-    let session = require_secretary(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     get_pending_submission(pool, mobile_submission_id).await?;
     let reason = require_len(&rejection_reason, "Rejection reason", 1000)?;
     let now = now_text();
@@ -347,17 +347,7 @@ pub async fn reject_mobile_submission(
     Ok(())
 }
 
-async fn require_secretary(
-    pool: &DbPool,
-    session_id: &str,
-) -> AppResult<crate::auth::ValidSession> {
-    let session = require_session(pool, session_id).await?;
-    if session.role == "Secretary" {
-        Ok(session)
-    } else {
-        Err(AppError::Unauthorized)
-    }
-}
+
 
 async fn validate_mobile_input(
     pool: &DbPool,
@@ -374,7 +364,7 @@ async fn validate_mobile_input(
     };
     validate_status(&normalized.status)?;
     validate_date(&normalized.date_received)?;
-    validate_mobile_location(pool, normalized.category_id, normalized.folder_id).await?;
+    crate::documents::validate_document_location(pool, normalized.category_id, normalized.folder_id).await?;
     if let Some(office_id) = normalized.office_id {
         let office = sqlx::query("SELECT is_active FROM office WHERE office_id = ?")
             .bind(office_id)
@@ -436,39 +426,7 @@ async fn store_mobile_attachment(
     Ok(result.last_insert_rowid())
 }
 
-async fn validate_mobile_location(
-    pool: &DbPool,
-    category_id: i64,
-    folder_id: Option<i64>,
-) -> AppResult<()> {
-    let category = sqlx::query("SELECT is_active, is_system FROM category WHERE category_id = ?")
-        .bind(category_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Category not found.".into()))?;
-    let category_active: i64 = sqlx::Row::try_get(&category, "is_active")?;
-    let category_system: i64 = sqlx::Row::try_get(&category, "is_system")?;
-    if category_active != 1 || category_system == 1 {
-        return Err(AppError::Validation(
-            "Category cannot accept documents.".into(),
-        ));
-    }
-    if let Some(folder_id) = folder_id {
-        let folder = sqlx::query("SELECT category_id, is_active FROM folder WHERE folder_id = ?")
-            .bind(folder_id)
-            .fetch_optional(pool)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Folder not found.".into()))?;
-        let folder_category_id: i64 = sqlx::Row::try_get(&folder, "category_id")?;
-        let folder_active: i64 = sqlx::Row::try_get(&folder, "is_active")?;
-        if folder_category_id != category_id || folder_active != 1 {
-            return Err(AppError::Validation(
-                "Folder must belong to selected category.".into(),
-            ));
-        }
-    }
-    Ok(())
-}
+
 
 async fn get_pending_submission(
     pool: &DbPool,
@@ -677,10 +635,10 @@ fn mobile_preview_info(
     path: &Path,
 ) -> MobileSubmissionAttachmentPreviewInfo {
     let file_exists = path.is_file();
-    let preview_kind = preview_kind(&attachment.mime_type).to_owned();
+    let preview_kind = preview::preview_kind(&attachment.mime_type).to_owned();
     let supported = preview_kind != "Unsupported";
     let page_count = if file_exists && preview_kind == "Pdf" {
-        estimate_pdf_page_count(path)
+        preview::estimate_pdf_page_count(path)
     } else if file_exists && preview_kind == "Image" {
         Some(1)
     } else {
@@ -688,7 +646,7 @@ fn mobile_preview_info(
     };
     let message = if !file_exists {
         "Attachment file is unavailable.".to_owned()
-    } else if preview_kind == "Text" && attachment.file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+    } else if preview_kind == "Text" && attachment.file_size_bytes > preview::MAX_TEXT_PREVIEW_BYTES {
         "Text preview is unavailable because this file is too large.".to_owned()
     } else if preview_kind == "Unsupported" {
         "Preview not available for this file type.".to_owned()
@@ -699,7 +657,7 @@ fn mobile_preview_info(
         mobile_submission_attachment_id: attachment.mobile_submission_attachment_id,
         mobile_submission_id: attachment.mobile_submission_id,
         original_file_name: attachment.original_file_name.clone(),
-        extension: extension_from_name(Path::new(&attachment.original_file_name), &attachment.mime_type),
+        extension: preview::extension_from_name(Path::new(&attachment.original_file_name), &attachment.mime_type),
         mime_type: attachment.mime_type.clone(),
         file_size_bytes: attachment.file_size_bytes,
         preview_kind,

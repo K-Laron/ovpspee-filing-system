@@ -22,7 +22,9 @@ interface AppShellProps {
 const navClass = ({ isActive }: { isActive: boolean }) =>
   [
     'focus-ring flex items-center gap-3 rounded px-3 py-2 text-sm transition',
-    isActive ? 'bg-white/12 text-white shadow-inner' : 'text-white/75 hover:bg-white/8 hover:text-white'
+    isActive
+      ? 'bg-white/12 text-white shadow-inner'
+      : 'text-white/75 hover:bg-white/8 hover:text-white',
   ].join(' ');
 
 export const AppShell = ({ title, subtitle, navItems, profileItem }: AppShellProps) => {
@@ -51,7 +53,7 @@ export const AppShell = ({ title, subtitle, navItems, profileItem }: AppShellPro
       <aside
         className={[
           'fixed inset-y-0 left-0 z-50 w-60 shrink-0 flex-col bg-secondary text-white transition-transform duration-200 ease-out lg:static lg:flex lg:translate-x-0',
-          isNavOpen ? 'flex translate-x-0' : 'hidden -translate-x-full lg:flex'
+          isNavOpen ? 'flex translate-x-0' : 'hidden -translate-x-full lg:flex',
         ].join(' ')}
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">

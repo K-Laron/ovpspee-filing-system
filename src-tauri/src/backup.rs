@@ -14,7 +14,7 @@ use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 use crate::{
-    auth::{require_admin_role, require_session, write_audit_log, ValidSession},
+    auth::{require_role, write_audit_log, ValidSession},
     db::{self, DbPool},
     documents::StorageRoot,
     error::{AppError, AppResult},
@@ -35,6 +35,9 @@ const RESTORE_TABLES: &[&str] = &[
     "document",
     "attachment",
     "scan_intake",
+    "mobile_submission",
+    "mobile_submission_attachment",
+    "mobile_device",
 ];
 
 #[derive(Debug, Clone)]
@@ -877,9 +880,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 async fn require_backup_admin(pool: &DbPool, session_id: &str) -> AppResult<ValidSession> {
-    let session = require_session(pool, session_id).await?;
-    require_admin_role(&session.role)?;
-    Ok(session)
+    require_role(pool, session_id, &["Admin"]).await
 }
 
 async fn audit(pool: &DbPool, user_id: i64, action: &str, description: &str) -> AppResult<()> {

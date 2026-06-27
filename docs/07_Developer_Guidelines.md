@@ -52,7 +52,7 @@ ovpspee-filing-system/
 
 - Follow standard Rust idioms (`rustfmt`, `clippy`).
 - Run `cargo fmt` and `cargo clippy -- -D warnings` before every commit.
-- All public functions must have doc comments (`///`).
+- Add doc comments (`///`) to public API functions in auth.rs, documents.rs, and backup.rs as a starting goal.
 - Use `thiserror` for the `AppError` enum; convert to `String` at the Tauri command boundary.
 - Never use `unwrap()` in production code. Use `?` propagation or `map_err`.
 - Prefer `sqlx::query_as!` macro (compile-time checked) over raw string queries.
@@ -84,7 +84,7 @@ let doc = pool.fetch_one(...).await.unwrap();
 - Use `const` arrow functions for components: `const MyComponent = () => {...}`.
 - File names: `PascalCase.tsx` for components, `camelCase.ts` for utilities and hooks.
 - No `any` types. Use `unknown` + type narrowing if the type is truly unknown.
-- Run `pnpm eslint src/` and `pnpm tsc --noEmit` before every commit.
+- Run `pnpm tsc --noEmit` and `pnpm test` before every commit.
 
 ```typescript
 // Good
@@ -221,16 +221,9 @@ Common utility functions extracted from duplicated code. Never redefine these lo
 | `extensionFromName(name)` | Extract lowercase extension, fallback `'unknown'` |
 | `formatBytes(value)` | Format as B/KB/MB with one decimal |
 
-### `src/lib/confirm.ts`
+## Confirmation Dialogs
 
-Shared `ConfirmAction` interface + `useConfirmAction()` hook. Replaces manually-duplicated interface + state + handler in every page that shows a confirmation dialog. Usage:
-
-```typescript
-import { useConfirmAction } from '../../lib/confirm';
-const { confirmAction, setConfirmAction, clearConfirmAction } = useConfirmAction();
-// setConfirmAction({ title, body, confirmLabel, onConfirm }) opens dialog
-// clearConfirmAction() closes it
-```
+Confirmation dialogs use inline `useState<ConfirmAction | null>` — see `src/components/ConfirmDialog.tsx` for the `ConfirmAction` interface.
 
 ---
 
@@ -265,7 +258,7 @@ When adding a new command, complete every step:
 - [ ] Add `require_session()` (and `require_admin_role()` if needed) at the top
 - [ ] Add `write_audit_log()` call for any data-modifying operations
 - [ ] Register the command in `lib.rs` under `invoke_handler`
-- [ ] Write a typed wrapper in `src/lib/invoke.ts`
+- [ ] Call `invoke` from `@tauri-apps/api/core` directly in the component or hook
 - [ ] Write unit tests (and integration test if applicable)
 - [ ] Run `cargo sqlx prepare` if the command uses new SQL queries
 - [ ] Document the command in `03_Backend_API_Documentation.md`
@@ -291,7 +284,7 @@ When adding a new command, complete every step:
 | TypeScript functions | `camelCase` | `createDocument`, `listDocuments` |
 | React components | `PascalCase` | `DocumentCard`, `StatusBadge` |
 | React files | `PascalCase.tsx` | `AddDocument.tsx`, `MasterData.tsx` |
-| Utility files | `camelCase.ts` | `invoke.ts`, `errors.ts` |
+| Utility files | `camelCase.ts` | `errors.ts`, `helpers.ts` |
 | DB table names | `snake_case` | `document`, `audit_log`, `scan_intake` |
 | DB column names | `snake_case` | `document_id`, `is_hidden`, `trashed_at` |
 | CSS class names | Tailwind utility only | No custom CSS class names |

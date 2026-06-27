@@ -37,7 +37,7 @@ export const MyActivity = () => {
         dateFrom: nullable(dateFrom),
         dateTo: nullable(dateTo),
         limit,
-        offset: nextOffset
+        offset: nextOffset,
       });
       setEntries(page.entries);
       setOffset(page.offset);
@@ -50,7 +50,9 @@ export const MyActivity = () => {
 
   useEffect(() => {
     if (!sessionId) return;
-    void invoke<string[]>('list_my_activity_event_types', { sessionId }).then(setEventTypes).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
+    void invoke<string[]>('list_my_activity_event_types', { sessionId })
+      .then(setEventTypes)
+      .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
     void load(0);
   }, [sessionId]);
 
@@ -72,40 +74,84 @@ export const MyActivity = () => {
         </button>
       </div>
 
-      <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_160px_140px_140px_120px_auto]" onSubmit={submitFilters}>
+      <form
+        className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm md:grid-cols-[1fr_160px_140px_140px_120px_auto]"
+        onSubmit={submitFilters}
+      >
         <label>
           <span className="form-label">Search</span>
-          <input className="input" onChange={(event) => setSearch(event.target.value)} value={search} />
+          <input
+            className="input"
+            onChange={(event) => setSearch(event.target.value)}
+            value={search}
+          />
         </label>
         <label>
           <span className="form-label">Action</span>
-          <select className="input" onChange={(event) => setAction(event.target.value)} value={action}>
+          <select
+            className="input"
+            onChange={(event) => setAction(event.target.value)}
+            value={action}
+          >
             <option value="">All</option>
-            {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            {eventTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           <span className="form-label">Entity</span>
-          <input className="input" onChange={(event) => setEntityType(event.target.value)} value={entityType} />
+          <input
+            className="input"
+            onChange={(event) => setEntityType(event.target.value)}
+            value={entityType}
+          />
         </label>
         <label>
           <span className="form-label">From</span>
-          <input className="input" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} />
+          <input
+            className="input"
+            onChange={(event) => setDateFrom(event.target.value)}
+            type="date"
+            value={dateFrom}
+          />
         </label>
         <label>
           <span className="form-label">Limit</span>
-          <select className="input" onChange={(event) => setLimit(Number(event.target.value))} value={limit}>
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}
+          <select
+            className="input"
+            onChange={(event) => setLimit(Number(event.target.value))}
+            value={limit}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
           </select>
         </label>
-        <button className="btn btn-primary self-end" type="submit"><Search size={16} />Apply</button>
+        <button className="btn btn-primary self-end" type="submit">
+          <Search size={16} />
+          Apply
+        </button>
         <label className="md:col-start-4">
           <span className="form-label">To</span>
-          <input className="input" onChange={(event) => setDateTo(event.target.value)} type="date" value={dateTo} />
+          <input
+            className="input"
+            onChange={(event) => setDateTo(event.target.value)}
+            type="date"
+            value={dateTo}
+          />
         </label>
       </form>
 
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
         <table className="w-full table-fixed text-left text-sm">
@@ -118,24 +164,58 @@ export const MyActivity = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {loading && <tr><td className="p-4 text-center text-muted" colSpan={4}>Loading...</td></tr>}
-            {!loading && entries.length === 0 && <tr><td className="p-4 text-center text-muted" colSpan={4}>No activity records.</td></tr>}
-            {!loading && entries.map((entry) => (
-              <tr key={entry.id}>
-                <td className="p-3 text-xs text-muted">{formatDateTime(entry.created_at)}</td>
-                <td className="p-3"><span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{entry.action}</span></td>
-                <td className="p-3 text-xs text-muted">{entry.entity_type ?? '-'}{entry.entity_id ? ` #${entry.entity_id}` : ''}</td>
-                <td className="p-3 text-secondary">{entry.summary}</td>
+            {loading && (
+              <tr>
+                <td className="p-4 text-center text-muted" colSpan={4}>
+                  Loading...
+                </td>
               </tr>
-            ))}
+            )}
+            {!loading && entries.length === 0 && (
+              <tr>
+                <td className="p-4 text-center text-muted" colSpan={4}>
+                  No activity records.
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              entries.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="p-3 text-xs text-muted">{formatDateTime(entry.created_at)}</td>
+                  <td className="p-3">
+                    <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">
+                      {entry.action}
+                    </span>
+                  </td>
+                  <td className="p-3 text-xs text-muted">
+                    {entry.entity_type ?? '-'}
+                    {entry.entity_id ? ` #${entry.entity_id}` : ''}
+                  </td>
+                  <td className="p-3 text-secondary">{entry.summary}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
 
       <div className="flex items-center justify-end gap-2">
-        <button className="btn" disabled={offset === 0} onClick={() => void load(Math.max(0, offset - limit))} type="button">Previous</button>
+        <button
+          className="btn"
+          disabled={offset === 0}
+          onClick={() => void load(Math.max(0, offset - limit))}
+          type="button"
+        >
+          Previous
+        </button>
         <span className="text-sm text-muted">Offset {offset}</span>
-        <button className="btn" disabled={entries.length < limit} onClick={() => void load(offset + limit)} type="button">Next</button>
+        <button
+          className="btn"
+          disabled={entries.length < limit}
+          onClick={() => void load(offset + limit)}
+          type="button"
+        >
+          Next
+        </button>
       </div>
     </section>
   );

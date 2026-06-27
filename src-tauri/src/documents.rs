@@ -3,35 +3,23 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
 };
+use tokio::task::spawn_blocking;
 
-
-use printpdf::{
-    image_crate::{self, DynamicImage, GenericImageView, Rgb, RgbImage},
-    BuiltinFont, Image, ImageTransform, IndirectFontRef, Mm, PdfDocument, PdfLayerReference,
-};
 use serde::Serialize;
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{require_admin_role, require_session, write_audit_log},
+    auth::{require_role, require_session, write_audit_log},
     db::DbPool,
     error::{AppError, AppResult},
     master_data::OfficeItem,
     master_data::{CategoryItem, FolderItem},
+    preview,
     util::{now_text, validate_date, validate_status},
 };
 
 pub(crate) const MAX_ATTACHMENT_BYTES: u64 = 1_073_741_824;
-pub(crate) const MAX_TEXT_PREVIEW_BYTES: i64 = 262_144;
-pub(crate) const MAX_TEXT_PREVIEW_CHARS: usize = 16_384;
-const PDF_PAGE_WIDTH_MM: f32 = 215.9;
-const PDF_PAGE_HEIGHT_MM: f32 = 279.4;
-const PDF_MARGIN_MM: f32 = 18.0;
-const PDF_FOOTER_Y_MM: f32 = 14.0;
-const PDF_TEXT_TOP_Y_MM: f32 = 258.0;
-const PDF_LINE_HEIGHT_MM: f32 = 5.2;
-const MAX_INLINE_IMAGE_PIXELS: u64 = 48_000_000;
 
 const ALLOWED_EXTENSIONS: &[&str] = &[
     "pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png", "tif", "tiff", "txt",
@@ -102,6 +90,17 @@ pub struct DocumentListFilter {
     pub office_id: Option<i64>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DocumentListPage {
+    pub documents: Vec<DocumentItem>,
+    pub total_count: i64,
+    pub limit: i64,
+    pub offset: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -179,7 +178,7 @@ pub async fn create_document(
     session_id: &str,
     input: DocumentInput,
 ) -> AppResult<i64> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let input = validate_document_input(pool, input).await?;
     let is_hidden = if input.status == "Confidential" { 1 } else { 0 };
     let now = now_text();
@@ -222,7 +221,7 @@ pub async fn set_document_hidden(
     document_id: i64,
     is_hidden: bool,
 ) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     ensure_document_exists(pool, document_id).await?;
     let hidden = if is_hidden { 1_i64 } else { 0_i64 };
     let now = now_text();
@@ -251,7 +250,7 @@ pub async fn set_document_hidden(
 }
 
 pub async fn trash_document(pool: &DbPool, session_id: &str, document_id: i64) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let current = sqlx::query!(
         "SELECT category_id AS \"category_id!: i64\", folder_id, is_trashed AS \"is_trashed!: i64\"
          FROM document WHERE document_id = ?",
@@ -293,7 +292,7 @@ pub async fn trash_document(pool: &DbPool, session_id: &str, document_id: i64) -
 }
 
 pub async fn restore_document(pool: &DbPool, session_id: &str, document_id: i64) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let current = sqlx::query!(
         "SELECT is_trashed AS \"is_trashed!: i64\", original_category_id, original_folder_id
          FROM document WHERE document_id = ?",
@@ -365,8 +364,8 @@ pub async fn restore_document(pool: &DbPool, session_id: &str, document_id: i64)
 }
 
 pub async fn list_trash_documents(pool: &DbPool, session_id: &str) -> AppResult<Vec<DocumentItem>> {
-    require_trash_viewer(pool, session_id).await?;
-    fetch_documents(pool, DocumentListFilter::default(), false, true).await
+    require_role(pool, session_id, &["Secretary", "Admin"]).await?;
+    Ok(fetch_documents(pool, DocumentListFilter::default(), false, true).await?.documents)
 }
 
 pub async fn purge_document(
@@ -375,12 +374,12 @@ pub async fn purge_document(
     session_id: &str,
     document_id: i64,
 ) -> AppResult<()> {
-    let session = require_admin(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Admin"]).await?;
     purge_document_internal(pool, storage, document_id, session.user_id).await
 }
 
 pub async fn empty_trash(pool: &DbPool, storage: &StorageRoot, session_id: &str) -> AppResult<i64> {
-    let session = require_admin(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Admin"]).await?;
     let rows = sqlx::query!(
         "SELECT document_id AS \"document_id!: i64\" FROM document WHERE is_trashed = 1"
     )
@@ -408,7 +407,7 @@ pub async fn update_document(
     document_id: i64,
     input: DocumentInput,
 ) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     ensure_document_exists(pool, document_id).await?;
     let input = validate_document_input(pool, input).await?;
     let now = now_text();
@@ -450,7 +449,7 @@ pub async fn move_document(
     category_id: i64,
     folder_id: Option<i64>,
 ) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let current = sqlx::query!(
         "SELECT category_id AS \"category_id!: i64\", folder_id, is_trashed AS \"is_trashed!: i64\"
          FROM document WHERE document_id = ?",
@@ -497,7 +496,7 @@ pub async fn set_document_status(
     document_id: i64,
     status: String,
 ) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     validate_status(&status)?;
     let current = sqlx::query!(
         "SELECT status, is_trashed AS \"is_trashed!: i64\" FROM document WHERE document_id = ?",
@@ -543,15 +542,15 @@ pub async fn list_documents(
     pool: &DbPool,
     session_id: &str,
     filter: DocumentListFilter,
-) -> AppResult<Vec<DocumentItem>> {
-    require_document_editor(pool, session_id).await?;
+) -> AppResult<DocumentListPage> {
+    require_role(pool, session_id, &["Secretary"]).await?;
     fetch_documents(pool, filter, false, false).await
 }
 
 pub async fn list_public_documents(
     pool: &DbPool,
     filter: DocumentListFilter,
-) -> AppResult<Vec<DocumentItem>> {
+) -> AppResult<DocumentListPage> {
     fetch_documents(pool, filter, true, false).await
 }
 
@@ -560,7 +559,7 @@ pub async fn get_document(
     session_id: &str,
     document_id: i64,
 ) -> AppResult<DocumentDetail> {
-    require_document_editor(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     get_document_internal(pool, document_id, false).await
 }
 
@@ -575,7 +574,7 @@ pub async fn add_attachment(
     document_id: i64,
     input: AttachmentInput,
 ) -> AppResult<i64> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     ensure_document_exists(pool, document_id).await?;
     let source = validate_source_file(&input.source_path)?;
     let original_file_name = source
@@ -635,7 +634,7 @@ pub async fn remove_attachment(
     session_id: &str,
     attachment_id: i64,
 ) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let row = sqlx::query!(
         "SELECT attachment_id AS \"attachment_id!: i64\", stored_relative_path
          FROM attachment WHERE attachment_id = ?",
@@ -672,7 +671,7 @@ pub async fn reorder_attachments(
     document_id: i64,
     attachment_ids: Vec<i64>,
 ) -> AppResult<()> {
-    let session = require_document_editor(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     ensure_document_exists(pool, document_id).await?;
     let mut tx = pool.begin().await?;
     for (index, attachment_id) in attachment_ids.iter().enumerate() {
@@ -720,7 +719,7 @@ pub async fn get_attachment_file_path(
     .await?
     .ok_or_else(|| AppError::NotFound("Attachment not found.".into()))?;
     if let Some(session_id) = session_id {
-        require_document_editor(pool, session_id).await?;
+        require_role(pool, session_id, &["Secretary"]).await?;
     } else if row.is_hidden == 1 || row.is_trashed == 1 {
         return Err(AppError::Unauthorized);
     }
@@ -771,7 +770,7 @@ pub async fn get_attachment_preview_page(
         return Err(AppError::Validation("Preview page is out of range.".into()));
     }
     let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
-        read_text_preview(&path, info.file_size_bytes)?
+        preview::read_text_preview(&path, info.file_size_bytes)?
     } else {
         (None, false)
     };
@@ -830,7 +829,13 @@ pub async fn export_document_pdf(
         None => "Staff/Head Viewer".to_owned(),
         Some(s) => format!("{} user #{}", s.role, s.user_id),
     };
-    let pdf = build_export_pdf(&detail, storage, &generated_at, &exported_by)?;
+    let detail_clone = detail.clone();
+    let storage_clone = storage.clone();
+    let pdf = spawn_blocking(move || {
+        crate::pdf_export::build_export_pdf(&detail_clone, &storage_clone, &generated_at, &exported_by)
+    })
+    .await
+    .map_err(|e| AppError::Validation(format!("PDF generation failed: {}", e)))??;
     fs::write(&output, pdf)?;
     let user_id = session.as_ref().map(|s| s.user_id);
     write_audit_log(
@@ -906,7 +911,7 @@ pub async fn list_public_folders(pool: &DbPool, category_id: i64) -> AppResult<V
 }
 
 pub async fn list_document_offices(pool: &DbPool, session_id: &str) -> AppResult<Vec<OfficeItem>> {
-    require_document_editor(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     let rows = sqlx::query!(
         "SELECT office_id AS \"office_id!: i64\", office_name, description, is_active
          FROM office
@@ -926,35 +931,7 @@ pub async fn list_document_offices(pool: &DbPool, session_id: &str) -> AppResult
         .collect())
 }
 
-async fn require_document_editor(
-    pool: &DbPool,
-    session_id: &str,
-) -> AppResult<crate::auth::ValidSession> {
-    let session = require_session(pool, session_id).await?;
-    if session.role == "Secretary" {
-        Ok(session)
-    } else {
-        Err(AppError::Unauthorized)
-    }
-}
 
-async fn require_admin(pool: &DbPool, session_id: &str) -> AppResult<crate::auth::ValidSession> {
-    let session = require_session(pool, session_id).await?;
-    require_admin_role(&session.role)?;
-    Ok(session)
-}
-
-async fn require_trash_viewer(
-    pool: &DbPool,
-    session_id: &str,
-) -> AppResult<crate::auth::ValidSession> {
-    let session = require_session(pool, session_id).await?;
-    if session.role == "Secretary" || session.role == "Admin" {
-        Ok(session)
-    } else {
-        Err(AppError::Unauthorized)
-    }
-}
 
 async fn validate_document_input(pool: &DbPool, input: DocumentInput) -> AppResult<DocumentInput> {
     let name = require_len(&input.document_name, "Document name", 255)?;
@@ -980,7 +957,7 @@ async fn validate_document_input(pool: &DbPool, input: DocumentInput) -> AppResu
     })
 }
 
-async fn validate_document_location(
+pub(crate) async fn validate_document_location(
     pool: &DbPool,
     category_id: i64,
     folder_id: Option<i64>,
@@ -1019,19 +996,22 @@ async fn fetch_documents(
     filter: DocumentListFilter,
     public_only: bool,
     trash_only: bool,
-) -> AppResult<Vec<DocumentItem>> {
+) -> AppResult<DocumentListPage> {
     let search = fts5_query(filter.search.as_deref());
     let date_from = normalize_optional_date(filter.date_from.as_deref())?;
     let date_to = normalize_optional_date(filter.date_to.as_deref())?;
     let public_only = if public_only { 1_i64 } else { 0_i64 };
     let trash_mode = if trash_only { 1_i64 } else { 0_i64 };
+    let limit = filter.limit.unwrap_or(-1);
+    let offset = filter.offset.unwrap_or(0);
     let rows = sqlx::query(
         "SELECT d.document_id, d.document_name, d.category_id,
             c.category_name, d.folder_id, f.folder_name, d.office_id, o.office_name, d.date_received,
             d.date_added, d.remarks, d.status, d.is_hidden,
             d.is_trashed, d.created_by, d.updated_at,
             u.first_name || ' ' || u.last_name AS created_by_name,
-            COUNT(a.attachment_id) AS attachment_count
+            COUNT(a.attachment_id) AS attachment_count,
+            COUNT(*) OVER () AS total_count
          FROM document d
          JOIN category c ON c.category_id = d.category_id
          JOIN user u ON u.user_id = d.created_by
@@ -1045,9 +1025,11 @@ async fn fetch_documents(
            AND (? IS NULL OR d.office_id = ?)
            AND (? IS NULL OR d.date_received >= ?)
            AND (? IS NULL OR d.date_received <= ?)
+           AND (? IS NULL OR d.status = ?)
            AND (? IS NULL OR d.document_id IN (SELECT rowid FROM document_fts WHERE document_fts MATCH ?))
          GROUP BY d.document_id
-         ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC")
+         ORDER BY d.date_received DESC, d.document_name COLLATE NOCASE ASC, d.document_id DESC
+         LIMIT ? OFFSET ?")
          .bind(public_only)
         .bind(trash_mode)
         .bind(trash_mode)
@@ -1061,11 +1043,16 @@ async fn fetch_documents(
         .bind(&date_from)
         .bind(&date_to)
         .bind(&date_to)
+         .bind(&filter.status)
+        .bind(&filter.status)
         .bind(search.as_deref())
         .bind(search.as_deref())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await?;
-    Ok(rows
+    let total_count = rows.first().map(|r| r.get::<i64, _>("total_count")).unwrap_or(0);
+    let documents = rows
         .into_iter()
         .map(|row| DocumentItem {
             document_id: row.get("document_id"),
@@ -1087,7 +1074,8 @@ async fn fetch_documents(
             created_by_name: row.get("created_by_name"),
             updated_at: row.get("updated_at"),
         })
-        .collect())
+        .collect();
+    Ok(DocumentListPage { documents, total_count, limit, offset })
 }
 
 async fn get_document_internal(
@@ -1212,7 +1200,7 @@ async fn attachment_access_row(
     })
 }
 
-fn preview_info_from_row(
+pub(crate) fn preview_info_from_row(
     attachment_id: i64,
     document_id: i64,
     original_file_name: String,
@@ -1221,10 +1209,10 @@ fn preview_info_from_row(
     path: &Path,
 ) -> AttachmentPreviewInfo {
     let file_exists = path.is_file();
-    let preview_kind = preview_kind(&mime_type).to_owned();
+    let preview_kind = preview::preview_kind(&mime_type).to_owned();
     let supported = preview_kind != "Unsupported";
     let page_count = if file_exists && preview_kind == "Pdf" {
-        estimate_pdf_page_count(path)
+        preview::estimate_pdf_page_count(path)
     } else if file_exists && preview_kind == "Image" {
         Some(1)
     } else {
@@ -1232,7 +1220,7 @@ fn preview_info_from_row(
     };
     let message = if !file_exists {
         "Attachment file is unavailable.".to_owned()
-    } else if preview_kind == "Text" && file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+    } else if preview_kind == "Text" && file_size_bytes > preview::MAX_TEXT_PREVIEW_BYTES {
         "Text preview is unavailable because this file is too large. Use the safe access action instead.".to_owned()
     } else if preview_kind == "Unsupported" {
         "Preview not available for this file type. Use the safe access action if you need to open it.".to_owned()
@@ -1243,7 +1231,7 @@ fn preview_info_from_row(
         attachment_id,
         document_id,
         original_file_name,
-        extension: extension_from_name(path, &mime_type),
+        extension: preview::extension_from_name(path, &mime_type),
         mime_type,
         file_size_bytes,
         preview_kind,
@@ -1252,64 +1240,6 @@ fn preview_info_from_row(
         supported,
         message,
     }
-}
-
-pub(crate) fn preview_kind(mime_type: &str) -> &'static str {
-    if mime_type == "application/pdf" {
-        "Pdf"
-    } else if matches!(mime_type, "image/png" | "image/jpeg") {
-        "Image"
-    } else if mime_type == "text/plain" {
-        "Text"
-    } else {
-        "Unsupported"
-    }
-}
-
-pub(crate) fn read_text_preview(path: &Path, file_size_bytes: i64) -> AppResult<(Option<String>, bool)> {
-    if file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
-        return Ok((None, true));
-    }
-    let bytes = fs::read(path)?;
-    let text = String::from_utf8(bytes).map_err(|_| {
-        AppError::Validation("Text preview is available only for UTF-8 text files.".into())
-    })?;
-    let mut truncated = false;
-    let mut preview = String::new();
-    for (index, ch) in text.chars().enumerate() {
-        if index >= MAX_TEXT_PREVIEW_CHARS {
-            truncated = true;
-            break;
-        }
-        preview.push(ch);
-    }
-    Ok((Some(preview), truncated))
-}
-
-pub(crate) fn extension_from_name(path: &Path, mime_type: &str) -> String {
-    path.extension()
-        .and_then(OsStr::to_str)
-        .map(|ext| ext.to_ascii_lowercase())
-        .unwrap_or_else(|| {
-            if mime_type == "application/pdf" {
-                "pdf".to_owned()
-            } else if mime_type == "text/plain" {
-                "txt".to_owned()
-            } else {
-                "unknown".to_owned()
-            }
-        })
-}
-
-pub(crate) fn estimate_pdf_page_count(path: &Path) -> Option<i64> {
-    let mut buf = vec![0u8; 10_240];
-    let mut file = fs::File::open(path).ok()?;
-    let n = std::io::Read::read(&mut file, &mut buf).ok()?;
-    buf.truncate(n);
-    let text = String::from_utf8_lossy(&buf);
-    let count =
-        text.matches("/Type /Page").count() as i64 - text.matches("/Type /Pages").count() as i64;
-    Some(count.max(1))
 }
 
 fn validate_pdf_output_path(output_path: &str) -> AppResult<PathBuf> {
@@ -1336,333 +1266,6 @@ fn validate_pdf_output_path(output_path: &str) -> AppResult<PathBuf> {
         return Err(AppError::Validation("Export folder does not exist.".into()));
     }
     Ok(path)
-}
-
-enum ExportPage {
-    Text {
-        lines: Vec<String>,
-    },
-    Image {
-        caption: String,
-        image: DynamicImage,
-        width_px: u32,
-        height_px: u32,
-    },
-}
-
-fn build_export_pdf(
-    detail: &DocumentDetail,
-    storage: &StorageRoot,
-    generated_at: &str,
-    exported_by: &str,
-) -> AppResult<Vec<u8>> {
-    let pages = export_pages(detail, storage, generated_at, exported_by)?;
-    render_export_pdf(&detail.document.document_name, &pages)
-}
-
-fn export_pages(
-    detail: &DocumentDetail,
-    storage: &StorageRoot,
-    generated_at: &str,
-    exported_by: &str,
-) -> AppResult<Vec<ExportPage>> {
-    let doc = &detail.document;
-    let mut metadata_lines = vec![
-        "UNIVERSITY OF EASTERN PHILIPPINES (UEP)".to_owned(),
-        "Office of the Vice President for Student and Public External Engagement".to_owned(),
-        "OVPSPEE Filing & Tracking System".to_owned(),
-        String::new(),
-        format!("Document: {}", doc.document_name),
-        format!("Category: {}", doc.category_name),
-        format!(
-            "Folder: {}",
-            doc.folder_name.as_deref().unwrap_or("Category root")
-        ),
-        format!(
-            "Sender Office: {}",
-            doc.office_name.as_deref().unwrap_or("Not specified")
-        ),
-        format!("Date Received: {}", doc.date_received),
-        format!("Date Filed: {}", doc.date_added),
-        format!("Status: {}", doc.status),
-        format!("Generated At: {generated_at}"),
-        format!("Exported By: {exported_by}"),
-        String::new(),
-        "Remarks".to_owned(),
-    ];
-    metadata_lines.extend(wrap_text(
-        doc.remarks.as_deref().unwrap_or("No remarks."),
-        86,
-    ));
-    metadata_lines.extend([
-        String::new(),
-        "Certification".to_owned(),
-        "This PDF was generated by the OVPSPEE Filing & Tracking System as a system copy of the stored record.".to_owned(),
-        "Final certification wording and letterhead assets are pending client confirmation.".to_owned(),
-    ]);
-    let mut pages = vec![ExportPage::Text {
-        lines: metadata_lines,
-    }];
-
-    let mut attachment_page = vec![
-        "Attachment Manifest".to_owned(),
-        "Attachments are listed in stored sort order. Rendered pages are included where supported by the bundled exporter.".to_owned(),
-        String::new(),
-    ];
-    for attachment in &detail.attachments {
-        let path = storage.resolve_checked(&attachment.stored_relative_path)?;
-        let preview = preview_info_from_row(
-            attachment.attachment_id,
-            attachment.document_id,
-            attachment.original_file_name.clone(),
-            attachment.mime_type.clone(),
-            attachment.file_size_bytes,
-            &path,
-        );
-        attachment_page.push(format!(
-            "{}. {} ({}, {} bytes) - {}",
-            attachment.sort_order,
-            attachment.original_file_name,
-            attachment.mime_type,
-            attachment.file_size_bytes,
-            if path.is_file() {
-                "available"
-            } else {
-                "file unavailable"
-            }
-        ));
-        if !path.is_file() {
-            attachment_page.push(
-                "   File unavailable; attachment metadata retained but file could not be rendered."
-                    .to_owned(),
-            );
-            continue;
-        }
-        match preview.preview_kind.as_str() {
-            "Image" => match load_inline_image(&path) {
-                Ok((image, width_px, height_px)) => {
-                    let caption = format!(
-                        "Attachment {}: {}",
-                        attachment.sort_order, attachment.original_file_name
-                    );
-                    attachment_page.push(format!("   Rendered inline as {caption}."));
-                    pages.push(ExportPage::Image {
-                        caption,
-                        image,
-                        width_px,
-                        height_px,
-                    });
-                }
-                Err(_) => attachment_page.push(
-                    "   Image attachment could not be rendered inline; file remains stored in the system."
-                        .to_owned(),
-                ),
-            },
-            "Pdf" => attachment_page.push(format!(
-                "   PDF attachment detected; {} page(s) estimated. Full PDF page rasterization deferred.",
-                preview.page_count.unwrap_or(1)
-            )),
-            _ => attachment_page.push(
-                "   Unsupported for inline PDF rendering; file remains stored in the system.".to_owned(),
-            ),
-        }
-    }
-    if detail.attachments.is_empty() {
-        attachment_page.push("No attachments.".to_owned());
-    }
-    pages.push(ExportPage::Text {
-        lines: attachment_page,
-    });
-    Ok(pages)
-}
-
-fn load_inline_image(path: &Path) -> AppResult<(DynamicImage, u32, u32)> {
-    let bytes = fs::read(path)
-        .map_err(|_| AppError::Validation("Image attachment could not be read.".into()))?;
-    let image = image_crate::load_from_memory(&bytes)
-        .map_err(|_| AppError::Validation("Image attachment could not be decoded.".into()))?;
-    let (width_px, height_px) = image.dimensions();
-    if width_px == 0 || height_px == 0 {
-        return Err(AppError::Validation("Image attachment is empty.".into()));
-    }
-    if u64::from(width_px) * u64::from(height_px) > MAX_INLINE_IMAGE_PIXELS {
-        return Err(AppError::Validation(
-            "Image attachment is too large for inline PDF rendering.".into(),
-        ));
-    }
-    Ok((flatten_image_to_white(image), width_px, height_px))
-}
-
-fn flatten_image_to_white(image: DynamicImage) -> DynamicImage {
-    let rgba = image.to_rgba8();
-    let (width, height) = rgba.dimensions();
-    let mut rgb = RgbImage::new(width, height);
-    for (x, y, pixel) in rgba.enumerate_pixels() {
-        let [red, green, blue, alpha] = pixel.0;
-        let opacity = f32::from(alpha) / 255.0;
-        let blend = |channel: u8| -> u8 {
-            (f32::from(channel) * opacity + 255.0 * (1.0 - opacity)).round() as u8
-        };
-        rgb.put_pixel(x, y, Rgb([blend(red), blend(green), blend(blue)]));
-    }
-    DynamicImage::ImageRgb8(rgb)
-}
-
-fn render_export_pdf(title: &str, pages: &[ExportPage]) -> AppResult<Vec<u8>> {
-    let total_pages = pages.len();
-    let (doc, first_page, first_layer) = PdfDocument::new(
-        title,
-        Mm(PDF_PAGE_WIDTH_MM),
-        Mm(PDF_PAGE_HEIGHT_MM),
-        "Layer 1",
-    );
-    let font = doc
-        .add_builtin_font(BuiltinFont::Helvetica)
-        .map_err(|_| AppError::Validation("Could not create PDF font.".into()))?;
-    for (index, lines) in pages.iter().enumerate() {
-        let layer = if index == 0 {
-            doc.get_page(first_page).get_layer(first_layer)
-        } else {
-            let (page, layer) =
-                doc.add_page(Mm(PDF_PAGE_WIDTH_MM), Mm(PDF_PAGE_HEIGHT_MM), "Layer 1");
-            doc.get_page(page).get_layer(layer)
-        };
-        render_export_page(&layer, &font, lines, index + 1, total_pages);
-    }
-
-    let mut output = doc
-        .save_to_bytes()
-        .map_err(|_| AppError::Validation("Could not render PDF export.".into()))?;
-    append_pdf_text_markers(&mut output, pages);
-    Ok(output)
-}
-
-fn render_export_page(
-    layer: &PdfLayerReference,
-    font: &IndirectFontRef,
-    page: &ExportPage,
-    page_number: usize,
-    total_pages: usize,
-) {
-    match page {
-        ExportPage::Text { lines } => render_text_page(layer, font, lines),
-        ExportPage::Image {
-            caption,
-            image,
-            width_px,
-            height_px,
-        } => render_image_page(layer, font, caption, image, *width_px, *height_px),
-    }
-    render_footer(layer, font, page_number, total_pages);
-}
-
-fn render_text_page(layer: &PdfLayerReference, font: &IndirectFontRef, lines: &[String]) {
-    let mut y = PDF_TEXT_TOP_Y_MM;
-    for line in lines.iter().flat_map(|line| wrap_text(line, 90)).take(43) {
-        layer.use_text(line, 11.0, Mm(PDF_MARGIN_MM), Mm(y), font);
-        y -= PDF_LINE_HEIGHT_MM;
-    }
-}
-
-fn render_image_page(
-    layer: &PdfLayerReference,
-    font: &IndirectFontRef,
-    caption: &str,
-    image: &DynamicImage,
-    width_px: u32,
-    height_px: u32,
-) {
-    layer.use_text(
-        caption,
-        12.0,
-        Mm(PDF_MARGIN_MM),
-        Mm(PDF_TEXT_TOP_Y_MM),
-        font,
-    );
-    let max_width_mm = PDF_PAGE_WIDTH_MM - (PDF_MARGIN_MM * 2.0);
-    let max_height_mm = 202.0;
-    let natural_width_mm = width_px as f32 * 25.4 / 72.0;
-    let natural_height_mm = height_px as f32 * 25.4 / 72.0;
-    let scale = (max_width_mm / natural_width_mm)
-        .min(max_height_mm / natural_height_mm)
-        .min(1.0);
-    let rendered_width_mm = natural_width_mm * scale;
-    let rendered_height_mm = natural_height_mm * scale;
-    let x = (PDF_PAGE_WIDTH_MM - rendered_width_mm) / 2.0;
-    let y = 38.0 + ((max_height_mm - rendered_height_mm) / 2.0);
-    Image::from_dynamic_image(image).add_to_layer(
-        layer.clone(),
-        ImageTransform {
-            translate_x: Some(Mm(x)),
-            translate_y: Some(Mm(y)),
-            scale_x: Some(scale),
-            scale_y: Some(scale),
-            dpi: Some(72.0),
-            ..Default::default()
-        },
-    );
-}
-
-fn render_footer(
-    layer: &PdfLayerReference,
-    font: &IndirectFontRef,
-    page_number: usize,
-    total_pages: usize,
-) {
-    layer.use_text(
-        "System-generated copy. Verify against OVPSPEE Filing & Tracking System records.",
-        8.5,
-        Mm(PDF_MARGIN_MM),
-        Mm(PDF_FOOTER_Y_MM),
-        font,
-    );
-    layer.use_text(
-        format!("PAGE {page_number} of {total_pages}"),
-        8.5,
-        Mm(165.0),
-        Mm(PDF_FOOTER_Y_MM),
-        font,
-    );
-}
-
-fn append_pdf_text_markers(output: &mut Vec<u8>, pages: &[ExportPage]) {
-    output.extend_from_slice(b"\n% OVPSPEE export verification markers\n");
-    for (index, page) in pages.iter().enumerate() {
-        output.extend_from_slice(format!("% PAGE {} of {}\n", index + 1, pages.len()).as_bytes());
-        let lines = match page {
-            ExportPage::Text { lines } => lines.clone(),
-            ExportPage::Image { caption, .. } => vec![caption.clone()],
-        };
-        for line in lines {
-            let safe = line
-                .chars()
-                .filter(|character| !character.is_control() || *character == '\t')
-                .collect::<String>();
-            output.extend_from_slice(format!("% {safe}\n").as_bytes());
-        }
-    }
-}
-
-fn wrap_text(value: &str, width: usize) -> Vec<String> {
-    if value.is_empty() {
-        return vec![String::new()];
-    }
-    let mut lines = Vec::new();
-    for raw in value.lines() {
-        let mut current = String::new();
-        for word in raw.split_whitespace() {
-            if !current.is_empty() && current.len() + word.len() + 1 > width {
-                lines.push(current);
-                current = String::new();
-            }
-            if !current.is_empty() {
-                current.push(' ');
-            }
-            current.push_str(word);
-        }
-        lines.push(current);
-    }
-    lines
 }
 
 async fn ensure_document_exists(pool: &DbPool, document_id: i64) -> AppResult<()> {

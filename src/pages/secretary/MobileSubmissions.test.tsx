@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => path,
-  invoke: vi.fn()
+  invoke: vi.fn(),
 }));
 
 vi.mock('../../store/sessionStore', () => ({
-  useSessionStore: () => 'session-1'
+  useSessionStore: () => 'session-1',
 }));
 
-import type { MobileApiSetup, MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
+import type { MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
 
 const pendingSubmission: MobileSubmissionItem = {
   mobile_submission_id: 18,
@@ -39,7 +39,7 @@ const pendingSubmission: MobileSubmissionItem = {
   reviewer_name: null,
   attachment_count: 2,
   created_at: '2026-05-20T08:00:00Z',
-  updated_at: '2026-05-20T08:00:00Z'
+  updated_at: '2026-05-20T08:00:00Z',
 };
 
 const pendingDetail: MobileSubmissionDetail = {
@@ -52,9 +52,9 @@ const pendingDetail: MobileSubmissionDetail = {
       mime_type: 'application/pdf',
       file_size_bytes: 4096,
       sort_order: 1,
-      created_at: '2026-05-20T08:00:00Z'
-    }
-  ]
+      created_at: '2026-05-20T08:00:00Z',
+    },
+  ],
 };
 
 describe('MobileSubmissions', () => {
@@ -62,13 +62,14 @@ describe('MobileSubmissions', () => {
     vi.mocked(invoke).mockImplementation((name: string) => {
       if (name === 'list_mobile_submissions') return Promise.resolve([pendingSubmission]);
       if (name === 'get_mobile_submission') return Promise.resolve(pendingDetail);
-      if (name === 'get_mobile_api_setup') return Promise.resolve({
-        enabled: true,
-        bind_addr: '0.0.0.0:1421',
-        local_ip: '192.168.1.50',
-        setup_url: 'ovpspee://setup?hub=http%3A%2F%2F192.168.1.50%3A1421',
-        device_token_required: true
-      });
+      if (name === 'get_mobile_api_setup')
+        return Promise.resolve({
+          enabled: true,
+          bind_addr: '0.0.0.0:1421',
+          local_ip: '192.168.1.50',
+          setup_url: 'ovpspee://setup?hub=http%3A%2F%2F192.168.1.50%3A1421',
+          device_token_required: true,
+        });
       return Promise.reject(new Error(`unexpected invoke: ${name}`));
     });
   });

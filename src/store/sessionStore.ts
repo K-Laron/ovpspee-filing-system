@@ -23,7 +23,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       userId: payload.user_id,
       role: payload.role,
       displayName: payload.display_name,
-      profilePicPath: payload.profile_pic_path
+      profilePicPath: payload.profile_pic_path,
     }),
   clearSession: () =>
     set({
@@ -31,6 +31,6 @@ export const useSessionStore = create<SessionState>((set) => ({
       userId: null,
       role: null,
       displayName: '',
-      profilePicPath: null
-    })
+      profilePicPath: null,
+    }),
 }));

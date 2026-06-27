@@ -29,7 +29,7 @@ export const ConfirmDialog = ({
   requiredText,
   tone = 'danger',
   onCancel,
-  onConfirm
+  onConfirm,
 }: ConfirmDialogProps) => {
   const titleId = useId();
   const inputId = useId();
@@ -116,7 +116,11 @@ export const ConfirmDialog = ({
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <AlertTriangle aria-hidden="true" className={`mt-0.5 shrink-0 ${iconClassName}`} size={22} />
+            <AlertTriangle
+              aria-hidden="true"
+              className={`mt-0.5 shrink-0 ${iconClassName}`}
+              size={22}
+            />
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-secondary" id={titleId}>
                 {title}
@@ -153,10 +157,21 @@ export const ConfirmDialog = ({
         )}
 
         <div className="flex justify-end gap-2">
-          <button className="btn" disabled={confirming} onClick={onCancel} ref={cancelButtonRef} type="button">
+          <button
+            className="btn"
+            disabled={confirming}
+            onClick={onCancel}
+            ref={cancelButtonRef}
+            type="button"
+          >
             {cancelLabel}
           </button>
-          <button className="btn btn-primary" disabled={!canConfirm || confirming} onClick={handleConfirm} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={!canConfirm || confirming}
+            onClick={handleConfirm}
+            type="button"
+          >
             {confirmLabel}
           </button>
         </div>
@@ -172,7 +187,7 @@ const getFocusableElements = (root: HTMLElement | null) => {
 
   return Array.from(
     root.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
-    )
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
   ).filter((element) => !element.hasAttribute('hidden') && element.tabIndex !== -1);
 };

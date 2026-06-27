@@ -44,7 +44,7 @@ export const MobileDevices = () => {
     try {
       const next = await invoke<CreatedMobileDevice>('create_mobile_device', {
         sessionId,
-        deviceName: deviceName.trim()
+        deviceName: deviceName.trim(),
       });
       setCreated(next);
       setDeviceName('');
@@ -75,9 +75,14 @@ export const MobileDevices = () => {
   const confirmRevoke = (device: MobileDeviceItem) => {
     setConfirmAction({
       title: 'Revoke mobile device?',
-      body: <>Revoke <strong>{device.device_name}</strong>. This Android phone will no longer be allowed to upload documents to this office PC.</>,
+      body: (
+        <>
+          Revoke <strong>{device.device_name}</strong>. This Android phone will no longer be allowed
+          to upload documents to this office PC.
+        </>
+      ),
       confirmLabel: 'Revoke Device',
-      onConfirm: () => revoke(device.device_id)
+      onConfirm: () => revoke(device.device_id),
     });
   };
 
@@ -107,14 +112,21 @@ export const MobileDevices = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Mobile Devices</h1>
-          <p className="mt-1 text-sm text-muted">Create Android device tokens and revoke lost or retired phones.</p>
+          <p className="mt-1 text-sm text-muted">
+            Create Android device tokens and revoke lost or retired phones.
+          </p>
         </div>
         <button className="btn" disabled={loading} onClick={() => void load()} type="button">
-          <RefreshCw size={16} />{loading ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw size={16} />
+          {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
-      {message ? <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div> : null}
+      {message ? (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <div className="rounded border border-border bg-surface p-5 shadow-sm">
@@ -137,7 +149,8 @@ export const MobileDevices = () => {
             onClick={() => void createToken()}
             type="button"
           >
-            <KeyRound size={16} />{creating ? 'Creating...' : 'Create token'}
+            <KeyRound size={16} />
+            {creating ? 'Creating...' : 'Create token'}
           </button>
 
           {created ? (
@@ -163,7 +176,9 @@ export const MobileDevices = () => {
             <h2 className="text-lg font-semibold text-secondary">Approved Android phones</h2>
           </div>
           {devices.length === 0 ? (
-            <p className="rounded border border-border bg-background p-4 text-sm text-muted">No approved phones yet.</p>
+            <p className="rounded border border-border bg-background p-4 text-sm text-muted">
+              No approved phones yet.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -183,7 +198,9 @@ export const MobileDevices = () => {
                         <div className="mt-1 break-all text-xs text-muted">{device.device_id}</div>
                       </td>
                       <td className="py-3 pr-4">
-                        <span className={`rounded px-2 py-1 text-xs font-semibold ${device.is_active ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-muted'}`}>
+                        <span
+                          className={`rounded px-2 py-1 text-xs font-semibold ${device.is_active ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-muted'}`}
+                        >
                           {device.is_active ? 'Active' : 'Revoked'}
                         </span>
                       </td>
@@ -195,7 +212,8 @@ export const MobileDevices = () => {
                           onClick={() => confirmRevoke(device)}
                           type="button"
                         >
-                          <Ban size={16} />{revokingId === device.device_id ? 'Revoking...' : 'Revoke'}
+                          <Ban size={16} />
+                          {revokingId === device.device_id ? 'Revoking...' : 'Revoke'}
                         </button>
                       </td>
                     </tr>

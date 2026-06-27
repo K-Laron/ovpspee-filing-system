@@ -1,5 +1,13 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { Archive, DatabaseBackup, FolderOpen, RefreshCw, RotateCcw, Save, ShieldAlert } from 'lucide-react';
+import {
+  Archive,
+  DatabaseBackup,
+  FolderOpen,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  ShieldAlert,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialog';
@@ -29,7 +37,7 @@ export const BackupRestore = () => {
     if (!sessionId) return;
     const [nextSettings, nextHistory] = await Promise.all([
       invoke<BackupSettings>('get_backup_settings', { sessionId }),
-      invoke<BackupSummary[]>('list_backup_history', { sessionId })
+      invoke<BackupSummary[]>('list_backup_history', { sessionId }),
     ]);
     setSettings(nextSettings);
     setDestination(nextSettings.destination_path);
@@ -41,7 +49,9 @@ export const BackupRestore = () => {
   };
 
   useEffect(() => {
-    void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load backup settings.')));
+    void load().catch((err) =>
+      setMessage(getUserErrorMessage(err, 'Could not load backup settings.')),
+    );
   }, [sessionId]);
 
   const chooseDestination = async () => {
@@ -58,7 +68,7 @@ export const BackupRestore = () => {
         destinationPath: destination || null,
         scheduleEnabled,
         scheduleTime,
-        retentionCount
+        retentionCount,
       });
       setSettings(updated);
       setMessage('Backup settings saved.');
@@ -88,12 +98,16 @@ export const BackupRestore = () => {
     if (!sessionId || !selected) return;
     const outputPath = await save({
       defaultPath: `${selected}.ovpspee-backup`,
-      filters: [{ name: 'OVPSPEE Backup', extensions: ['ovpspee-backup'] }]
+      filters: [{ name: 'OVPSPEE Backup', extensions: ['ovpspee-backup'] }],
     });
     if (!outputPath) return;
     setBusy(true);
     try {
-      const path = await invoke<string>('export_backup_archive', { sessionId, backupName: selected, outputPath });
+      const path = await invoke<string>('export_backup_archive', {
+        sessionId,
+        backupName: selected,
+        outputPath,
+      });
       setMessage(`Portable backup exported: ${path}`);
     } catch (err) {
       setMessage(getUserErrorMessage(err, 'Could not export backup.'));
@@ -106,13 +120,19 @@ export const BackupRestore = () => {
     if (!sessionId) return;
     const path = await open({
       multiple: false,
-      filters: [{ name: 'OVPSPEE Backup', extensions: ['ovpspee-backup'] }]
+      filters: [{ name: 'OVPSPEE Backup', extensions: ['ovpspee-backup'] }],
     });
     if (typeof path !== 'string') return;
     setBusy(true);
     try {
-      const validation = await invoke<BackupValidation>('validate_backup_archive', { sessionId, archivePath: path });
-      const imported = await invoke<BackupSummary>('import_backup_archive', { sessionId, archivePath: path });
+      const validation = await invoke<BackupValidation>('validate_backup_archive', {
+        sessionId,
+        archivePath: path,
+      });
+      const imported = await invoke<BackupSummary>('import_backup_archive', {
+        sessionId,
+        archivePath: path,
+      });
       setSelected(imported.backup_name);
       setMessage(`Imported valid backup: ${validation.backup_name}`);
       await load();
@@ -140,10 +160,15 @@ export const BackupRestore = () => {
   const confirmRestore = (backupName: string) => {
     setConfirmAction({
       title: 'Restore backup?',
-      body: <>Restore <strong>{backupName}</strong>. Current data will be replaced, and a safety backup will be created first.</>,
+      body: (
+        <>
+          Restore <strong>{backupName}</strong>. Current data will be replaced, and a safety backup
+          will be created first.
+        </>
+      ),
       confirmLabel: 'Restore Backup',
       requiredText: backupName,
-      onConfirm: () => restore(backupName)
+      onConfirm: () => restore(backupName),
     });
   };
 
@@ -176,7 +201,15 @@ export const BackupRestore = () => {
           <h1 className="text-2xl font-bold text-secondary">Backup & Restore</h1>
           <p className="mt-1 text-sm text-muted">Admin-only data protection and portability.</p>
         </div>
-        <button className="btn" onClick={() => void load().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load backup settings.')))} type="button">
+        <button
+          className="btn"
+          onClick={() =>
+            void load().catch((err) =>
+              setMessage(getUserErrorMessage(err, 'Could not load backup settings.')),
+            )
+          }
+          type="button"
+        >
           <RefreshCw size={16} />
           Refresh
         </button>
@@ -185,11 +218,16 @@ export const BackupRestore = () => {
       {settings?.is_local_app_data && (
         <div className="flex gap-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <ShieldAlert className="shrink-0" size={18} />
-          Local-only backups do not protect against device loss or drive failure. Copy backups to external, network, or removable storage.
+          Local-only backups do not protect against device loss or drive failure. Copy backups to
+          external, network, or removable storage.
         </div>
       )}
 
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4 rounded border border-border bg-surface p-4 shadow-sm">
@@ -197,7 +235,11 @@ export const BackupRestore = () => {
           <label className="block text-sm">
             <span className="form-label">Destination</span>
             <div className="flex gap-2">
-              <input className="input" value={destination} onChange={(event) => setDestination(event.target.value)} />
+              <input
+                className="input"
+                value={destination}
+                onChange={(event) => setDestination(event.target.value)}
+              />
               <button className="btn" onClick={() => void chooseDestination()} type="button">
                 <FolderOpen size={16} />
                 Choose
@@ -206,20 +248,41 @@ export const BackupRestore = () => {
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex items-center gap-2 text-sm text-secondary">
-              <input checked={scheduleEnabled} onChange={(event) => setScheduleEnabled(event.target.checked)} type="checkbox" />
+              <input
+                checked={scheduleEnabled}
+                onChange={(event) => setScheduleEnabled(event.target.checked)}
+                type="checkbox"
+              />
               Scheduled backups
             </label>
             <label className="block text-sm">
               <span className="form-label">Daily time</span>
-              <input className="input" onChange={(event) => setScheduleTime(event.target.value)} type="time" value={scheduleTime} />
+              <input
+                className="input"
+                onChange={(event) => setScheduleTime(event.target.value)}
+                type="time"
+                value={scheduleTime}
+              />
             </label>
             <label className="block text-sm">
               <span className="form-label">Keep last</span>
-              <input className="input" min={1} max={100} onChange={(event) => setRetentionCount(Number(event.target.value))} type="number" value={retentionCount} />
+              <input
+                className="input"
+                min={1}
+                max={100}
+                onChange={(event) => setRetentionCount(Number(event.target.value))}
+                type="number"
+                value={retentionCount}
+              />
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="btn btn-primary" disabled={busy} onClick={() => void saveSettings()} type="button">
+            <button
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => void saveSettings()}
+              type="button"
+            >
               <Save size={16} />
               Save Settings
             </button>
@@ -234,21 +297,44 @@ export const BackupRestore = () => {
           <h2 className="text-lg font-semibold text-secondary">Portable Backup</h2>
           <label className="block text-sm">
             <span className="form-label">Selected backup</span>
-            <select className="input" value={selected} onChange={(event) => setSelected(event.target.value)}>
+            <select
+              className="input"
+              value={selected}
+              onChange={(event) => setSelected(event.target.value)}
+            >
               <option value="">Select backup</option>
-              {history.map((backup) => <option key={backup.backup_name} value={backup.backup_name}>{backup.backup_name}</option>)}
+              {history.map((backup) => (
+                <option key={backup.backup_name} value={backup.backup_name}>
+                  {backup.backup_name}
+                </option>
+              ))}
             </select>
           </label>
           <div className="flex flex-wrap gap-2">
-            <button className="btn" disabled={busy || !selected} onClick={() => void exportArchive()} type="button">
+            <button
+              className="btn"
+              disabled={busy || !selected}
+              onClick={() => void exportArchive()}
+              type="button"
+            >
               <Archive size={16} />
               Export .ovpspee-backup
             </button>
-            <button className="btn" disabled={busy} onClick={() => void importArchive()} type="button">
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => void importArchive()}
+              type="button"
+            >
               <FolderOpen size={16} />
               Import Archive
             </button>
-            <button className="btn btn-primary" disabled={busy || !selected} onClick={() => confirmRestore(selected)} type="button">
+            <button
+              className="btn btn-primary"
+              disabled={busy || !selected}
+              onClick={() => confirmRestore(selected)}
+              type="button"
+            >
               <RotateCcw size={16} />
               Restore Selected
             </button>
@@ -259,7 +345,13 @@ export const BackupRestore = () => {
       <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-background text-xs uppercase text-muted">
-            <tr><th className="p-3">Backup</th><th className="p-3">Created</th><th className="p-3">Size</th><th className="p-3">Status</th><th className="p-3">Action</th></tr>
+            <tr>
+              <th className="p-3">Backup</th>
+              <th className="p-3">Created</th>
+              <th className="p-3">Size</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Action</th>
+            </tr>
           </thead>
           <tbody>
             {history.map((backup) => (
@@ -270,9 +362,16 @@ export const BackupRestore = () => {
                 </td>
                 <td className="p-3 text-muted">{formatDateTime(backup.created_at)}</td>
                 <td className="p-3 text-muted">{formatBytes(backup.total_bytes)}</td>
-                <td className="p-3">{backup.is_valid ? 'Valid' : 'Invalid'} · {backup.file_count} file(s)</td>
                 <td className="p-3">
-                  <button className="btn" disabled={busy} onClick={() => confirmRestore(backup.backup_name)} type="button">
+                  {backup.is_valid ? 'Valid' : 'Invalid'} · {backup.file_count} file(s)
+                </td>
+                <td className="p-3">
+                  <button
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => confirmRestore(backup.backup_name)}
+                    type="button"
+                  >
                     <RotateCcw size={16} />
                     Restore
                   </button>
@@ -297,6 +396,3 @@ export const BackupRestore = () => {
     </section>
   );
 };
-
-
-

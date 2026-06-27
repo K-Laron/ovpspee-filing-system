@@ -40,10 +40,10 @@ src/
     useIntake.ts
     useToast.ts       ← thin wrapper around Shadcn sonner
   lib/
-    invoke.ts         ← generic cmd<T>() wrapper (80+ named wrappers removed)
+    invoke (from `@tauri-apps/api/core`)
     errors.ts         ← handleError() utility
     helpers.ts        ← nullable, fileNameFromPath, normalizeSelectedPaths, safeFileName, sizeLabel, extensionFromName, formatBytes
-    confirm.ts        ← ConfirmAction interface + useConfirmAction() hook
+    ConfirmDialog     ← inline useState<ConfirmAction | null>
     utils.ts          ← cn(), formatDate(), formatFileSize()
   store/
     sessionStore.ts   ← Zustand store for session state
@@ -744,16 +744,12 @@ Four sections within one scrollable page:
 
 ## 10. Typed Invoke Wrappers
 
-All `invoke()` calls must go through typed wrapper functions in `src/lib/invoke.ts`. Never call `invoke()` directly in components.
+All Tauri IPC calls use `{ invoke }` from `@tauri-apps/api/core` directly:
 
 ```typescript
-// src/lib/invoke.ts (full file)
 import { invoke } from '@tauri-apps/api/core';
-
-export const cmd = <T>(name: string, args?: Record<string, unknown>): Promise<T> => invoke(name, args);
+const result = await invoke<ReturnType>('command_name', { param });
 ```
-
-Individual named wrappers were removed — callers use `cmd<ReturnType>('command_name', { param })` directly.
 
 ---
 

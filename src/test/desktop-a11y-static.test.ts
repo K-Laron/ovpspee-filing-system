@@ -19,14 +19,14 @@ describe('desktop accessibility source checks', () => {
       'src/pages/secretary/AddDocument.tsx',
       'src/pages/secretary/Documents.tsx',
       'src/pages/secretary/MobileSubmissions.tsx',
-      'src/pages/secretary/ScanIntake.tsx'
+      'src/pages/secretary/ScanIntake.tsx',
     ];
 
     const unnamedIconButtons = files.flatMap((file) =>
       buttonTags(read(file))
         .filter((tag) => tag.includes('className="icon-btn'))
         .filter((tag) => !tag.includes('aria-label='))
-        .map((tag) => `${file}: ${tag}`)
+        .map((tag) => `${file}: ${tag}`),
     );
 
     expect(unnamedIconButtons).toEqual([]);
@@ -37,8 +37,13 @@ describe('desktop accessibility source checks', () => {
 
     const inaccessibleRows = files.flatMap((file) =>
       clickableRowBlocks(read(file))
-        .filter((block) => !block.includes('role="button"') || !block.includes('tabIndex={0}') || !block.includes('onKeyDown='))
-        .map((block) => `${file}: ${block}`)
+        .filter(
+          (block) =>
+            !block.includes('role="button"') ||
+            !block.includes('tabIndex={0}') ||
+            !block.includes('onKeyDown='),
+        )
+        .map((block) => `${file}: ${block}`),
     );
 
     expect(inaccessibleRows).toEqual([]);

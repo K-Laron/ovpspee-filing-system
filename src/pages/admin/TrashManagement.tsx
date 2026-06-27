@@ -22,7 +22,11 @@ export const TrashManagement = () => {
   };
 
   useEffect(() => {
-    void loadTrash().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
+    void loadTrash().catch((err) =>
+      setMessage(
+        getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
+      ),
+    );
   }, [sessionId]);
 
   const purgeOne = async (documentId: number) => {
@@ -56,10 +60,14 @@ export const TrashManagement = () => {
   const confirmPurgeOne = (doc: DocumentItem) => {
     setConfirmAction({
       title: 'Purge document permanently?',
-      body: <>Purge <strong>{doc.document_name}</strong> permanently. This cannot be undone.</>,
+      body: (
+        <>
+          Purge <strong>{doc.document_name}</strong> permanently. This cannot be undone.
+        </>
+      ),
       confirmLabel: 'Purge Document',
       requiredText: 'PURGE',
-      onConfirm: () => purgeOne(doc.document_id)
+      onConfirm: () => purgeOne(doc.document_id),
     });
   };
 
@@ -69,7 +77,7 @@ export const TrashManagement = () => {
       body: `Purge ${documents.length} document(s) permanently. This cannot be undone.`,
       confirmLabel: 'Empty Trash',
       requiredText: 'PURGE',
-      onConfirm: purgeAll
+      onConfirm: purgeAll,
     });
   };
 
@@ -103,11 +111,29 @@ export const TrashManagement = () => {
           <p className="mt-1 text-sm text-muted">Permanent purge controls for IT Staff.</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn" onClick={() => void loadTrash().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')))} type="button">
+          <button
+            className="btn"
+            onClick={() =>
+              void loadTrash().catch((err) =>
+                setMessage(
+                  getUserErrorMessage(
+                    err,
+                    'Could not load documents. Please refresh and try again.',
+                  ),
+                ),
+              )
+            }
+            type="button"
+          >
             <RefreshCw size={16} />
             Refresh
           </button>
-          <button className="btn btn-primary" disabled={busy || documents.length === 0} onClick={confirmPurgeAll} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={busy || documents.length === 0}
+            onClick={confirmPurgeAll}
+            type="button"
+          >
             <Trash2 size={16} />
             Empty Trash
           </button>
@@ -119,24 +145,43 @@ export const TrashManagement = () => {
         Purge permanently deletes document records and attachment files.
       </div>
 
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-background text-xs uppercase text-muted">
-            <tr><th className="p-3">Document</th><th className="p-3">Location</th><th className="p-3">Date</th><th className="p-3">Action</th></tr>
+            <tr>
+              <th className="p-3">Document</th>
+              <th className="p-3">Location</th>
+              <th className="p-3">Date</th>
+              <th className="p-3">Action</th>
+            </tr>
           </thead>
           <tbody>
             {documents.map((doc) => (
               <tr className="border-b border-border" key={doc.document_id}>
                 <td className="p-3">
                   <p className="font-semibold text-secondary">{doc.document_name}</p>
-                  <p className="text-xs text-muted">{doc.status} · {doc.attachment_count} file(s)</p>
+                  <p className="text-xs text-muted">
+                    {doc.status} · {doc.attachment_count} file(s)
+                  </p>
                 </td>
-                <td className="p-3 text-muted">{doc.category_name}{doc.folder_name ? ` / ${doc.folder_name}` : ''}</td>
+                <td className="p-3 text-muted">
+                  {doc.category_name}
+                  {doc.folder_name ? ` / ${doc.folder_name}` : ''}
+                </td>
                 <td className="p-3 text-muted">{formatDateOnly(doc.date_received)}</td>
                 <td className="p-3">
-                  <button className="btn" disabled={busy} onClick={() => confirmPurgeOne(doc)} type="button">
+                  <button
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => confirmPurgeOne(doc)}
+                    type="button"
+                  >
                     <Trash2 size={16} />
                     Purge
                   </button>
@@ -144,7 +189,11 @@ export const TrashManagement = () => {
               </tr>
             ))}
             {documents.length === 0 && (
-              <tr><td className="p-4 text-sm text-muted" colSpan={4}>Trash is empty.</td></tr>
+              <tr>
+                <td className="p-4 text-sm text-muted" colSpan={4}>
+                  Trash is empty.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

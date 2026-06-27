@@ -3,12 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn()
+  invoke: vi.fn(),
 }));
 
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: (selector: (state: { sessionId: string }) => string) =>
-    selector({ sessionId: 'session-1' })
+    selector({ sessionId: 'session-1' }),
 }));
 
 import type { MobileDeviceItem } from '../../types';
@@ -21,7 +21,7 @@ const device: MobileDeviceItem = {
   last_seen_at: '2026-05-21T09:00:00Z',
   created_by: 1,
   created_at: '2026-05-21T08:00:00Z',
-  updated_at: '2026-05-21T09:00:00Z'
+  updated_at: '2026-05-21T09:00:00Z',
 };
 
 describe('MobileDevices', () => {
@@ -60,8 +60,8 @@ describe('MobileDevices', () => {
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith('revoke_mobile_device', {
         sessionId: 'session-1',
-        deviceId: 'device-1'
-      })
+        deviceId: 'device-1',
+      }),
     );
   });
 });

@@ -10,5 +10,5 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <MemoryRouter>
       <App />
     </MemoryRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

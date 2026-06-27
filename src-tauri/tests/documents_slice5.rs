@@ -191,6 +191,7 @@ async fn secretary_can_restore_to_original_folder_or_category_root() {
     let restored = list_documents(&fx.pool, &fx.secretary, DocumentListFilter::default())
         .await
         .expect("docs")
+        .documents
         .into_iter()
         .find(|row| row.document_id == id)
         .expect("restored");
@@ -213,6 +214,7 @@ async fn secretary_can_restore_to_original_folder_or_category_root() {
     let restored = list_documents(&fx.pool, &fx.secretary, DocumentListFilter::default())
         .await
         .expect("docs")
+        .documents
         .into_iter()
         .find(|row| row.document_id == root_id)
         .expect("restored");
@@ -388,7 +390,8 @@ async fn viewer_lists_exclude_hidden_and_trashed_documents() {
 
     let public = list_public_documents(&fx.pool, DocumentListFilter::default())
         .await
-        .expect("public");
+        .expect("public")
+        .documents;
 
     assert!(public.iter().any(|row| row.document_id == visible));
     assert!(!public.iter().any(|row| row.document_id == hidden));

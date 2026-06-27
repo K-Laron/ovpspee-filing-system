@@ -34,7 +34,7 @@ export const FirstRunSetup = () => {
         firstName: String(data.get('firstName') ?? ''),
         lastName: String(data.get('lastName') ?? ''),
         username,
-        password
+        password,
       });
       const session = await invoke<SessionPayload>('login', { username, password });
       setSession(session);
@@ -48,7 +48,10 @@ export const FirstRunSetup = () => {
 
   return (
     <div className="flex h-screen items-center justify-center bg-background p-6">
-      <form className="w-full max-w-md rounded border border-border bg-surface p-6 shadow-sm" onSubmit={handleSubmit}>
+      <form
+        className="w-full max-w-md rounded border border-border bg-surface p-6 shadow-sm"
+        onSubmit={handleSubmit}
+      >
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded bg-primary text-white">
             <ShieldCheck size={24} />
@@ -63,15 +66,20 @@ export const FirstRunSetup = () => {
           <Field label="Last name" name="lastName" autoComplete="family-name" />
           <Field label="Username" name="username" autoComplete="username" />
           <Field label="Password" name="password" type="password" autoComplete="new-password" />
-          <Field label="Confirm password" name="confirmPassword" type="password" autoComplete="new-password" />
+          <Field
+            label="Confirm password"
+            name="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+          />
         </div>
         <p className="mt-3 text-xs text-muted">{passwordRulesText}</p>
-        {error && <p className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        <button
-          className="btn btn-primary mt-6 w-full"
-          disabled={submitting}
-          type="submit"
-        >
+        {error && (
+          <p className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <button className="btn btn-primary mt-6 w-full" disabled={submitting} type="submit">
           {submitting ? 'Creating Admin...' : 'Create Admin Account'}
         </button>
       </form>

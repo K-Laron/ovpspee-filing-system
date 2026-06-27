@@ -329,7 +329,8 @@ async fn filed_scan_creates_document_and_attachment_metadata() {
     .expect("file");
     let documents = list_documents(&fx.pool, &fx.secretary, DocumentListFilter::default())
         .await
-        .expect("documents");
+        .expect("documents")
+        .documents;
     let attachment = sqlx::query!(
         "SELECT original_file_name, stored_relative_path FROM attachment WHERE document_id = ?",
         document_id

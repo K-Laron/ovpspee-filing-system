@@ -202,6 +202,8 @@ pub async fn authenticate_user(
     .await?;
     tx.commit().await?;
 
+    // TODO: Include this audit log in the transaction above once write_audit_log
+    // accepts an Executor rather than requiring &DbPool.
     write_audit_log(
         pool,
         "LOGIN",
@@ -265,6 +267,19 @@ pub fn require_admin_role(role: &str) -> AppResult<()> {
     } else {
         Err(AppError::Unauthorized)
     }
+}
+
+pub async fn require_role(pool: &DbPool, session_id: &str, allowed_roles: &[&str]) -> AppResult<ValidSession> {
+    let session = require_session(pool, session_id).await?;
+    if allowed_roles.iter().any(|r| *r == session.role) {
+        Ok(session)
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}
+
+pub async fn require_admin(pool: &DbPool, session_id: &str) -> AppResult<ValidSession> {
+    require_role(pool, session_id, &["Admin"]).await
 }
 
 pub async fn logout_session(pool: &DbPool, session_id: &str) -> AppResult<()> {

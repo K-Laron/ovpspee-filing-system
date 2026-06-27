@@ -102,6 +102,13 @@ export interface AttachmentItem {
   created_at: string;
 }
 
+export interface DocumentListPage {
+  documents: DocumentItem[];
+  total_count: number;
+  limit: number;
+  offset: number;
+}
+
 export interface DocumentDetail {
   document: DocumentItem;
   attachments: AttachmentItem[];

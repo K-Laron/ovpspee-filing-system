@@ -21,7 +21,7 @@ export const Login = () => {
     try {
       const session = await invoke<SessionPayload>('login', {
         username: String(data.get('username') ?? ''),
-        password: String(data.get('password') ?? '')
+        password: String(data.get('password') ?? ''),
       });
       setSession(session);
       navigate(session.role === 'Admin' ? '/a' : '/s', { replace: true });
@@ -34,9 +34,16 @@ export const Login = () => {
 
   return (
     <div className="flex h-screen items-center justify-center bg-background p-6">
-      <form className="w-full max-w-sm rounded border border-border bg-surface p-6 shadow-sm" onSubmit={handleSubmit}>
+      <form
+        className="w-full max-w-sm rounded border border-border bg-surface p-6 shadow-sm"
+        onSubmit={handleSubmit}
+      >
         <div className="mb-6">
-          <img alt="UEP logo" className="mb-3 h-14 w-14 object-contain drop-shadow-sm" src="/uep-logo.png" />
+          <img
+            alt="UEP logo"
+            className="mb-3 h-14 w-14 object-contain drop-shadow-sm"
+            src="/uep-logo.png"
+          />
           <h1 className="text-xl font-bold text-secondary">Login</h1>
           <p className="text-sm text-muted">Admin and Secretary accounts only.</p>
         </div>
@@ -59,12 +66,12 @@ export const Login = () => {
             type="password"
           />
         </label>
-        {error && <p className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        <button
-          className="btn btn-primary mt-6 w-full"
-          disabled={submitting}
-          type="submit"
-        >
+        {error && (
+          <p className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <button className="btn btn-primary mt-6 w-full" disabled={submitting} type="submit">
           {submitting ? 'Signing in...' : 'Sign in'}
         </button>
         <Link className="mt-4 block text-center text-sm text-muted hover:text-primary" to="/">

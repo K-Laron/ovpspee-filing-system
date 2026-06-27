@@ -1,5 +1,19 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { AlertTriangle, ChevronLeft, ChevronRight, Eye, FileScan, FileText, Link2, RefreshCw, Save, ScanLine, Trash2, Upload, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FileScan,
+  FileText,
+  Link2,
+  RefreshCw,
+  Save,
+  ScanLine,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,12 +23,18 @@ import { EmptyState } from '../../components/EmptyState';
 import { formatDateInputValue, formatDateTime } from '../../lib/dates';
 import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
-import { extensionFromName, fileNameFromPath, normalizeSelectedPaths, sizeLabel } from '../../lib/helpers';
+import {
+  extensionFromName,
+  fileNameFromPath,
+  normalizeSelectedPaths,
+  sizeLabel,
+} from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
 import type {
   CategoryItem,
   DeviceSettings,
   DocumentItem,
+  DocumentListPage,
   DocumentStatus,
   FolderItem,
   OfficeItem,
@@ -22,15 +42,15 @@ import type {
   ScanIntakePreviewPage,
   ScanOptions,
   ScannerCapabilities,
-  ScannerDevice
+  ScannerDevice,
 } from '../../types';
 
 const today = formatDateInputValue();
 const scanFilters = [
   {
     name: 'Scanned PDF and image files',
-    extensions: ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff']
-  }
+    extensions: ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff'],
+  },
 ];
 
 const emptyForm = {
@@ -40,7 +60,7 @@ const emptyForm = {
   officeId: '',
   dateReceived: today,
   remarks: '',
-  status: 'Filed' as DocumentStatus
+  status: 'Filed' as DocumentStatus,
 };
 
 interface ScanIntakePreviewProps {
@@ -51,7 +71,13 @@ interface ScanIntakePreviewProps {
   preview: ScanIntakePreviewPage | null;
 }
 
-const ScanIntakePreview = ({ item, loading, onPageChange, page, preview }: ScanIntakePreviewProps) => {
+const ScanIntakePreview = ({
+  item,
+  loading,
+  onPageChange,
+  page,
+  preview,
+}: ScanIntakePreviewProps) => {
   if (!item) {
     return (
       <div className="rounded border border-border bg-surface p-5 shadow-sm">
@@ -80,71 +106,129 @@ const ScanIntakePreview = ({ item, loading, onPageChange, page, preview }: ScanI
             <Eye size={18} className="text-primary" />
             <h2 className="font-semibold text-secondary">Pending Preview</h2>
           </div>
-          <p className="mt-1 truncate text-sm font-medium text-secondary">{item.original_file_name}</p>
+          <p className="mt-1 truncate text-sm font-medium text-secondary">
+            {item.original_file_name}
+          </p>
           <p className="text-xs text-muted">
-            {kind} · {info?.extension ?? extensionFromName(item.original_file_name)} · {item.mime_type} · {sizeLabel(item.file_size_bytes)}
+            {kind} · {info?.extension ?? extensionFromName(item.original_file_name)} ·{' '}
+            {item.mime_type} · {sizeLabel(item.file_size_bytes)}
           </p>
         </div>
-        <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{kind}</span>
+        <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">
+          {kind}
+        </span>
       </div>
 
       {canPage && (
         <div className="flex items-center gap-2">
-          <button aria-label="Previous scan preview page" className="icon-btn" disabled={loading || page <= 1} onClick={() => onPageChange(page - 1)} title="Previous page" type="button">
+          <button
+            aria-label="Previous scan preview page"
+            className="icon-btn"
+            disabled={loading || page <= 1}
+            onClick={() => onPageChange(page - 1)}
+            title="Previous page"
+            type="button"
+          >
             <ChevronLeft size={15} />
           </button>
-          <span className="text-xs font-semibold text-secondary">PAGE {page} of {maxPage}</span>
-          <button aria-label="Next scan preview page" className="icon-btn" disabled={loading || page >= maxPage} onClick={() => onPageChange(page + 1)} title="Next page" type="button">
+          <span className="text-xs font-semibold text-secondary">
+            PAGE {page} of {maxPage}
+          </span>
+          <button
+            aria-label="Next scan preview page"
+            className="icon-btn"
+            disabled={loading || page >= maxPage}
+            onClick={() => onPageChange(page + 1)}
+            title="Next page"
+            type="button"
+          >
             <ChevronRight size={15} />
           </button>
         </div>
       )}
 
-      {loading && <div className="rounded border border-border bg-background p-4 text-sm text-muted">Loading preview...</div>}
+      {loading && (
+        <div className="rounded border border-border bg-background p-4 text-sm text-muted">
+          Loading preview...
+        </div>
+      )}
       {!loading && info && !info.file_exists && (
         <div className="rounded border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-          <div className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} />File unavailable</div>
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle size={16} />
+            File unavailable
+          </div>
           <p className="mt-1">{info.message}</p>
         </div>
       )}
-      {!loading && info?.file_exists && info.preview_kind === 'Image' && preview?.preview_data_url && (
-        <div className="max-h-[26rem] overflow-auto rounded border border-border bg-white p-3">
-          <img alt={item.original_file_name} className="mx-auto max-h-[24rem] max-w-full object-contain" src={preview.preview_data_url} />
-        </div>
-      )}
-      {!loading && info?.file_exists && info.preview_kind === 'Pdf' && preview?.preview_data_url && (
-        <iframe className="h-[28rem] w-full rounded border border-border bg-white" src={`${preview.preview_data_url}#page=${page}`} title={item.original_file_name} />
-      )}
+      {!loading &&
+        info?.file_exists &&
+        info.preview_kind === 'Image' &&
+        preview?.preview_data_url && (
+          <div className="max-h-[26rem] overflow-auto rounded border border-border bg-white p-3">
+            <img
+              alt={item.original_file_name}
+              className="mx-auto max-h-[24rem] max-w-full object-contain"
+              src={preview.preview_data_url}
+            />
+          </div>
+        )}
+      {!loading &&
+        info?.file_exists &&
+        info.preview_kind === 'Pdf' &&
+        preview?.preview_data_url && (
+          <iframe
+            className="h-[28rem] w-full rounded border border-border bg-white"
+            src={`${preview.preview_data_url}#page=${page}`}
+            title={item.original_file_name}
+          />
+        )}
       {!loading && preview && info?.file_exists && info.preview_kind === 'Text' && (
         <div className="rounded border border-border bg-white">
           <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm font-semibold text-secondary">
-            <FileText size={16} />Text preview
+            <FileText size={16} />
+            Text preview
           </div>
           {preview.text_content ? (
-            <pre className="max-h-[24rem] overflow-auto whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-secondary">{preview.text_content}</pre>
+            <pre className="max-h-[24rem] overflow-auto whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-secondary">
+              {preview.text_content}
+            </pre>
           ) : (
             <div className="p-4 text-sm text-muted">{info.message}</div>
           )}
-          {preview.text_truncated && <p className="border-t border-border px-3 py-2 text-xs text-muted">Preview capped for safety.</p>}
+          {preview.text_truncated && (
+            <p className="border-t border-border px-3 py-2 text-xs text-muted">
+              Preview capped for safety.
+            </p>
+          )}
         </div>
       )}
       {!loading && info?.file_exists && info.preview_kind === 'Unsupported' && (
         <div className="rounded border border-border bg-background p-4 text-sm text-secondary">
-          <div className="mb-2 flex items-center gap-2 font-semibold"><Eye size={16} />Preview not available for this file type</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold">
+            <Eye size={16} />
+            Preview not available for this file type
+          </div>
           <p>{info.message}</p>
           <dl className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
-            <div><dt className="font-semibold text-secondary">Type</dt><dd>{info.extension.toUpperCase()}</dd></div>
-            <div><dt className="font-semibold text-secondary">MIME</dt><dd>{info.mime_type}</dd></div>
-            <div><dt className="font-semibold text-secondary">Size</dt><dd>{sizeLabel(info.file_size_bytes)}</dd></div>
+            <div>
+              <dt className="font-semibold text-secondary">Type</dt>
+              <dd>{info.extension.toUpperCase()}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-secondary">MIME</dt>
+              <dd>{info.mime_type}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-secondary">Size</dt>
+              <dd>{sizeLabel(info.file_size_bytes)}</dd>
+            </div>
           </dl>
         </div>
       )}
     </div>
   );
 };
-
-
-
 
 export const ScanIntake = () => {
   const navigate = useNavigate();
@@ -163,7 +247,7 @@ export const ScanIntake = () => {
     dpi: 300,
     color_mode: 'color',
     output_format: 'png',
-    source: 'flatbed'
+    source: 'flatbed',
   });
   const [form, setForm] = useState(emptyForm);
   const [existingDocumentId, setExistingDocumentId] = useState('');
@@ -179,7 +263,7 @@ export const ScanIntake = () => {
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.scan_intake_id)),
-    [items, selectedIds]
+    [items, selectedIds],
   );
 
   const loadLookups = async () => {
@@ -187,30 +271,32 @@ export const ScanIntake = () => {
     const [nextCategories, nextOffices, nextDocuments] = await Promise.all([
       invoke<CategoryItem[]>('list_public_categories'),
       invoke<OfficeItem[]>('list_document_offices', { sessionId }),
-      invoke<DocumentItem[]>('list_documents', { sessionId })
+      invoke<DocumentListPage>('list_documents', { sessionId }),
     ]);
     setCategories(nextCategories);
     setOffices(nextOffices);
-    setDocuments(nextDocuments);
+    setDocuments(nextDocuments.documents);
   };
 
   const loadScanners = async () => {
     if (!sessionId) return;
     const [rows, settings] = await Promise.all([
       invoke<ScannerDevice[]>('list_scanners', { sessionId }),
-      invoke<DeviceSettings>('get_device_settings', { sessionId })
+      invoke<DeviceSettings>('get_device_settings', { sessionId }),
     ]);
     setScanners(rows);
-    const preferred = settings.default_scanner_id && rows.some((scanner) => scanner.device_id === settings.default_scanner_id)
-      ? settings.default_scanner_id
-      : rows[0]?.device_id ?? '';
+    const preferred =
+      settings.default_scanner_id &&
+      rows.some((scanner) => scanner.device_id === settings.default_scanner_id)
+        ? settings.default_scanner_id
+        : (rows[0]?.device_id ?? '');
     setSelectedScannerId(preferred);
     setScanOptions((current) => ({
       ...current,
       dpi: settings.scan_default_dpi,
       color_mode: settings.scan_default_color_mode,
       // Direct scanner capture currently supports image output. Imported scan files may still be PDFs.
-      output_format: settings.scan_default_output_format === 'jpg' ? 'jpg' : 'png'
+      output_format: settings.scan_default_output_format === 'jpg' ? 'jpg' : 'png',
     }));
   };
 
@@ -218,13 +304,21 @@ export const ScanIntake = () => {
     if (!sessionId) return [];
     const rows = await invoke<ScanIntakeItem[]>('list_scan_intake', { sessionId });
     setItems(rows);
-    setSelectedIds((current) => current.filter((id) => rows.some((row) => row.scan_intake_id === id)));
+    setSelectedIds((current) =>
+      current.filter((id) => rows.some((row) => row.scan_intake_id === id)),
+    );
     return rows;
   };
 
   useEffect(() => {
-    void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.')));
-    const interval = setInterval(() => { if (!document.hidden) void loadIntake(); }, 10000);
+    void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) =>
+      setMessage(
+        getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.'),
+      ),
+    );
+    const interval = setInterval(() => {
+      if (!document.hidden) void loadIntake();
+    }, 30000);
     return () => clearInterval(interval);
   }, [sessionId]);
 
@@ -233,19 +327,33 @@ export const ScanIntake = () => {
       setScannerCapabilities(null);
       return;
     }
-    void invoke<ScannerCapabilities>('get_scanner_capabilities', { sessionId, scannerId: selectedScannerId })
+    void invoke<ScannerCapabilities>('get_scanner_capabilities', {
+      sessionId,
+      scannerId: selectedScannerId,
+    })
       .then((capabilities) => {
         setScannerCapabilities(capabilities);
         setScanOptions((current) => ({
-          dpi: capabilities.supported_dpi.includes(current.dpi) ? current.dpi : capabilities.supported_dpi[0] ?? 300,
-          color_mode: capabilities.supported_color_modes.includes(current.color_mode) ? current.color_mode : capabilities.supported_color_modes[0] ?? 'color',
-          output_format: capabilities.supported_output_formats.includes(current.output_format) ? current.output_format : capabilities.supported_output_formats[0] ?? 'png',
-          source: current.source === 'adf' && capabilities.supports_adf ? 'adf' : 'flatbed'
+          dpi: capabilities.supported_dpi.includes(current.dpi)
+            ? current.dpi
+            : (capabilities.supported_dpi[0] ?? 300),
+          color_mode: capabilities.supported_color_modes.includes(current.color_mode)
+            ? current.color_mode
+            : (capabilities.supported_color_modes[0] ?? 'color'),
+          output_format: capabilities.supported_output_formats.includes(current.output_format)
+            ? current.output_format
+            : (capabilities.supported_output_formats[0] ?? 'png'),
+          source: current.source === 'adf' && capabilities.supports_adf ? 'adf' : 'flatbed',
         }));
       })
       .catch((err) => {
         setScannerCapabilities(null);
-        setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.'));
+        setMessage(
+          getUserErrorMessage(
+            err,
+            'Could not detect devices. Check the connection, then refresh devices.',
+          ),
+        );
       });
   }, [sessionId, selectedScannerId]);
 
@@ -257,14 +365,22 @@ export const ScanIntake = () => {
     }
     void invoke<FolderItem[]>('list_public_folders', { categoryId })
       .then(setFolders)
-      .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.')));
+      .catch((err) =>
+        setMessage(
+          getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
+        ),
+      );
   }, [form.categoryId]);
 
   const loadPreview = async (scanIntakeId: number, nextPage = 1) => {
     if (!sessionId) return;
     setPreviewLoading(true);
     try {
-      const next = await invoke<ScanIntakePreviewPage>('get_scan_intake_preview_page', { sessionId, scanIntakeId, pageNumber: nextPage });
+      const next = await invoke<ScanIntakePreviewPage>('get_scan_intake_preview_page', {
+        sessionId,
+        scanIntakeId,
+        pageNumber: nextPage,
+      });
       setPreview(next);
       setPreviewPage(next.page_number);
     } catch (err) {
@@ -286,7 +402,10 @@ export const ScanIntake = () => {
     setPreviewPage(1);
     void loadPreview(firstSelected.scan_intake_id, 1);
     if (!form.documentName) {
-      setForm((current) => ({ ...current, documentName: firstSelected.original_file_name.replace(/\.[^.]+$/, '') }));
+      setForm((current) => ({
+        ...current,
+        documentName: firstSelected.original_file_name.replace(/\.[^.]+$/, ''),
+      }));
     }
   }, [selectedIds]);
 
@@ -294,7 +413,7 @@ export const ScanIntake = () => {
     const selected = await open({
       multiple: true,
       directory: false,
-      filters: scanFilters
+      filters: scanFilters,
     });
     const paths = normalizeSelectedPaths(selected);
     if (paths.length) setSelectedPaths((current) => Array.from(new Set([...current, ...paths])));
@@ -305,7 +424,10 @@ export const ScanIntake = () => {
     setBusy(true);
     setMessage('');
     try {
-      const importedIds = await invoke<number[]>('import_scan_files', { sessionId, sourcePaths: selectedPaths });
+      const importedIds = await invoke<number[]>('import_scan_files', {
+        sessionId,
+        sourcePaths: selectedPaths,
+      });
       setSelectedPaths([]);
       setMessage('Scan file(s) imported.');
       await loadIntake();
@@ -313,7 +435,12 @@ export const ScanIntake = () => {
         setSelectedIds([Math.max(...importedIds)]);
       }
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not add the attachment. Check the file type and try again.',
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -324,11 +451,12 @@ export const ScanIntake = () => {
     if (count === 0) return;
     setConfirmAction({
       title: 'Remove pending scan?',
-      body: count === 1
-        ? 'Remove 1 selected pending scan from active intake.'
-        : `Remove ${count} selected pending scans from active intake.`,
+      body:
+        count === 1
+          ? 'Remove 1 selected pending scan from active intake.'
+          : `Remove ${count} selected pending scans from active intake.`,
       confirmLabel: count === 1 ? 'Remove Pending Scan' : 'Remove Pending Scans',
-      onConfirm: removeSelected
+      onConfirm: removeSelected,
     });
   };
 
@@ -351,20 +479,27 @@ export const ScanIntake = () => {
       const item = await invoke<ScanIntakeItem>('scan_to_intake', {
         sessionId,
         scannerId: selectedScannerId,
-        options: scanOptions
+        options: scanOptions,
       });
       setMessage('Scanner capture added to pending intake.');
       await loadIntake();
       setSelectedIds([item.scan_intake_id]);
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not detect devices. Check the connection, then refresh devices.',
+        ),
+      );
     } finally {
       setScanBusy(false);
     }
   };
 
   const toggleSelected = (id: number) => {
-    setSelectedIds((current) => current.includes(id) ? current.filter((itemId) => itemId !== id) : [id, ...current]);
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((itemId) => itemId !== id) : [id, ...current],
+    );
   };
 
   const saveNotes = async () => {
@@ -372,7 +507,7 @@ export const ScanIntake = () => {
     await invoke<void>('update_scan_intake_notes', {
       sessionId,
       scanIntakeId: selectedItems[0].scan_intake_id,
-      notes: notesDraft || null
+      notes: notesDraft || null,
     });
     setMessage('Notes saved.');
     await loadIntake();
@@ -411,13 +546,18 @@ export const ScanIntake = () => {
         officeId: form.officeId ? Number(form.officeId) : null,
         dateReceived: form.dateReceived,
         remarks: form.remarks || null,
-        status: form.status
+        status: form.status,
       });
       setSelectedIds([]);
       setForm(emptyForm);
       navigate(`/s/documents?created=${documentId}`, { replace: false });
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not save the document. Check the required fields and try again.',
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -431,14 +571,19 @@ export const ScanIntake = () => {
       await invoke<number[]>('attach_scan_to_document', {
         sessionId,
         scanIntakeIds: selectedIds,
-        documentId: Number(existingDocumentId)
+        documentId: Number(existingDocumentId),
       });
       setSelectedIds([]);
       setExistingDocumentId('');
       setMessage('Scan file(s) attached to document.');
       await Promise.all([loadIntake(), loadLookups()]);
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.'));
+      setMessage(
+        getUserErrorMessage(
+          err,
+          'Could not add the attachment. Check the file type and try again.',
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -460,14 +605,34 @@ export const ScanIntake = () => {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-secondary">Scan Intake</h1>
-          <p className="mt-1 text-sm text-muted">Review scanned/imported files here before filing them as official documents.</p>
+          <p className="mt-1 text-sm text-muted">
+            Review scanned/imported files here before filing them as official documents.
+          </p>
         </div>
-        <button className="btn" onClick={() => void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) => setMessage(getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.')))} type="button">
-          <RefreshCw size={16} />Refresh
+        <button
+          className="btn"
+          onClick={() =>
+            void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) =>
+              setMessage(
+                getUserErrorMessage(
+                  err,
+                  'Could not load scan intake data. Please refresh and try again.',
+                ),
+              ),
+            )
+          }
+          type="button"
+        >
+          <RefreshCw size={16} />
+          Refresh
         </button>
       </div>
 
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-5">
@@ -480,60 +645,144 @@ export const ScanIntake = () => {
               <div className="flex items-end gap-3">
                 <label className="min-w-0 flex-1">
                   <span className="form-label">Selected scanner</span>
-                  <select className="input" value={selectedScannerId} onChange={(e) => setSelectedScannerId(e.target.value)}>
+                  <select
+                    className="input"
+                    value={selectedScannerId}
+                    onChange={(e) => setSelectedScannerId(e.target.value)}
+                  >
                     <option value="">No scanner selected</option>
                     {scanners.map((scanner) => (
                       <option key={scanner.device_id} value={scanner.device_id}>
-                        {scanner.name}{scanner.is_available ? '' : ' (Unavailable)'}
+                        {scanner.name}
+                        {scanner.is_available ? '' : ' (Unavailable)'}
                       </option>
                     ))}
                   </select>
                 </label>
-                <button className="btn" onClick={() => void loadScanners().catch((err) => setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.')))} type="button">
-                  <RefreshCw size={16} />Refresh
+                <button
+                  className="btn"
+                  onClick={() =>
+                    void loadScanners().catch((err) =>
+                      setMessage(
+                        getUserErrorMessage(
+                          err,
+                          'Could not detect devices. Check the connection, then refresh devices.',
+                        ),
+                      ),
+                    )
+                  }
+                  type="button"
+                >
+                  <RefreshCw size={16} />
+                  Refresh
                 </button>
               </div>
               {scanners.length === 0 ? (
                 <EmptyState
                   actionLabel="Refresh Devices"
                   message="Connect and turn on the scanner, then refresh detection before scanning to intake."
-                  onAction={() => void loadScanners().catch((err) => setMessage(getUserErrorMessage(err, 'Could not detect devices. Check the connection, then refresh devices.')))}
+                  onAction={() =>
+                    void loadScanners().catch((err) =>
+                      setMessage(
+                        getUserErrorMessage(
+                          err,
+                          'Could not detect devices. Check the connection, then refresh devices.',
+                        ),
+                      ),
+                    )
+                  }
                   title="No scanner detected"
                 />
               ) : (
                 <div className="rounded border border-border p-3 text-sm">
                   <p className="font-medium text-secondary">
-                    {scanners.find((scanner) => scanner.device_id === selectedScannerId)?.name ?? 'Scanner'}
+                    {scanners.find((scanner) => scanner.device_id === selectedScannerId)?.name ??
+                      'Scanner'}
                   </p>
                   <p className="text-xs text-muted">
-                    {scannerCapabilities?.status ?? scanners.find((scanner) => scanner.device_id === selectedScannerId)?.status ?? 'Status unknown'}
+                    {scannerCapabilities?.status ??
+                      scanners.find((scanner) => scanner.device_id === selectedScannerId)?.status ??
+                      'Status unknown'}
                   </p>
                 </div>
               )}
               <div className="grid gap-3 md:grid-cols-2">
                 <label>
                   <span className="form-label">DPI</span>
-                  <select className="input" value={scanOptions.dpi} onChange={(e) => setScanOptions({ ...scanOptions, dpi: Number(e.target.value) })}>
-                    {(scannerCapabilities?.supported_dpi ?? [200, 300, 600]).map((dpi) => <option key={dpi} value={dpi}>{dpi}</option>)}
+                  <select
+                    className="input"
+                    value={scanOptions.dpi}
+                    onChange={(e) =>
+                      setScanOptions({ ...scanOptions, dpi: Number(e.target.value) })
+                    }
+                  >
+                    {(scannerCapabilities?.supported_dpi ?? [200, 300, 600]).map((dpi) => (
+                      <option key={dpi} value={dpi}>
+                        {dpi}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label>
                   <span className="form-label">Color mode</span>
-                  <select className="input" value={scanOptions.color_mode} onChange={(e) => setScanOptions({ ...scanOptions, color_mode: e.target.value as ScanOptions['color_mode'] })}>
-                    {(scannerCapabilities?.supported_color_modes ?? ['color', 'grayscale', 'black_white']).map((mode) => (
-                      <option key={mode} value={mode}>{mode === 'black_white' ? 'Black & white' : mode[0].toUpperCase() + mode.slice(1)}</option>
+                  <select
+                    className="input"
+                    value={scanOptions.color_mode}
+                    onChange={(e) =>
+                      setScanOptions({
+                        ...scanOptions,
+                        color_mode: e.target.value as ScanOptions['color_mode'],
+                      })
+                    }
+                  >
+                    {(
+                      scannerCapabilities?.supported_color_modes ?? [
+                        'color',
+                        'grayscale',
+                        'black_white',
+                      ]
+                    ).map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode === 'black_white'
+                          ? 'Black & white'
+                          : mode[0].toUpperCase() + mode.slice(1)}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
                   <span className="form-label">Output format</span>
-                  <select className="input" value={scanOptions.output_format} onChange={(e) => setScanOptions({ ...scanOptions, output_format: e.target.value as ScanOptions['output_format'] })}>
-                    {(scannerCapabilities?.supported_output_formats ?? ['png', 'jpg']).map((format) => <option key={format} value={format}>{format.toUpperCase()}</option>)}
+                  <select
+                    className="input"
+                    value={scanOptions.output_format}
+                    onChange={(e) =>
+                      setScanOptions({
+                        ...scanOptions,
+                        output_format: e.target.value as ScanOptions['output_format'],
+                      })
+                    }
+                  >
+                    {(scannerCapabilities?.supported_output_formats ?? ['png', 'jpg']).map(
+                      (format) => (
+                        <option key={format} value={format}>
+                          {format.toUpperCase()}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
                 <label>
                   <span className="form-label">Source</span>
-                  <select className="input" value={scanOptions.source} onChange={(e) => setScanOptions({ ...scanOptions, source: e.target.value as ScanOptions['source'] })}>
+                  <select
+                    className="input"
+                    value={scanOptions.source}
+                    onChange={(e) =>
+                      setScanOptions({
+                        ...scanOptions,
+                        source: e.target.value as ScanOptions['source'],
+                      })
+                    }
+                  >
                     <option value="flatbed">Flatbed</option>
                     {scannerCapabilities?.supports_adf && <option value="adf">ADF</option>}
                   </select>
@@ -541,13 +790,19 @@ export const ScanIntake = () => {
               </div>
               <button
                 className="btn btn-primary w-full justify-center"
-                disabled={scanBusy || !selectedScannerId || scannerCapabilities?.is_available === false}
+                disabled={
+                  scanBusy || !selectedScannerId || scannerCapabilities?.is_available === false
+                }
                 onClick={() => void captureFromScanner()}
                 type="button"
               >
-                <ScanLine size={16} />{scanBusy ? 'Scanning...' : 'Scan to Intake'}
+                <ScanLine size={16} />
+                {scanBusy ? 'Scanning...' : 'Scan to Intake'}
               </button>
-              <p className="text-xs text-muted">Flatbed single-page capture is available. For multiple pages, import a prepared PDF or image file.</p>
+              <p className="text-xs text-muted">
+                Flatbed single-page capture is available. For multiple pages, import a prepared PDF
+                or image file.
+              </p>
             </div>
           </div>
 
@@ -556,32 +811,78 @@ export const ScanIntake = () => {
               <FileScan size={18} className="text-primary" />
               <h2 className="font-semibold text-secondary">Import Scans</h2>
             </div>
-            <button className="btn w-full justify-center" onClick={() => void chooseFiles().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))} type="button">
-              <Upload size={16} />Choose Files
+            <button
+              className="btn w-full justify-center"
+              onClick={() =>
+                void chooseFiles().catch((err) =>
+                  setMessage(
+                    getUserErrorMessage(
+                      err,
+                      'Could not add the attachment. Check the file type and try again.',
+                    ),
+                  ),
+                )
+              }
+              type="button"
+            >
+              <Upload size={16} />
+              Choose Files
             </button>
-            <p className="mt-2 text-xs text-muted">Allowed: PDF, JPG, PNG, TIFF. Max 1 GB each; files above 250 MB are marked large.</p>
+            <p className="mt-2 text-xs text-muted">
+              Allowed: PDF, JPG, PNG, TIFF. Max 1 GB each; files above 250 MB are marked large.
+            </p>
             <div className="mt-4 space-y-2">
               {selectedPaths.length === 0 ? (
                 <EmptyState
                   actionLabel="Choose Files"
                   message="Choose PDF or image scan files to stage them before importing into pending intake."
-                  onAction={() => void chooseFiles().catch((err) => setMessage(getUserErrorMessage(err, 'Could not add the attachment. Check the file type and try again.')))}
+                  onAction={() =>
+                    void chooseFiles().catch((err) =>
+                      setMessage(
+                        getUserErrorMessage(
+                          err,
+                          'Could not add the attachment. Check the file type and try again.',
+                        ),
+                      ),
+                    )
+                  }
                   title="No scan files selected"
                 />
-              ) : selectedPaths.map((sourcePath) => (
-                <div className="flex items-center justify-between gap-3 rounded border border-border p-3 text-sm" key={sourcePath}>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-secondary">{fileNameFromPath(sourcePath)}</p>
-                    <p className="truncate text-xs text-muted">Ready to import</p>
+              ) : (
+                selectedPaths.map((sourcePath) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded border border-border p-3 text-sm"
+                    key={sourcePath}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-secondary">
+                        {fileNameFromPath(sourcePath)}
+                      </p>
+                      <p className="truncate text-xs text-muted">Ready to import</p>
+                    </div>
+                    <button
+                      aria-label={`Remove selected scan file ${fileNameFromPath(sourcePath)}`}
+                      className="icon-btn shrink-0"
+                      onClick={() =>
+                        setSelectedPaths((current) => current.filter((path) => path !== sourcePath))
+                      }
+                      title="Remove selected file"
+                      type="button"
+                    >
+                      <X size={15} />
+                    </button>
                   </div>
-                  <button aria-label={`Remove selected scan file ${fileNameFromPath(sourcePath)}`} className="icon-btn shrink-0" onClick={() => setSelectedPaths((current) => current.filter((path) => path !== sourcePath))} title="Remove selected file" type="button">
-                    <X size={15} />
-                  </button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-            <button className="btn btn-primary mt-4 w-full justify-center" disabled={busy || selectedPaths.length === 0} onClick={() => void importSelected()} type="button">
-              <Upload size={16} />Import Selected
+            <button
+              className="btn btn-primary mt-4 w-full justify-center"
+              disabled={busy || selectedPaths.length === 0}
+              onClick={() => void importSelected()}
+              type="button"
+            >
+              <Upload size={16} />
+              Import Selected
             </button>
           </div>
 
@@ -598,24 +899,39 @@ export const ScanIntake = () => {
                     title="No pending scan intake files"
                   />
                 </div>
-              ) : items.map((item) => (
-                <label className="flex cursor-pointer gap-3 p-4 hover:bg-background" key={item.scan_intake_id}>
-                  <input
-                    checked={selectedIds.includes(item.scan_intake_id)}
-                    className="mt-1"
-                    onChange={() => toggleSelected(item.scan_intake_id)}
-                    type="checkbox"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium text-secondary">{item.original_file_name}</span>
-                      <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{extensionFromName(item.original_file_name).toUpperCase()}</span>
+              ) : (
+                items.map((item) => (
+                  <label
+                    className="flex cursor-pointer gap-3 p-4 hover:bg-background"
+                    key={item.scan_intake_id}
+                  >
+                    <input
+                      checked={selectedIds.includes(item.scan_intake_id)}
+                      className="mt-1"
+                      onChange={() => toggleSelected(item.scan_intake_id)}
+                      type="checkbox"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium text-secondary">
+                          {item.original_file_name}
+                        </span>
+                        <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                          {extensionFromName(item.original_file_name).toUpperCase()}
+                        </span>
+                      </span>
+                      <span className="block text-xs text-muted">
+                        {item.status} · {formatDateTime(item.created_at)} · {item.mime_type} ·{' '}
+                        {sizeLabel(item.file_size_bytes)}
+                        {item.is_large ? ' · Large file' : ''}
+                      </span>
+                      {item.notes && (
+                        <span className="mt-1 block text-xs text-muted">{item.notes}</span>
+                      )}
                     </span>
-                    <span className="block text-xs text-muted">{item.status} · {formatDateTime(item.created_at)} · {item.mime_type} · {sizeLabel(item.file_size_bytes)}{item.is_large ? ' · Large file' : ''}</span>
-                    {item.notes && <span className="mt-1 block text-xs text-muted">{item.notes}</span>}
-                  </span>
-                </label>
-              ))}
+                  </label>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -624,12 +940,17 @@ export const ScanIntake = () => {
           <ScanIntakePreview
             item={selectedItems[0] ?? null}
             loading={previewLoading}
-            onPageChange={(nextPage) => selectedItems[0] && void loadPreview(selectedItems[0].scan_intake_id, nextPage)}
+            onPageChange={(nextPage) =>
+              selectedItems[0] && void loadPreview(selectedItems[0].scan_intake_id, nextPage)
+            }
             page={previewPage}
             preview={preview}
           />
 
-          <form className="rounded border border-border bg-surface p-5 shadow-sm" onSubmit={fileAsDocument}>
+          <form
+            className="rounded border border-border bg-surface p-5 shadow-sm"
+            onSubmit={fileAsDocument}
+          >
             <div className="mb-4 flex items-center gap-2">
               <Save size={18} className="text-primary" />
               <h2 className="font-semibold text-secondary">File as New Document</h2>
@@ -637,36 +958,77 @@ export const ScanIntake = () => {
             <div className="grid gap-4 md:grid-cols-2">
               <label className="md:col-span-2">
                 <span className="form-label">Document title</span>
-                <input className="input" value={form.documentName} onChange={(e) => setForm({ ...form, documentName: e.target.value })} required />
+                <input
+                  className="input"
+                  value={form.documentName}
+                  onChange={(e) => setForm({ ...form, documentName: e.target.value })}
+                  required
+                />
               </label>
               <label>
                 <span className="form-label">Category</span>
-                <select className="input" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value, folderId: '' })} required>
+                <select
+                  className="input"
+                  value={form.categoryId}
+                  onChange={(e) => setForm({ ...form, categoryId: e.target.value, folderId: '' })}
+                  required
+                >
                   <option value="">Select category</option>
-                  {categories.map((category) => <option key={category.category_id} value={category.category_id}>{category.category_name}</option>)}
+                  {categories.map((category) => (
+                    <option key={category.category_id} value={category.category_id}>
+                      {category.category_name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
                 <span className="form-label">Folder</span>
-                <select className="input" value={form.folderId} onChange={(e) => setForm({ ...form, folderId: e.target.value })}>
+                <select
+                  className="input"
+                  value={form.folderId}
+                  onChange={(e) => setForm({ ...form, folderId: e.target.value })}
+                >
                   <option value="">Category root</option>
-                  {folders.map((folder) => <option key={folder.folder_id} value={folder.folder_id}>{folder.folder_name}</option>)}
+                  {folders.map((folder) => (
+                    <option key={folder.folder_id} value={folder.folder_id}>
+                      {folder.folder_name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
                 <span className="form-label">Sender office</span>
-                <select className="input" value={form.officeId} onChange={(e) => setForm({ ...form, officeId: e.target.value })}>
+                <select
+                  className="input"
+                  value={form.officeId}
+                  onChange={(e) => setForm({ ...form, officeId: e.target.value })}
+                >
                   <option value="">Not specified</option>
-                  {offices.map((office) => <option key={office.office_id} value={office.office_id}>{office.office_name}</option>)}
+                  {offices.map((office) => (
+                    <option key={office.office_id} value={office.office_id}>
+                      {office.office_name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
                 <span className="form-label">Date received</span>
-                <input className="input" max={today} type="date" value={form.dateReceived} onChange={(e) => setForm({ ...form, dateReceived: e.target.value })} required />
+                <input
+                  className="input"
+                  max={today}
+                  type="date"
+                  value={form.dateReceived}
+                  onChange={(e) => setForm({ ...form, dateReceived: e.target.value })}
+                  required
+                />
               </label>
               <label>
                 <span className="form-label">Status</span>
-                <select className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as DocumentStatus })}>
+                <select
+                  className="input"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as DocumentStatus })}
+                >
                   <option>Filed</option>
                   <option>Archived</option>
                   <option>Confidential</option>
@@ -675,11 +1037,20 @@ export const ScanIntake = () => {
               </label>
               <label className="md:col-span-2">
                 <span className="form-label">Remarks</span>
-                <textarea className="input min-h-24" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
+                <textarea
+                  className="input min-h-24"
+                  value={form.remarks}
+                  onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                />
               </label>
             </div>
-            <button className="btn btn-primary mt-4" disabled={busy || selectedIds.length === 0} type="submit">
-              <Save size={16} />File Selected Scan(s)
+            <button
+              className="btn btn-primary mt-4"
+              disabled={busy || selectedIds.length === 0}
+              type="submit"
+            >
+              <Save size={16} />
+              File Selected Scan(s)
             </button>
           </form>
 
@@ -691,13 +1062,27 @@ export const ScanIntake = () => {
             <div className="grid gap-3 md:grid-cols-[1fr_auto]">
               <label>
                 <span className="form-label">Document</span>
-                <select className="input" value={existingDocumentId} onChange={(e) => setExistingDocumentId(e.target.value)}>
+                <select
+                  className="input"
+                  value={existingDocumentId}
+                  onChange={(e) => setExistingDocumentId(e.target.value)}
+                >
                   <option value="">Select document</option>
-                  {documents.map((document) => <option key={document.document_id} value={document.document_id}>{document.document_name}</option>)}
+                  {documents.map((document) => (
+                    <option key={document.document_id} value={document.document_id}>
+                      {document.document_name}
+                    </option>
+                  ))}
                 </select>
               </label>
-              <button className="btn btn-primary self-end" disabled={busy || selectedIds.length === 0 || !existingDocumentId} onClick={() => void attachToDocument()} type="button">
-                <Link2 size={16} />Attach
+              <button
+                className="btn btn-primary self-end"
+                disabled={busy || selectedIds.length === 0 || !existingDocumentId}
+                onClick={() => void attachToDocument()}
+                type="button"
+              >
+                <Link2 size={16} />
+                Attach
               </button>
             </div>
           </div>
@@ -712,14 +1097,38 @@ export const ScanIntake = () => {
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-secondary">{selectedItems[0].original_file_name}</p>
-                <textarea className="input min-h-24" value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} />
-                <button className="btn" onClick={() => void saveNotes().catch((err) => setMessage(getUserErrorMessage(err, 'Could not save the document. Check the required fields and try again.')))} type="button">
-                  <Save size={16} />Save Notes
+                <textarea
+                  className="input min-h-24"
+                  value={notesDraft}
+                  onChange={(e) => setNotesDraft(e.target.value)}
+                />
+                <button
+                  className="btn"
+                  onClick={() =>
+                    void saveNotes().catch((err) =>
+                      setMessage(
+                        getUserErrorMessage(
+                          err,
+                          'Could not save the document. Check the required fields and try again.',
+                        ),
+                      ),
+                    )
+                  }
+                  type="button"
+                >
+                  <Save size={16} />
+                  Save Notes
                 </button>
               </div>
             )}
-            <button className="btn mt-4" disabled={busy || selectedIds.length === 0} onClick={confirmRemoveSelected} type="button">
-              <Trash2 size={16} />Remove Pending
+            <button
+              className="btn mt-4"
+              disabled={busy || selectedIds.length === 0}
+              onClick={confirmRemoveSelected}
+              type="button"
+            >
+              <Trash2 size={16} />
+              Remove Pending
             </button>
           </div>
         </div>

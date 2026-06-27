@@ -138,6 +138,7 @@ async fn fetch_doc(fx: &Fixture, id: i64) -> ovpspee_filing_system::documents::D
     list_documents(&fx.pool, &fx.secretary, DocumentListFilter::default())
         .await
         .expect("docs")
+        .documents
         .into_iter()
         .find(|row| row.document_id == id)
         .expect("document row")

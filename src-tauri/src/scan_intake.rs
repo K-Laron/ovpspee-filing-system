@@ -4,12 +4,13 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    auth::{require_session, write_audit_log},
+    auth::{require_role, write_audit_log},
     db::DbPool,
     documents::{
-        self, mime_for_extension, preview_kind, trim_optional, validate_magic, validate_source_file,
-        DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES, MAX_TEXT_PREVIEW_BYTES,
+        self, mime_for_extension, trim_optional, validate_magic, validate_source_file,
+        DocumentInput, StorageRoot, MAX_ATTACHMENT_BYTES,
     },
+    preview,
     error::{AppError, AppResult},
     util::now_text,
 };
@@ -65,7 +66,7 @@ pub async fn import_scan_files(
     session_id: &str,
     source_paths: Vec<String>,
 ) -> AppResult<Vec<i64>> {
-    let session = require_scan_user(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     if source_paths.is_empty() {
         return Err(AppError::Validation(
             "Select at least one scan file.".into(),
@@ -151,7 +152,7 @@ pub async fn create_scan_intake_from_stored_file(
 }
 
 pub async fn list_scan_intake(pool: &DbPool, session_id: &str) -> AppResult<Vec<ScanIntakeItem>> {
-    require_scan_user(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     let rows = sqlx::query!(
         "SELECT scan_intake_id AS \"scan_intake_id!: i64\", original_file_name, stored_relative_path,
             mime_type, file_size_bytes AS \"file_size_bytes!: i64\", status, notes,
@@ -189,7 +190,7 @@ pub async fn get_scan_intake(
     session_id: &str,
     scan_intake_id: i64,
 ) -> AppResult<ScanIntakeItem> {
-    require_scan_user(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     fetch_scan(pool, scan_intake_id).await
 }
 
@@ -200,7 +201,7 @@ pub async fn get_scan_intake_preview_page(
     scan_intake_id: i64,
     page_number: Option<i64>,
 ) -> AppResult<ScanIntakePreviewPage> {
-    require_scan_user(pool, session_id).await?;
+    require_role(pool, session_id, &["Secretary"]).await?;
     let scan = fetch_scan(pool, scan_intake_id).await?;
     if scan.status != "Pending" || scan.is_deleted {
         return Err(AppError::NotFound("Pending scan not found.".into()));
@@ -219,7 +220,7 @@ pub async fn get_scan_intake_preview_page(
             None
         };
     let (text_content, text_truncated) = if info.file_exists && info.preview_kind == "Text" {
-        documents::read_text_preview(&path, info.file_size_bytes)?
+        preview::read_text_preview(&path, info.file_size_bytes)?
     } else {
         (None, false)
     };
@@ -238,7 +239,7 @@ pub async fn update_scan_intake_notes(
     scan_intake_id: i64,
     notes: Option<String>,
 ) -> AppResult<()> {
-    let session = require_scan_user(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let notes = trim_optional(notes, 1000)?;
     let now = now_text();
     let result = sqlx::query!(
@@ -269,7 +270,7 @@ pub async fn remove_scan_intake(
     session_id: &str,
     scan_intake_id: i64,
 ) -> AppResult<()> {
-    let session = require_scan_user(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let now = now_text();
     let result = sqlx::query!(
         "UPDATE scan_intake
@@ -303,7 +304,7 @@ pub async fn file_scan_as_document(
     scan_intake_ids: Vec<i64>,
     input: DocumentInput,
 ) -> AppResult<i64> {
-    let session = require_scan_user(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let scans = validate_pending_scans(pool, &scan_intake_ids).await?;
     let document_id = documents::create_document(pool, session_id, input).await?;
     claim_scans(pool, storage, session.user_id, document_id, scans).await?;
@@ -326,7 +327,7 @@ pub async fn attach_scan_to_document(
     scan_intake_ids: Vec<i64>,
     document_id: i64,
 ) -> AppResult<Vec<i64>> {
-    let session = require_scan_user(pool, session_id).await?;
+    let session = require_role(pool, session_id, &["Secretary"]).await?;
     let document = sqlx::query!(
         "SELECT is_trashed AS \"is_trashed!: i64\" FROM document WHERE document_id = ?",
         document_id
@@ -561,10 +562,10 @@ fn scan_extension(path: &PathBuf) -> AppResult<String> {
 fn scan_preview_info(scan: &ScanIntakeItem, path: &std::path::Path) -> ScanIntakePreviewInfo {
     let file_exists = path.is_file();
     // ponytail: TIFF treated as Image for scan preview, not via shared preview_kind (breaks attachment preview)
-    let preview_kind = if scan.mime_type == "image/tiff" { "Image" } else { preview_kind(&scan.mime_type) }.to_owned();
+    let preview_kind = if scan.mime_type == "image/tiff" { "Image" } else { preview::preview_kind(&scan.mime_type) }.to_owned();
     let supported = preview_kind != "Unsupported";
     let page_count = if file_exists && preview_kind == "Pdf" {
-        documents::estimate_pdf_page_count(path)
+        preview::estimate_pdf_page_count(path)
     } else if file_exists && preview_kind == "Image" {
         Some(1)
     } else {
@@ -576,7 +577,7 @@ fn scan_preview_info(scan: &ScanIntakeItem, path: &std::path::Path) -> ScanIntak
         && scan.file_size_bytes > MAX_SCAN_PREVIEW_BYTES
     {
         "Preview is unavailable because this pending file is too large.".to_owned()
-    } else if preview_kind == "Text" && scan.file_size_bytes > MAX_TEXT_PREVIEW_BYTES {
+    } else if preview_kind == "Text" && scan.file_size_bytes > preview::MAX_TEXT_PREVIEW_BYTES {
         "Text preview is unavailable because this pending file is too large.".to_owned()
     } else if preview_kind == "Unsupported" {
         "Preview not available for this scan file type.".to_owned()
@@ -634,14 +635,4 @@ fn encode_base64(bytes: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
-async fn require_scan_user(
-    pool: &DbPool,
-    session_id: &str,
-) -> AppResult<crate::auth::ValidSession> {
-    let session = require_session(pool, session_id).await?;
-    if session.role == "Secretary" {
-        Ok(session)
-    } else {
-        Err(AppError::Unauthorized)
-    }
-}
+

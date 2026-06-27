@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use axum::{
-    extract::{Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
@@ -56,6 +56,7 @@ pub fn router(pool: DbPool, storage: StorageRoot) -> Router {
             get(list_submissions).post(create_submission),
         )
         .route("/api/mobile/submissions/{id}", get(get_submission))
+        .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)

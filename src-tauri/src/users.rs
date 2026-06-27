@@ -362,6 +362,9 @@ pub async fn change_my_password(
     )
     .execute(pool)
     .await?;
+    sqlx::query!("DELETE FROM session WHERE user_id = ?", session.user_id)
+        .execute(pool)
+        .await?;
     write_audit_log(
         pool,
         "UPDATE",

@@ -14,7 +14,7 @@ describe('ConfirmDialog', () => {
         confirmLabel="Move to Trash"
         onCancel={vi.fn()}
         onConfirm={onConfirm}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
@@ -31,11 +31,13 @@ describe('ConfirmDialog', () => {
         requiredText="PURGE"
         onCancel={vi.fn()}
         onConfirm={onConfirm}
-      />
+      />,
     );
 
     expect(screen.getByRole('button', { name: 'Purge' })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Type PURGE to confirm'), { target: { value: 'PURGE' } });
+    fireEvent.change(screen.getByLabelText('Type PURGE to confirm'), {
+      target: { value: 'PURGE' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Purge' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
@@ -47,7 +49,7 @@ describe('ConfirmDialog', () => {
       () =>
         new Promise<void>((resolve) => {
           resolveConfirm = resolve;
-        })
+        }),
     );
 
     render(
@@ -57,7 +59,7 @@ describe('ConfirmDialog', () => {
         confirmLabel="Move to Trash"
         onCancel={onCancel}
         onConfirm={onConfirm}
-      />
+      />,
     );
 
     const confirmButton = screen.getByRole('button', { name: 'Move to Trash' });
@@ -88,7 +90,7 @@ describe('ConfirmDialog', () => {
         confirmLabel="Discard"
         onCancel={onCancel}
         onConfirm={vi.fn()}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -105,7 +107,7 @@ describe('ConfirmDialog', () => {
         confirmLabel="Discard"
         onCancel={onCancel}
         onConfirm={vi.fn()}
-      />
+      />,
     );
 
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
@@ -121,7 +123,7 @@ describe('ConfirmDialog', () => {
         requiredText="PURGE"
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByLabelText('Type PURGE to confirm')).toHaveFocus();
@@ -138,7 +140,7 @@ describe('ConfirmDialog', () => {
           onCancel={vi.fn()}
           onConfirm={vi.fn()}
         />
-      </>
+      </>,
     );
 
     const backgroundButton = screen.getByRole('button', { name: 'Background action' });
@@ -176,7 +178,7 @@ describe('ConfirmDialog', () => {
           onCancel={vi.fn()}
           onConfirm={vi.fn()}
         />
-      </>
+      </>,
     );
 
     const backgroundButton = screen.getByRole('button', { name: 'Background action' });

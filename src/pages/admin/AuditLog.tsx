@@ -41,7 +41,7 @@ export const AuditLog = () => {
         dateFrom: nullable(dateFrom),
         dateTo: nullable(dateTo),
         limit,
-        offset: nextOffset
+        offset: nextOffset,
       });
       setEntries(page.entries);
       setOffset(page.offset);
@@ -56,7 +56,7 @@ export const AuditLog = () => {
     if (!sessionId) return;
     const [types, settings] = await Promise.all([
       invoke<string[]>('list_audit_event_types', { sessionId }),
-      invoke<AuditRetentionSettings>('get_audit_retention_settings', { sessionId })
+      invoke<AuditRetentionSettings>('get_audit_retention_settings', { sessionId }),
     ]);
     setEventTypes(types);
     setRetention(settings);
@@ -64,7 +64,9 @@ export const AuditLog = () => {
   };
 
   useEffect(() => {
-    void loadLookups().catch((err) => setMessage(getUserErrorMessage(err, 'Could not load audit settings.')));
+    void loadLookups().catch((err) =>
+      setMessage(getUserErrorMessage(err, 'Could not load audit settings.')),
+    );
     void load(0);
   }, [sessionId]);
 
@@ -78,7 +80,7 @@ export const AuditLog = () => {
     try {
       const next = await invoke<AuditRetentionSettings>('update_audit_retention_settings', {
         sessionId,
-        retentionMonths: Number(retentionDraft)
+        retentionMonths: Number(retentionDraft),
       });
       setRetention(next);
       setRetentionDraft(String(next.retention_months));
@@ -103,40 +105,84 @@ export const AuditLog = () => {
         </button>
       </div>
 
-      <form className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm lg:grid-cols-[1fr_180px_180px_140px_140px_120px_auto]" onSubmit={submitFilters}>
+      <form
+        className="grid gap-3 rounded border border-border bg-surface p-4 shadow-sm lg:grid-cols-[1fr_180px_180px_140px_140px_120px_auto]"
+        onSubmit={submitFilters}
+      >
         <label>
           <span className="form-label">Search</span>
-          <input className="input" onChange={(event) => setSearch(event.target.value)} value={search} />
+          <input
+            className="input"
+            onChange={(event) => setSearch(event.target.value)}
+            value={search}
+          />
         </label>
         <label>
           <span className="form-label">Actor</span>
-          <input className="input" onChange={(event) => setActorSearch(event.target.value)} value={actorSearch} />
+          <input
+            className="input"
+            onChange={(event) => setActorSearch(event.target.value)}
+            value={actorSearch}
+          />
         </label>
         <label>
           <span className="form-label">Action</span>
-          <select className="input" onChange={(event) => setAction(event.target.value)} value={action}>
+          <select
+            className="input"
+            onChange={(event) => setAction(event.target.value)}
+            value={action}
+          >
             <option value="">All</option>
-            {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            {eventTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           <span className="form-label">Entity</span>
-          <input className="input" onChange={(event) => setEntityType(event.target.value)} value={entityType} />
+          <input
+            className="input"
+            onChange={(event) => setEntityType(event.target.value)}
+            value={entityType}
+          />
         </label>
         <label>
           <span className="form-label">From</span>
-          <input className="input" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} />
+          <input
+            className="input"
+            onChange={(event) => setDateFrom(event.target.value)}
+            type="date"
+            value={dateFrom}
+          />
         </label>
         <label>
           <span className="form-label">Limit</span>
-          <select className="input" onChange={(event) => setLimit(Number(event.target.value))} value={limit}>
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}
+          <select
+            className="input"
+            onChange={(event) => setLimit(Number(event.target.value))}
+            value={limit}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
           </select>
         </label>
-        <button className="btn btn-primary self-end" type="submit"><Search size={16} />Apply</button>
+        <button className="btn btn-primary self-end" type="submit">
+          <Search size={16} />
+          Apply
+        </button>
         <label className="lg:col-start-5">
           <span className="form-label">To</span>
-          <input className="input" onChange={(event) => setDateTo(event.target.value)} type="date" value={dateTo} />
+          <input
+            className="input"
+            onChange={(event) => setDateTo(event.target.value)}
+            type="date"
+            value={dateTo}
+          />
         </label>
       </form>
 
@@ -144,18 +190,38 @@ export const AuditLog = () => {
         <ShieldCheck className="mb-2 text-primary" size={20} />
         <label>
           <span className="form-label">Retention months</span>
-          <input className="input w-32" max={retention?.max_months ?? 36} min={retention?.min_months ?? 24} onChange={(event) => setRetentionDraft(event.target.value)} type="number" value={retentionDraft} />
+          <input
+            className="input w-32"
+            max={retention?.max_months ?? 36}
+            min={retention?.min_months ?? 24}
+            onChange={(event) => setRetentionDraft(event.target.value)}
+            type="number"
+            value={retentionDraft}
+          />
         </label>
-        <button className="btn btn-primary" onClick={() => void saveRetention()} type="button"><Save size={16} />Save</button>
+        <button className="btn btn-primary" onClick={() => void saveRetention()} type="button">
+          <Save size={16} />
+          Save
+        </button>
         <p className="pb-2 text-sm text-muted">
-          Records are kept for {retentionDraft || retention?.retention_months || 36} months. Allowed range: {retention?.min_months ?? 24}-{retention?.max_months ?? 36} months.
+          Records are kept for {retentionDraft || retention?.retention_months || 36} months. Allowed
+          range: {retention?.min_months ?? 24}-{retention?.max_months ?? 36} months.
         </p>
       </section>
 
-      {message && <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">{message}</div>}
+      {message && (
+        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
+          {message}
+        </div>
+      )}
 
       <AuditTable entries={entries} loading={loading} />
-      <Pager count={entries.length} limit={limit} offset={offset} onPage={(next) => void load(next)} />
+      <Pager
+        count={entries.length}
+        limit={limit}
+        offset={offset}
+        onPage={(next) => void load(next)}
+      />
     </section>
   );
 };
@@ -173,31 +239,78 @@ const AuditTable = ({ entries, loading }: { entries: AuditLogEntry[]; loading: b
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
-        {loading && <tr><td className="p-4 text-center text-muted" colSpan={5}>Loading...</td></tr>}
-        {!loading && entries.length === 0 && <tr><td className="p-4 text-center text-muted" colSpan={5}>No audit records.</td></tr>}
-        {!loading && entries.map((entry) => (
-          <tr key={entry.id}>
-            <td className="p-3 text-xs text-muted">{formatDateTime(entry.created_at)}</td>
-            <td className="p-3"><span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">{entry.action}</span></td>
-            <td className="p-3">
-              <p className="truncate font-medium text-secondary">{entry.actor_display_name ?? 'System'}</p>
-              <p className="truncate text-xs text-muted">{entry.actor_username ?? 'No user'}{entry.actor_role ? ` · ${entry.actor_role}` : ''}</p>
+        {loading && (
+          <tr>
+            <td className="p-4 text-center text-muted" colSpan={5}>
+              Loading...
             </td>
-            <td className="p-3 text-xs text-muted">{entry.entity_type ?? '-'}{entry.entity_id ? ` #${entry.entity_id}` : ''}</td>
-            <td className="p-3 text-secondary">{entry.summary}</td>
           </tr>
-        ))}
+        )}
+        {!loading && entries.length === 0 && (
+          <tr>
+            <td className="p-4 text-center text-muted" colSpan={5}>
+              No audit records.
+            </td>
+          </tr>
+        )}
+        {!loading &&
+          entries.map((entry) => (
+            <tr key={entry.id}>
+              <td className="p-3 text-xs text-muted">{formatDateTime(entry.created_at)}</td>
+              <td className="p-3">
+                <span className="rounded bg-background px-2 py-1 text-xs font-semibold text-secondary">
+                  {entry.action}
+                </span>
+              </td>
+              <td className="p-3">
+                <p className="truncate font-medium text-secondary">
+                  {entry.actor_display_name ?? 'System'}
+                </p>
+                <p className="truncate text-xs text-muted">
+                  {entry.actor_username ?? 'No user'}
+                  {entry.actor_role ? ` · ${entry.actor_role}` : ''}
+                </p>
+              </td>
+              <td className="p-3 text-xs text-muted">
+                {entry.entity_type ?? '-'}
+                {entry.entity_id ? ` #${entry.entity_id}` : ''}
+              </td>
+              <td className="p-3 text-secondary">{entry.summary}</td>
+            </tr>
+          ))}
       </tbody>
     </table>
   </div>
 );
 
-const Pager = ({ count, limit, offset, onPage }: { count: number; limit: number; offset: number; onPage: (offset: number) => void }) => (
+const Pager = ({
+  count,
+  limit,
+  offset,
+  onPage,
+}: {
+  count: number;
+  limit: number;
+  offset: number;
+  onPage: (offset: number) => void;
+}) => (
   <div className="flex items-center justify-end gap-2">
-    <button className="btn" disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - limit))} type="button">Previous</button>
+    <button
+      className="btn"
+      disabled={offset === 0}
+      onClick={() => onPage(Math.max(0, offset - limit))}
+      type="button"
+    >
+      Previous
+    </button>
     <span className="text-sm text-muted">Offset {offset}</span>
-    <button className="btn" disabled={count < limit} onClick={() => onPage(offset + limit)} type="button">Next</button>
+    <button
+      className="btn"
+      disabled={count < limit}
+      onClick={() => onPage(offset + limit)}
+      type="button"
+    >
+      Next
+    </button>
   </div>
 );
-
-

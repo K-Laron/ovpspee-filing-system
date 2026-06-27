@@ -19,26 +19,26 @@ const palette = [
   { name: 'Teal', value: '#0F766E' },
   { name: 'Amber', value: '#D97706' },
   { name: 'Purple', value: '#7C3AED' },
-  { name: 'Gray', value: '#6B7280' }
+  { name: 'Gray', value: '#6B7280' },
 ];
 
 const emptyCategory = {
   categoryName: '',
   description: '',
   colorCode: '#2563EB',
-  icon: ''
+  icon: '',
 };
 
 const emptyFolder = {
   categoryId: '',
   folderName: '',
   description: '',
-  folderColor: '#0F766E'
+  folderColor: '#0F766E',
 };
 
 const emptyOffice = {
   officeName: '',
-  description: ''
+  description: '',
 };
 
 export const MasterData = () => {
@@ -70,30 +70,43 @@ export const MasterData = () => {
 
   const editableCategories = useMemo(
     () => categories.filter((category) => !category.is_system && category.is_active),
-    [categories]
+    [categories],
   );
 
   const filteredCategories = useMemo(() => {
-    const rows = categories.filter((category) =>
-      matchesSearch([category.category_name, category.description, colorLabel(category.color_code)], search) &&
-      matchesStatus(category.is_active, statusFilter)
+    const rows = categories.filter(
+      (category) =>
+        matchesSearch(
+          [category.category_name, category.description, colorLabel(category.color_code)],
+          search,
+        ) && matchesStatus(category.is_active, statusFilter),
     );
     return sortCategories(rows, sortBy);
   }, [categories, search, sortBy, statusFilter]);
 
   const filteredFolders = useMemo(() => {
-    const rows = folders.filter((folder) =>
-      matchesSearch([folder.folder_name, folder.category_name, folder.description, colorLabel(folder.folder_color)], search) &&
-      matchesStatus(folder.is_active, statusFilter) &&
-      (folderCategoryFilter === 'all' || folder.category_id === Number(folderCategoryFilter))
+    const rows = folders.filter(
+      (folder) =>
+        matchesSearch(
+          [
+            folder.folder_name,
+            folder.category_name,
+            folder.description,
+            colorLabel(folder.folder_color),
+          ],
+          search,
+        ) &&
+        matchesStatus(folder.is_active, statusFilter) &&
+        (folderCategoryFilter === 'all' || folder.category_id === Number(folderCategoryFilter)),
     );
     return sortFolders(rows, sortBy);
   }, [folders, folderCategoryFilter, search, sortBy, statusFilter]);
 
   const filteredOffices = useMemo(() => {
-    const rows = offices.filter((office) =>
-      matchesSearch([office.office_name, office.description], search) &&
-      matchesStatus(office.is_active, statusFilter)
+    const rows = offices.filter(
+      (office) =>
+        matchesSearch([office.office_name, office.description], search) &&
+        matchesStatus(office.is_active, statusFilter),
     );
     return sortOffices(rows, sortBy);
   }, [offices, search, sortBy, statusFilter]);
@@ -105,15 +118,20 @@ export const MasterData = () => {
     try {
       const [nextCategories, nextFolders, nextOffices] = await Promise.all([
         invoke<CategoryItem[]>('list_categories', { sessionId, includeInactive: true }),
-        invoke<FolderItem[]>('list_folders', { sessionId, categoryId: null, includeInactive: true }),
-        invoke<OfficeItem[]>('list_offices', { sessionId, includeInactive: true })
+        invoke<FolderItem[]>('list_folders', {
+          sessionId,
+          categoryId: null,
+          includeInactive: true,
+        }),
+        invoke<OfficeItem[]>('list_offices', { sessionId, includeInactive: true }),
       ]);
       setCategories(nextCategories);
       setFolders(nextFolders);
       setOffices(nextOffices);
       if (!folderForm.categoryId) {
         const first = nextCategories.find((category) => !category.is_system && category.is_active);
-        if (first) setFolderForm((current) => ({ ...current, categoryId: String(first.category_id) }));
+        if (first)
+          setFolderForm((current) => ({ ...current, categoryId: String(first.category_id) }));
       }
     } catch (err) {
       setError(getUserErrorMessage(err, 'Could not load master data.'));
@@ -142,13 +160,13 @@ export const MasterData = () => {
         categoryName: categoryForm.categoryName,
         description: nullable(categoryForm.description),
         colorCode: categoryForm.colorCode,
-        icon: nullable(categoryForm.icon)
+        icon: nullable(categoryForm.icon),
       };
       if (editingCategory) {
         await invoke<CategoryItem>('update_category', {
           ...payload,
           categoryId: editingCategory.category_id,
-          isActive: categoryActive
+          isActive: categoryActive,
         });
         setNotice('Category updated.');
       } else {
@@ -176,13 +194,13 @@ export const MasterData = () => {
         categoryId,
         folderName: folderForm.folderName,
         description: nullable(folderForm.description),
-        folderColor: folderForm.folderColor
+        folderColor: folderForm.folderColor,
       };
       if (editingFolder) {
         await invoke<FolderItem>('update_folder', {
           ...payload,
           folderId: editingFolder.folder_id,
-          isActive: folderActive
+          isActive: folderActive,
         });
         setNotice('Folder updated.');
       } else {
@@ -207,13 +225,13 @@ export const MasterData = () => {
       const payload = {
         sessionId,
         officeName: officeForm.officeName,
-        description: nullable(officeForm.description)
+        description: nullable(officeForm.description),
       };
       if (editingOffice) {
         await invoke<OfficeItem>('update_office', {
           ...payload,
           officeId: editingOffice.office_id,
-          isActive: officeActive
+          isActive: officeActive,
         });
         setNotice('Office updated.');
       } else {
@@ -238,7 +256,7 @@ export const MasterData = () => {
       categoryName: category.category_name,
       description: category.description ?? '',
       colorCode: normalizeColor(category.color_code),
-      icon: category.icon ?? ''
+      icon: category.icon ?? '',
     });
   };
 
@@ -250,7 +268,7 @@ export const MasterData = () => {
       categoryId: String(folder.category_id),
       folderName: folder.folder_name,
       description: folder.description ?? '',
-      folderColor: normalizeColor(folder.folder_color)
+      folderColor: normalizeColor(folder.folder_color),
     });
   };
 
@@ -260,7 +278,7 @@ export const MasterData = () => {
     setOfficeActive(office.is_active);
     setOfficeForm({
       officeName: office.office_name,
-      description: office.description ?? ''
+      description: office.description ?? '',
     });
   };
 
@@ -275,7 +293,7 @@ export const MasterData = () => {
     setFolderActive(true);
     setFolderForm((current) => ({
       ...emptyFolder,
-      categoryId: current.categoryId || editableCategories[0]?.category_id.toString() || ''
+      categoryId: current.categoryId || editableCategories[0]?.category_id.toString() || '',
     }));
   };
 
@@ -317,7 +335,7 @@ export const MasterData = () => {
               'focus-ring h-10 border-b-2 px-3 text-sm font-medium capitalize',
               tab === item
                 ? 'border-primary text-primary'
-                : 'border-transparent text-muted hover:text-secondary'
+                : 'border-transparent text-muted hover:text-secondary',
             ].join(' ')}
             key={item}
             onClick={() => setTab(item)}
@@ -342,8 +360,16 @@ export const MasterData = () => {
         statusFilter={statusFilter}
       />
 
-      {error && <div className="rounded border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">{error}</div>}
-      {notice && <div className="rounded border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">{notice}</div>}
+      {error && (
+        <div className="rounded border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="rounded border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {notice}
+        </div>
+      )}
 
       {tab === 'categories' && (
         <section className="grid gap-5 lg:grid-cols-[1fr_20rem]">
@@ -366,17 +392,47 @@ export const MasterData = () => {
                   Locked
                 </span>
               ) : (
-                <IconButton key="edit" label="Edit category" onClick={() => editCategory(category)} />
-              )
+                <IconButton
+                  key="edit"
+                  label="Edit category"
+                  onClick={() => editCategory(category)}
+                />
+              ),
             ])}
           />
-          <form className="space-y-3 rounded border border-border bg-surface p-4" onSubmit={submitCategory}>
-            <FormTitle editing={Boolean(editingCategory)} label="Category" onCancel={cancelCategoryEdit} />
-            <TextField label="Name" value={categoryForm.categoryName} onChange={(value) => setCategoryForm({ ...categoryForm, categoryName: value })} required />
-            <TextField label="Description" value={categoryForm.description} onChange={(value) => setCategoryForm({ ...categoryForm, description: value })} />
-            <ColorField label="Color" value={categoryForm.colorCode} onChange={(value) => setCategoryForm({ ...categoryForm, colorCode: value })} />
-            <TextField label="Icon" value={categoryForm.icon} onChange={(value) => setCategoryForm({ ...categoryForm, icon: value })} />
-            {editingCategory && <ActiveToggle checked={categoryActive} onChange={setCategoryActive} />}
+          <form
+            className="space-y-3 rounded border border-border bg-surface p-4"
+            onSubmit={submitCategory}
+          >
+            <FormTitle
+              editing={Boolean(editingCategory)}
+              label="Category"
+              onCancel={cancelCategoryEdit}
+            />
+            <TextField
+              label="Name"
+              value={categoryForm.categoryName}
+              onChange={(value) => setCategoryForm({ ...categoryForm, categoryName: value })}
+              required
+            />
+            <TextField
+              label="Description"
+              value={categoryForm.description}
+              onChange={(value) => setCategoryForm({ ...categoryForm, description: value })}
+            />
+            <ColorField
+              label="Color"
+              value={categoryForm.colorCode}
+              onChange={(value) => setCategoryForm({ ...categoryForm, colorCode: value })}
+            />
+            <TextField
+              label="Icon"
+              value={categoryForm.icon}
+              onChange={(value) => setCategoryForm({ ...categoryForm, icon: value })}
+            />
+            {editingCategory && (
+              <ActiveToggle checked={categoryActive} onChange={setCategoryActive} />
+            )}
             <SubmitButton disabled={saving} editing={Boolean(editingCategory)} />
           </form>
         </section>
@@ -392,16 +448,25 @@ export const MasterData = () => {
               folder.category_name,
               <Swatch key="color" value={folder.folder_color} />,
               <Status key="status" active={folder.is_active} />,
-              <IconButton key="edit" label="Edit folder" onClick={() => editFolder(folder)} />
+              <IconButton key="edit" label="Edit folder" onClick={() => editFolder(folder)} />,
             ])}
           />
-          <form className="space-y-3 rounded border border-border bg-surface p-4" onSubmit={submitFolder}>
-            <FormTitle editing={Boolean(editingFolder)} label="Folder" onCancel={cancelFolderEdit} />
+          <form
+            className="space-y-3 rounded border border-border bg-surface p-4"
+            onSubmit={submitFolder}
+          >
+            <FormTitle
+              editing={Boolean(editingFolder)}
+              label="Folder"
+              onCancel={cancelFolderEdit}
+            />
             <label className="block text-sm font-medium text-secondary">
               Category
               <select
                 className="focus-ring mt-1 h-10 w-full rounded border border-border bg-white px-3 text-sm"
-                onChange={(event) => setFolderForm({ ...folderForm, categoryId: event.target.value })}
+                onChange={(event) =>
+                  setFolderForm({ ...folderForm, categoryId: event.target.value })
+                }
                 required
                 value={folderForm.categoryId}
               >
@@ -413,11 +478,27 @@ export const MasterData = () => {
                 ))}
               </select>
             </label>
-            <TextField label="Name" value={folderForm.folderName} onChange={(value) => setFolderForm({ ...folderForm, folderName: value })} required />
-            <TextField label="Description" value={folderForm.description} onChange={(value) => setFolderForm({ ...folderForm, description: value })} />
-            <ColorField label="Color" value={folderForm.folderColor} onChange={(value) => setFolderForm({ ...folderForm, folderColor: value })} />
+            <TextField
+              label="Name"
+              value={folderForm.folderName}
+              onChange={(value) => setFolderForm({ ...folderForm, folderName: value })}
+              required
+            />
+            <TextField
+              label="Description"
+              value={folderForm.description}
+              onChange={(value) => setFolderForm({ ...folderForm, description: value })}
+            />
+            <ColorField
+              label="Color"
+              value={folderForm.folderColor}
+              onChange={(value) => setFolderForm({ ...folderForm, folderColor: value })}
+            />
             {editingFolder && <ActiveToggle checked={folderActive} onChange={setFolderActive} />}
-            <SubmitButton disabled={saving || editableCategories.length === 0} editing={Boolean(editingFolder)} />
+            <SubmitButton
+              disabled={saving || editableCategories.length === 0}
+              editing={Boolean(editingFolder)}
+            />
           </form>
         </section>
       )}
@@ -430,13 +511,29 @@ export const MasterData = () => {
             rows={filteredOffices.map((office) => [
               <NameCell description={office.description} key="name" name={office.office_name} />,
               <Status key="status" active={office.is_active} />,
-              <IconButton key="edit" label="Edit office" onClick={() => editOffice(office)} />
+              <IconButton key="edit" label="Edit office" onClick={() => editOffice(office)} />,
             ])}
           />
-          <form className="space-y-3 rounded border border-border bg-surface p-4" onSubmit={submitOffice}>
-            <FormTitle editing={Boolean(editingOffice)} label="Office" onCancel={cancelOfficeEdit} />
-            <TextField label="Name" value={officeForm.officeName} onChange={(value) => setOfficeForm({ ...officeForm, officeName: value })} required />
-            <TextField label="Description" value={officeForm.description} onChange={(value) => setOfficeForm({ ...officeForm, description: value })} />
+          <form
+            className="space-y-3 rounded border border-border bg-surface p-4"
+            onSubmit={submitOffice}
+          >
+            <FormTitle
+              editing={Boolean(editingOffice)}
+              label="Office"
+              onCancel={cancelOfficeEdit}
+            />
+            <TextField
+              label="Name"
+              value={officeForm.officeName}
+              onChange={(value) => setOfficeForm({ ...officeForm, officeName: value })}
+              required
+            />
+            <TextField
+              label="Description"
+              value={officeForm.description}
+              onChange={(value) => setOfficeForm({ ...officeForm, description: value })}
+            />
             {editingOffice && <ActiveToggle checked={officeActive} onChange={setOfficeActive} />}
             <SubmitButton disabled={saving} editing={Boolean(editingOffice)} />
           </form>
@@ -446,10 +543,11 @@ export const MasterData = () => {
   );
 };
 
+const normalizeColor = (value: string) =>
+  /^#[0-9A-Fa-f]{6}$/.test(value) ? value.toUpperCase() : '#6B7280';
 
-const normalizeColor = (value: string) => (/^#[0-9A-Fa-f]{6}$/.test(value) ? value.toUpperCase() : '#6B7280');
-
-const colorLabel = (value: string) => palette.find((item) => item.value.toUpperCase() === normalizeColor(value))?.name ?? 'Custom';
+const colorLabel = (value: string) =>
+  palette.find((item) => item.value.toUpperCase() === normalizeColor(value))?.name ?? 'Custom';
 
 const matchesSearch = (values: Array<string | null | undefined>, search: string) => {
   const query = search.trim().toLocaleLowerCase();
@@ -462,25 +560,33 @@ const matchesStatus = (active: boolean, status: StatusFilter) =>
 
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
 
-const sortCategories = (rows: CategoryItem[], sortBy: SortOption) => [...rows].sort((a, b) => {
-  if (sortBy === 'name_desc') return byName(b.category_name, a.category_name);
-  if (sortBy === 'status') return Number(b.is_active) - Number(a.is_active) || byName(a.category_name, b.category_name);
-  if (sortBy === 'documents_desc') return b.document_count - a.document_count || byName(a.category_name, b.category_name);
-  return byName(a.category_name, b.category_name);
-});
+const sortCategories = (rows: CategoryItem[], sortBy: SortOption) =>
+  [...rows].sort((a, b) => {
+    if (sortBy === 'name_desc') return byName(b.category_name, a.category_name);
+    if (sortBy === 'status')
+      return Number(b.is_active) - Number(a.is_active) || byName(a.category_name, b.category_name);
+    if (sortBy === 'documents_desc')
+      return b.document_count - a.document_count || byName(a.category_name, b.category_name);
+    return byName(a.category_name, b.category_name);
+  });
 
-const sortFolders = (rows: FolderItem[], sortBy: SortOption) => [...rows].sort((a, b) => {
-  if (sortBy === 'name_desc') return byName(b.folder_name, a.folder_name);
-  if (sortBy === 'status') return Number(b.is_active) - Number(a.is_active) || byName(a.folder_name, b.folder_name);
-  if (sortBy === 'category_asc') return byName(a.category_name, b.category_name) || byName(a.folder_name, b.folder_name);
-  return byName(a.folder_name, b.folder_name);
-});
+const sortFolders = (rows: FolderItem[], sortBy: SortOption) =>
+  [...rows].sort((a, b) => {
+    if (sortBy === 'name_desc') return byName(b.folder_name, a.folder_name);
+    if (sortBy === 'status')
+      return Number(b.is_active) - Number(a.is_active) || byName(a.folder_name, b.folder_name);
+    if (sortBy === 'category_asc')
+      return byName(a.category_name, b.category_name) || byName(a.folder_name, b.folder_name);
+    return byName(a.folder_name, b.folder_name);
+  });
 
-const sortOffices = (rows: OfficeItem[], sortBy: SortOption) => [...rows].sort((a, b) => {
-  if (sortBy === 'name_desc') return byName(b.office_name, a.office_name);
-  if (sortBy === 'status') return Number(b.is_active) - Number(a.is_active) || byName(a.office_name, b.office_name);
-  return byName(a.office_name, b.office_name);
-});
+const sortOffices = (rows: OfficeItem[], sortBy: SortOption) =>
+  [...rows].sort((a, b) => {
+    if (sortBy === 'name_desc') return byName(b.office_name, a.office_name);
+    if (sortBy === 'status')
+      return Number(b.is_active) - Number(a.is_active) || byName(a.office_name, b.office_name);
+    return byName(a.office_name, b.office_name);
+  });
 
 const FilterBar = ({
   categories,
@@ -493,7 +599,7 @@ const FilterBar = ({
   search,
   showCategoryFilter,
   sortBy,
-  statusFilter
+  statusFilter,
 }: {
   categories: CategoryItem[];
   categoryFilter: string;
@@ -512,13 +618,25 @@ const FilterBar = ({
       <label>
         <span className="form-label">Search master data</span>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
-          <input className="input pl-9" onChange={(event) => onSearchChange(event.target.value)} placeholder="Name, description, category, color" value={search} />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+            size={16}
+          />
+          <input
+            className="input pl-9"
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Name, description, category, color"
+            value={search}
+          />
         </div>
       </label>
       <label>
         <span className="form-label">Sort</span>
-        <select className="input" onChange={(event) => onSortChange(event.target.value as SortOption)} value={sortBy}>
+        <select
+          className="input"
+          onChange={(event) => onSortChange(event.target.value as SortOption)}
+          value={sortBy}
+        >
           <option value="name_asc">Name A-Z</option>
           <option value="name_desc">Name Z-A</option>
           <option value="status">Active first</option>
@@ -528,7 +646,11 @@ const FilterBar = ({
       </label>
       <label>
         <span className="form-label">Status</span>
-        <select className="input" onChange={(event) => onStatusChange(event.target.value as StatusFilter)} value={statusFilter}>
+        <select
+          className="input"
+          onChange={(event) => onStatusChange(event.target.value as StatusFilter)}
+          value={statusFilter}
+        >
           <option value="all">All statuses</option>
           <option value="active">Active only</option>
           <option value="inactive">Inactive only</option>
@@ -542,7 +664,11 @@ const FilterBar = ({
     {showCategoryFilter && (
       <label className="mt-3 block max-w-xs">
         <span className="form-label">Folder category</span>
-        <select className="input" onChange={(event) => onCategoryFilterChange(event.target.value)} value={categoryFilter}>
+        <select
+          className="input"
+          onChange={(event) => onCategoryFilterChange(event.target.value)}
+          value={categoryFilter}
+        >
           <option value="all">All categories</option>
           {categories.map((category) => (
             <option key={category.category_id} value={category.category_id}>
@@ -558,7 +684,7 @@ const FilterBar = ({
 const DataTable = ({
   headers,
   loading,
-  rows
+  rows,
 }: {
   headers: string[];
   loading: boolean;
@@ -586,7 +712,8 @@ const DataTable = ({
         {!loading && rows.length === 0 && (
           <tr>
             <td className="px-4 py-6 text-center text-muted" colSpan={headers.length}>
-              No records match the current filters. Reset filters or add a new record from the form on the right.
+              No records match the current filters. Reset filters or add a new record from the form
+              on the right.
             </td>
           </tr>
         )}
@@ -608,7 +735,7 @@ const DataTable = ({
 const NameCell = ({
   description,
   locked = false,
-  name
+  name,
 }: {
   description?: string | null;
   locked?: boolean;
@@ -625,7 +752,10 @@ const NameCell = ({
 
 const Swatch = ({ value }: { value: string }) => (
   <div className="flex items-center gap-2">
-    <span className="h-5 w-5 shrink-0 rounded border border-border" style={{ backgroundColor: normalizeColor(value) }} />
+    <span
+      className="h-5 w-5 shrink-0 rounded border border-border"
+      style={{ backgroundColor: normalizeColor(value) }}
+    />
     <span className="text-xs font-medium text-secondary">{colorLabel(value)}</span>
   </div>
 );
@@ -634,7 +764,7 @@ const Status = ({ active }: { active: boolean }) => (
   <span
     className={[
       'inline-flex h-7 items-center rounded px-2 text-xs font-medium',
-      active ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+      active ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning',
     ].join(' ')}
   >
     {active ? 'Active' : 'Inactive'}
@@ -656,14 +786,16 @@ const IconButton = ({ label, onClick }: { label: string; onClick: () => void }) 
 const FormTitle = ({
   editing,
   label,
-  onCancel
+  onCancel,
 }: {
   editing: boolean;
   label: string;
   onCancel: () => void;
 }) => (
   <div className="flex items-center justify-between gap-2">
-    <h2 className="text-base font-semibold text-secondary">{editing ? `Edit ${label}` : `New ${label}`}</h2>
+    <h2 className="text-base font-semibold text-secondary">
+      {editing ? `Edit ${label}` : `New ${label}`}
+    </h2>
     {editing && (
       <button
         aria-label="Cancel edit"
@@ -682,7 +814,7 @@ const TextField = ({
   label,
   onChange,
   required = false,
-  value
+  value,
 }: {
   label: string;
   onChange: (value: string) => void;
@@ -705,7 +837,7 @@ const TextField = ({
 const ColorField = ({
   label,
   onChange,
-  value
+  value,
 }: {
   label: string;
   onChange: (value: string) => void;
@@ -719,13 +851,18 @@ const ColorField = ({
           aria-pressed={normalizeColor(value) === color.value}
           className={[
             'focus-ring flex h-10 items-center justify-center gap-2 rounded border px-2 text-xs font-medium',
-            normalizeColor(value) === color.value ? 'border-primary bg-primary/10 text-secondary' : 'border-border text-muted hover:bg-background'
+            normalizeColor(value) === color.value
+              ? 'border-primary bg-primary/10 text-secondary'
+              : 'border-border text-muted hover:bg-background',
           ].join(' ')}
           key={color.value}
           onClick={() => onChange(color.value)}
           type="button"
         >
-          <span className="h-4 w-4 rounded border border-border" style={{ backgroundColor: color.value }} />
+          <span
+            className="h-4 w-4 rounded border border-border"
+            style={{ backgroundColor: color.value }}
+          />
           {color.name}
         </button>
       ))}
@@ -738,14 +875,16 @@ const ColorField = ({
         value={normalizeColor(value)}
       />
       <span>Custom color</span>
-      <span className="rounded bg-background px-2 py-1 font-mono text-xs">{normalizeColor(value)}</span>
+      <span className="rounded bg-background px-2 py-1 font-mono text-xs">
+        {normalizeColor(value)}
+      </span>
     </label>
   </div>
 );
 
 const ActiveToggle = ({
   checked,
-  onChange
+  onChange,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;

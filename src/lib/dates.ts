@@ -7,28 +7,28 @@ const dateOnlyFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
   month: 'long',
   timeZone: 'UTC',
-  year: 'numeric'
+  year: 'numeric',
 });
 
 const dateTimeDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
   month: 'long',
   timeZone: displayTimeZone,
-  year: 'numeric'
+  year: 'numeric',
 });
 
 const dateTimeTimeFormatter = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   hour12: true,
   minute: '2-digit',
-  timeZone: displayTimeZone
+  timeZone: displayTimeZone,
 });
 
 const dateInputFormatter = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
   month: '2-digit',
   timeZone: displayTimeZone,
-  year: 'numeric'
+  year: 'numeric',
 });
 
 export const formatDateOnly = (value: DateValue) => {
@@ -64,6 +64,7 @@ export const formatDateTime = (value: DateValue) => {
 
 export const formatDateInputValue = (value = new Date()) => {
   const parts = dateInputFormatter.formatToParts(value);
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? '';
   return `${part('year')}-${part('month')}-${part('day')}`;
 };
