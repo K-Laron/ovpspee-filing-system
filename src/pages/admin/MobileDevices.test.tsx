@@ -11,6 +11,7 @@ vi.mock('../../store/sessionStore', () => ({
     selector({ sessionId: 'session-1' }),
 }));
 
+import { ToastProvider } from '../../components/Toast';
 import type { MobileDeviceItem } from '../../types';
 
 const device: MobileDeviceItem = {
@@ -36,7 +37,11 @@ describe('MobileDevices', () => {
   it('shows device list, create token, and revoke controls', async () => {
     const { MobileDevices } = await import('./MobileDevices');
 
-    render(<MobileDevices />);
+    render(
+      <ToastProvider>
+        <MobileDevices />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByText('Mobile Devices')).toBeInTheDocument();
     expect(await screen.findByText('Records Android')).toBeInTheDocument();
@@ -48,7 +53,11 @@ describe('MobileDevices', () => {
   it('requires confirmation before revoking a mobile device', async () => {
     const { MobileDevices } = await import('./MobileDevices');
 
-    render(<MobileDevices />);
+    render(
+      <ToastProvider>
+        <MobileDevices />
+      </ToastProvider>,
+    );
 
     fireEvent.click(await screen.findByRole('button', { name: /revoke/i }));
 

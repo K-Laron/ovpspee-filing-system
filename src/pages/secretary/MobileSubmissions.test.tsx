@@ -11,6 +11,7 @@ vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => 'session-1',
 }));
 
+import { ToastProvider } from '../../components/Toast';
 import type { MobileSubmissionDetail, MobileSubmissionItem } from '../../types';
 
 const pendingSubmission: MobileSubmissionItem = {
@@ -77,7 +78,11 @@ describe('MobileSubmissions', () => {
   it('shows setup, filters, and pending mobile submissions for review', async () => {
     const { MobileSubmissions } = await import('./MobileSubmissions');
 
-    render(<MobileSubmissions />);
+    render(
+      <ToastProvider>
+        <MobileSubmissions />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByText('Android Setup')).toBeInTheDocument();
     expect(screen.getAllByText(/192\.168\.1\.50/).length).toBeGreaterThan(0);

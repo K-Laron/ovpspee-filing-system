@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { fileNameFromPath, normalizeSelectedPaths } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type { CategoryItem, DocumentStatus, FolderItem, OfficeItem } from '../../types';
 
 const today = formatDateInputValue();
@@ -32,12 +33,13 @@ const attachmentFilters = [
 export const AddDocument = () => {
   const navigate = useNavigate();
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [offices, setOffices] = useState<OfficeItem[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [attachmentPaths, setAttachmentPaths] = useState<string[]>([]);
-  const [message, setMessage] = useState('');
+
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export const AddDocument = () => {
         setOffices(nextOffices);
       })
       .catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
         ),
       );
@@ -66,7 +69,8 @@ export const AddDocument = () => {
     void invoke<FolderItem[]>('list_public_folders', { categoryId })
       .then(setFolders)
       .catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
         ),
       );
@@ -98,7 +102,7 @@ export const AddDocument = () => {
     event.preventDefault();
     if (!sessionId || saving) return;
     setSaving(true);
-    setMessage('');
+
     try {
       const documentId = await invoke<number>('create_document', {
         sessionId,
@@ -120,7 +124,8 @@ export const AddDocument = () => {
       }
       navigate(`/s/documents?created=${documentId}`, { replace: true });
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not save the document. Check the required fields and try again.',
@@ -145,11 +150,6 @@ export const AddDocument = () => {
 
       <form className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]" onSubmit={submit}>
         <div className="rounded border border-border bg-surface p-5 shadow-sm">
-          {message && (
-            <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {message}
-            </div>
-          )}
           <div className="grid gap-4 md:grid-cols-2">
             <label className="md:col-span-2">
               <span className="form-label">Document title</span>
@@ -256,7 +256,8 @@ export const AddDocument = () => {
             className="btn w-full justify-center"
             onClick={() =>
               void chooseAttachments().catch((err) =>
-                setMessage(
+                addToast(
+                  'error',
                   getUserErrorMessage(
                     err,
                     'Could not add the attachment. Check the file type and try again.',
@@ -280,7 +281,8 @@ export const AddDocument = () => {
                 message="Choose PDF, Office, image, or text files to attach to this document."
                 onAction={() =>
                   void chooseAttachments().catch((err) =>
-                    setMessage(
+                    addToast(
+                      'error',
                       getUserErrorMessage(
                         err,
                         'Could not add the attachment. Check the file type and try again.',

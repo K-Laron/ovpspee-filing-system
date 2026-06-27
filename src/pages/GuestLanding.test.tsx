@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { invoke } from '@tauri-apps/api/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ToastProvider } from '../components/Toast';
 import { GuestLanding } from './GuestLanding';
 import type { DocumentDetail, DocumentItem, DocumentListPage } from '../types';
 
@@ -72,7 +73,11 @@ describe('GuestLanding printer loading', () => {
         throw new Error(`Unexpected invoke: ${name}`);
       });
 
-      render(<GuestLanding />);
+      render(
+        <ToastProvider>
+          <GuestLanding />
+        </ToastProvider>,
+      );
 
       expect(await screen.findAllByText('Public memo')).toHaveLength(2);
       expect(
@@ -101,7 +106,11 @@ describe('GuestLanding printer loading', () => {
       throw new Error(`Unexpected invoke: ${name}`);
     });
 
-    render(<GuestLanding />);
+    render(
+      <ToastProvider>
+        <GuestLanding />
+      </ToastProvider>,
+    );
 
     expect(await screen.findAllByText('Public memo')).toHaveLength(2);
     expect(

@@ -25,6 +25,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { fileNameFromPath, normalizeSelectedPaths, safeFileName } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type {
   CategoryItem,
   DocumentDetail,
@@ -45,6 +46,7 @@ const attachmentFilters = [
 
 export const Documents = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [offices, setOffices] = useState<OfficeItem[]>([]);
@@ -65,7 +67,7 @@ export const Documents = () => {
   const [moveFolders, setMoveFolders] = useState<FolderItem[]>([]);
   const [statusDraft, setStatusDraft] = useState<DocumentStatus>('Filed');
   const [pendingAttachmentPaths, setPendingAttachmentPaths] = useState<string[]>([]);
-  const [message, setMessage] = useState('');
+
   const [view, setView] = useState<'active' | 'trash'>('active');
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -174,7 +176,8 @@ export const Documents = () => {
 
   useEffect(() => {
     void loadLookups().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load document lists. Please refresh and try again.'),
       ),
     );
@@ -189,7 +192,8 @@ export const Documents = () => {
   useEffect(() => {
     setSelectedIds(new Set());
     void loadDocuments().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
       ),
     );
@@ -200,7 +204,8 @@ export const Documents = () => {
     if (!sessionId) return;
     const timer = setTimeout(() => {
       void loadDocuments().catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
         ),
       );
@@ -235,7 +240,8 @@ export const Documents = () => {
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
     void loadDocuments().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
       ),
     );
@@ -254,7 +260,7 @@ export const Documents = () => {
       remarks: detail.document.remarks,
       status: detail.document.status,
     });
-    setMessage('Document updated.');
+    addToast('success', 'Document updated.');
     await openDetail(detail.document.document_id);
     await loadDocuments();
   };
@@ -282,14 +288,14 @@ export const Documents = () => {
       });
     }
     setPendingAttachmentPaths([]);
-    setMessage('Attachment added.');
+    addToast('success', 'Attachment added.');
     await openDetail(detail.document.document_id);
   };
 
   const remove = async (attachmentId: number) => {
     if (!sessionId || !detail) return;
     await invoke<void>('remove_attachment', { sessionId, attachmentId });
-    setMessage('Attachment removed.');
+    addToast('success', 'Attachment removed.');
     await openDetail(detail.document.document_id);
   };
 
@@ -301,7 +307,7 @@ export const Documents = () => {
       documentId: detail.document.document_id,
       isHidden: nextHidden,
     });
-    setMessage(nextHidden ? 'Document hidden.' : 'Document unhidden.');
+    addToast('success', nextHidden ? 'Document hidden.' : 'Document unhidden.');
     await openDetail(detail.document.document_id);
     await loadDocuments();
   };
@@ -309,7 +315,7 @@ export const Documents = () => {
   const moveToTrash = async () => {
     if (!sessionId || !detail) return;
     await invoke<void>('trash_document', { sessionId, documentId: detail.document.document_id });
-    setMessage('Document moved to trash.');
+    addToast('success', 'Document moved to trash.');
     setDetail(null);
     await loadDocuments();
   };
@@ -317,7 +323,7 @@ export const Documents = () => {
   const restore = async () => {
     if (!sessionId || !detail) return;
     await invoke<void>('restore_document', { sessionId, documentId: detail.document.document_id });
-    setMessage('Document restored.');
+    addToast('success', 'Document restored.');
     setDetail(null);
     await loadDocuments();
   };
@@ -340,7 +346,7 @@ export const Documents = () => {
       categoryId: Number(moveCategoryId),
       folderId: moveFolderId ? Number(moveFolderId) : null,
     });
-    setMessage('Document moved.');
+    addToast('success', 'Document moved.');
     await openDetail(detail.document.document_id);
     await loadDocuments();
   };
@@ -352,7 +358,8 @@ export const Documents = () => {
       documentId: detail.document.document_id,
       status: statusDraft,
     });
-    setMessage(
+    addToast(
+      'success',
       statusDraft === 'Confidential'
         ? 'Status changed. Document is now hidden.'
         : 'Status changed.',
@@ -364,7 +371,7 @@ export const Documents = () => {
   const exportPdf = async () => {
     if (!sessionId || !detail || exporting) return;
     setExporting(true);
-    setMessage('');
+
     try {
       const outputPath = await save({
         defaultPath: `${safeFileName(detail.document.document_name)}.pdf`,
@@ -376,9 +383,10 @@ export const Documents = () => {
         documentId: detail.document.document_id,
         outputPath,
       });
-      setMessage(`Exported PDF: ${savedPath}`);
+      addToast('success', `Exported PDF: ${savedPath}`);
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not export the PDF. Choose another save location and try again.',
@@ -392,7 +400,7 @@ export const Documents = () => {
   const printPdf = async () => {
     if (!sessionId || !detail || !selectedPrinterId || printing) return;
     setPrinting(true);
-    setMessage('');
+
     try {
       const result = await invoke<{ printer_name: string }>('print_document_pdf', {
         sessionId,
@@ -400,9 +408,10 @@ export const Documents = () => {
         printerId: selectedPrinterId,
         copies,
       });
-      setMessage(`Print submitted to ${result.printer_name}.`);
+      addToast('success', `Print submitted to ${result.printer_name}.`);
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not print the document. Check the selected printer and try again.',
@@ -467,7 +476,7 @@ export const Documents = () => {
     try {
       await confirmAction.onConfirm();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+      addToast('error', getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
       clearConfirmAction();
     }
@@ -649,12 +658,6 @@ export const Documents = () => {
         </form>
       )}
 
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
-
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
           <table className="w-full text-left text-sm">
@@ -822,7 +825,8 @@ export const Documents = () => {
                       className="btn"
                       onClick={() =>
                         void toggleHidden().catch((err) =>
-                          setMessage(
+                          addToast(
+                            'error',
                             getUserErrorMessage(
                               err,
                               'Could not save the document. Check the required fields and try again.',
@@ -847,7 +851,10 @@ export const Documents = () => {
                       className="btn btn-primary"
                       onClick={() =>
                         void restore().catch((err) =>
-                          setMessage(getUserErrorMessage(err, 'Could not restore the document.')),
+                          addToast(
+                            'error',
+                            getUserErrorMessage(err, 'Could not restore the document.'),
+                          ),
                         )
                       }
                       type="button"
@@ -899,7 +906,8 @@ export const Documents = () => {
                   className="btn btn-primary"
                   onClick={() =>
                     void saveEdit().catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not save the document. Check the required fields and try again.',
@@ -964,7 +972,8 @@ export const Documents = () => {
                       value={moveCategoryId}
                       onChange={(e) =>
                         void loadMoveFolders(e.target.value).catch((err) =>
-                          setMessage(
+                          addToast(
+                            'error',
                             getUserErrorMessage(
                               err,
                               'Could not load documents. Please refresh and try again.',
@@ -1000,7 +1009,8 @@ export const Documents = () => {
                     className="btn btn-primary self-end"
                     onClick={() =>
                       void saveMove().catch((err) =>
-                        setMessage(
+                        addToast(
+                          'error',
                           getUserErrorMessage(
                             err,
                             'Could not save the document. Check the required fields and try again.',
@@ -1035,7 +1045,8 @@ export const Documents = () => {
                     className="btn btn-primary self-end"
                     onClick={() =>
                       void saveStatus().catch((err) =>
-                        setMessage(
+                        addToast(
+                          'error',
                           getUserErrorMessage(
                             err,
                             'Could not save the document. Check the required fields and try again.',
@@ -1101,7 +1112,8 @@ export const Documents = () => {
                       className="btn"
                       onClick={() =>
                         void chooseAttachments().catch((err) =>
-                          setMessage(
+                          addToast(
+                            'error',
                             getUserErrorMessage(
                               err,
                               'Could not add the attachment. Check the file type and try again.',
@@ -1146,7 +1158,8 @@ export const Documents = () => {
                           className="btn btn-primary"
                           onClick={() =>
                             void attach().catch((err) =>
-                              setMessage(
+                              addToast(
+                                'error',
                                 getUserErrorMessage(
                                   err,
                                   'Could not add the attachment. Check the file type and try again.',
@@ -1171,7 +1184,7 @@ export const Documents = () => {
                       detail.attachments[0] ??
                       null
                     }
-                    onError={(error) => setMessage(error)}
+                    onError={(error) => addToast('error', error)}
                     sessionId={sessionId}
                   />
                 </div>

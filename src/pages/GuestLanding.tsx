@@ -5,6 +5,7 @@ import type { KeyboardEvent } from 'react';
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
 import { EmptyState } from '../components/EmptyState';
+import { useToast } from '../components/Toast';
 import { formatDateOnly } from '../lib/dates';
 import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../lib/errors';
@@ -20,6 +21,7 @@ import type {
 } from '../types';
 
 export const GuestLanding = () => {
+  const { addToast } = useToast();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -30,7 +32,6 @@ export const GuestLanding = () => {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [folderId, setFolderId] = useState('');
-  const [message, setMessage] = useState('');
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<number | null>(null);
@@ -54,7 +55,8 @@ export const GuestLanding = () => {
     } catch {
       setPrinters([]);
       setSelectedPrinterId('');
-      setMessage(
+      addToast(
+        'info',
         'Printers are not available right now. You can still view and export public documents.',
       );
     }
@@ -76,7 +78,8 @@ export const GuestLanding = () => {
 
   useEffect(() => {
     void load().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
       ),
     );
@@ -86,7 +89,8 @@ export const GuestLanding = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       void load().catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
         ),
       );
@@ -128,7 +132,8 @@ export const GuestLanding = () => {
     event.preventDefault();
     setDetail(null);
     void load().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
       ),
     );
@@ -151,7 +156,8 @@ export const GuestLanding = () => {
           );
       })
       .catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
         ),
       );
@@ -168,7 +174,8 @@ export const GuestLanding = () => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     void openDocument(documentId).catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
       ),
     );
@@ -177,7 +184,6 @@ export const GuestLanding = () => {
   const exportPdf = async () => {
     if (!detail || exporting) return;
     setExporting(true);
-    setMessage('');
     try {
       const outputPath = await save({
         defaultPath: `${safeFileName(detail.document.document_name)}.pdf`,
@@ -189,9 +195,10 @@ export const GuestLanding = () => {
         outputPath,
         sessionId: null,
       });
-      setMessage(`Exported PDF: ${savedPath}`);
+      addToast('success', `Exported PDF: ${savedPath}`);
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not export the PDF. Choose another save location and try again.',
@@ -205,7 +212,6 @@ export const GuestLanding = () => {
   const printPdf = async () => {
     if (!detail || !selectedPrinterId || printing) return;
     setPrinting(true);
-    setMessage('');
     try {
       const result = await invoke<PrintResult>('print_document_pdf', {
         sessionId: null,
@@ -213,9 +219,10 @@ export const GuestLanding = () => {
         printerId: selectedPrinterId,
         copies,
       });
-      setMessage(`Print submitted to ${result.printer_name}.`);
+      addToast('success', `Print submitted to ${result.printer_name}.`);
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not print the document. Check the selected printer and try again.',
@@ -266,12 +273,6 @@ export const GuestLanding = () => {
         )}
       </div>
 
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
-
       <div className="grid gap-5 xl:grid-cols-[280px_0.9fr_1.1fr]">
         <aside className="space-y-4">
           <div className="rounded border border-border bg-surface p-4 shadow-sm">
@@ -283,7 +284,8 @@ export const GuestLanding = () => {
                   key={category.category_id}
                   onClick={() =>
                     void selectCategory(category.category_id).catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not load documents. Please refresh and try again.',
@@ -327,7 +329,8 @@ export const GuestLanding = () => {
                   })
                     .then((p) => setDocuments(p.documents))
                     .catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not load documents. Please refresh and try again.',
@@ -359,7 +362,8 @@ export const GuestLanding = () => {
                   key={doc.document_id}
                   onClick={() =>
                     void openDocument(doc.document_id).catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not load documents. Please refresh and try again.',
@@ -523,7 +527,7 @@ export const GuestLanding = () => {
                       detail.attachments[0] ??
                       null
                     }
-                    onError={(error) => setMessage(error)}
+                    onError={(error) => addToast('error', error)}
                   />
                 </div>
               </div>

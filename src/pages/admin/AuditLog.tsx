@@ -6,12 +6,14 @@ import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { nullable } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type { AuditLogEntry, AuditLogPage, AuditRetentionSettings } from '../../types';
 
 const pageSizeOptions = [25, 50, 100, 200];
 
 export const AuditLog = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [eventTypes, setEventTypes] = useState<string[]>([]);
   const [retention, setRetention] = useState<AuditRetentionSettings | null>(null);
@@ -25,12 +27,11 @@ export const AuditLog = () => {
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   const load = async (nextOffset = offset) => {
     if (!sessionId) return;
     setLoading(true);
-    setMessage('');
+
     try {
       const page = await invoke<AuditLogPage>('list_audit_logs', {
         sessionId,
@@ -46,7 +47,7 @@ export const AuditLog = () => {
       setEntries(page.entries);
       setOffset(page.offset);
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not load audit logs.'));
+      addToast('error', getUserErrorMessage(err, 'Could not load audit logs.'));
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export const AuditLog = () => {
 
   useEffect(() => {
     void loadLookups().catch((err) =>
-      setMessage(getUserErrorMessage(err, 'Could not load audit settings.')),
+      addToast('error', getUserErrorMessage(err, 'Could not load audit settings.')),
     );
     void load(0);
   }, [sessionId]);
@@ -84,11 +85,11 @@ export const AuditLog = () => {
       });
       setRetention(next);
       setRetentionDraft(String(next.retention_months));
-      setMessage('Audit retention updated.');
+      addToast('success', 'Audit retention updated.');
       await loadLookups();
       await load(0);
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not update audit retention.'));
+      addToast('error', getUserErrorMessage(err, 'Could not update audit retention.'));
     }
   };
 
@@ -208,12 +209,6 @@ export const AuditLog = () => {
           range: {retention?.min_months ?? 24}-{retention?.max_months ?? 36} months.
         </p>
       </section>
-
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
 
       <AuditTable entries={entries} loading={loading} />
       <Pager

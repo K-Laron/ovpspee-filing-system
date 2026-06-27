@@ -6,12 +6,14 @@ import { formatDateOnly } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { invoke } from '@tauri-apps/api/core';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type { DocumentItem } from '../../types';
 
 export const TrashManagement = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [message, setMessage] = useState('');
+
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const clearConfirmAction = () => setConfirmAction(null);
@@ -23,7 +25,8 @@ export const TrashManagement = () => {
 
   useEffect(() => {
     void loadTrash().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
       ),
     );
@@ -34,10 +37,10 @@ export const TrashManagement = () => {
     setBusy(true);
     try {
       await invoke<void>('purge_document', { sessionId, documentId });
-      setMessage('Document purged.');
+      addToast('success', 'Document purged.');
       await loadTrash();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not purge document.'));
+      addToast('error', getUserErrorMessage(err, 'Could not purge document.'));
     } finally {
       setBusy(false);
     }
@@ -48,10 +51,10 @@ export const TrashManagement = () => {
     setBusy(true);
     try {
       const count = await invoke<number>('empty_trash', { sessionId });
-      setMessage(`${count} document(s) purged.`);
+      addToast('success', `${count} document(s) purged.`);
       await loadTrash();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not empty Trash.'));
+      addToast('error', getUserErrorMessage(err, 'Could not empty Trash.'));
     } finally {
       setBusy(false);
     }
@@ -86,7 +89,7 @@ export const TrashManagement = () => {
     try {
       await confirmAction.onConfirm();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+      addToast('error', getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
       clearConfirmAction();
     }
@@ -115,7 +118,8 @@ export const TrashManagement = () => {
             className="btn"
             onClick={() =>
               void loadTrash().catch((err) =>
-                setMessage(
+                addToast(
+                  'error',
                   getUserErrorMessage(
                     err,
                     'Could not load documents. Please refresh and try again.',
@@ -144,12 +148,6 @@ export const TrashManagement = () => {
         <ShieldAlert className="shrink-0" size={18} />
         Purge permanently deletes document records and attachment files.
       </div>
-
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
 
       <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
         <table className="w-full text-left text-sm">

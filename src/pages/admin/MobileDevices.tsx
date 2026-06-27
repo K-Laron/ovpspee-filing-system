@@ -5,14 +5,16 @@ import { ConfirmDialog, type ConfirmAction } from '../../components/ConfirmDialo
 import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type { CreatedMobileDevice, MobileDeviceItem } from '../../types';
 
 export const MobileDevices = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [devices, setDevices] = useState<MobileDeviceItem[]>([]);
   const [deviceName, setDeviceName] = useState('');
   const [created, setCreated] = useState<CreatedMobileDevice | null>(null);
-  const [message, setMessage] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -22,11 +24,11 @@ export const MobileDevices = () => {
   const load = async () => {
     if (!sessionId) return;
     setLoading(true);
-    setMessage('');
+
     try {
       setDevices(await invoke<MobileDeviceItem[]>('list_mobile_devices', { sessionId }));
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not load mobile devices.'));
+      addToast('error', getUserErrorMessage(err, 'Could not load mobile devices.'));
     } finally {
       setLoading(false);
     }
@@ -39,7 +41,7 @@ export const MobileDevices = () => {
   const createToken = async () => {
     if (!sessionId) return;
     setCreating(true);
-    setMessage('');
+
     setCreated(null);
     try {
       const next = await invoke<CreatedMobileDevice>('create_mobile_device', {
@@ -48,10 +50,10 @@ export const MobileDevices = () => {
       });
       setCreated(next);
       setDeviceName('');
-      setMessage('Mobile device token created.');
+      addToast('success', 'Mobile device token created.');
       await load();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not create mobile device token.'));
+      addToast('error', getUserErrorMessage(err, 'Could not create mobile device token.'));
     } finally {
       setCreating(false);
     }
@@ -60,13 +62,13 @@ export const MobileDevices = () => {
   const revoke = async (deviceId: string) => {
     if (!sessionId) return;
     setRevokingId(deviceId);
-    setMessage('');
+
     try {
       await invoke<void>('revoke_mobile_device', { sessionId, deviceId });
-      setMessage('Mobile device revoked.');
+      addToast('success', 'Mobile device revoked.');
       await load();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not revoke mobile device.'));
+      addToast('error', getUserErrorMessage(err, 'Could not revoke mobile device.'));
     } finally {
       setRevokingId(null);
     }
@@ -91,7 +93,7 @@ export const MobileDevices = () => {
     try {
       await confirmAction.onConfirm();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+      addToast('error', getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
       clearConfirmAction();
     }
@@ -121,12 +123,6 @@ export const MobileDevices = () => {
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
-
-      {message ? (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <div className="rounded border border-border bg-surface p-5 shadow-sm">

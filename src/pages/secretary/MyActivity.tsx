@@ -2,6 +2,7 @@ import { RefreshCw, Search } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 import { invoke } from '@tauri-apps/api/core';
+import { useToast } from '../../components/Toast';
 import { formatDateTime } from '../../lib/dates';
 import { getUserErrorMessage } from '../../lib/errors';
 import { nullable } from '../../lib/helpers';
@@ -12,6 +13,7 @@ const pageSizeOptions = [25, 50, 100];
 
 export const MyActivity = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [eventTypes, setEventTypes] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -22,12 +24,11 @@ export const MyActivity = () => {
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   const load = async (nextOffset = offset) => {
     if (!sessionId) return;
     setLoading(true);
-    setMessage('');
+
     try {
       const page = await invoke<AuditLogPage>('list_my_activity', {
         sessionId,
@@ -42,7 +43,7 @@ export const MyActivity = () => {
       setEntries(page.entries);
       setOffset(page.offset);
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not load activity.'));
+      addToast('error', getUserErrorMessage(err, 'Could not load activity.'));
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,9 @@ export const MyActivity = () => {
     if (!sessionId) return;
     void invoke<string[]>('list_my_activity_event_types', { sessionId })
       .then(setEventTypes)
-      .catch((err) => setMessage(getUserErrorMessage(err, 'Could not load activity filters.')));
+      .catch((err) =>
+        addToast('error', getUserErrorMessage(err, 'Could not load activity filters.')),
+      );
     void load(0);
   }, [sessionId]);
 
@@ -146,13 +149,6 @@ export const MyActivity = () => {
           />
         </label>
       </form>
-
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
-
       <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
         <table className="w-full table-fixed text-left text-sm">
           <thead className="border-b border-border bg-background text-xs uppercase text-muted">

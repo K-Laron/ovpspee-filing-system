@@ -30,6 +30,7 @@ import {
   sizeLabel,
 } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type {
   CategoryItem,
   DeviceSettings,
@@ -233,6 +234,7 @@ const ScanIntakePreview = ({
 export const ScanIntake = () => {
   const navigate = useNavigate();
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [items, setItems] = useState<ScanIntakeItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -252,7 +254,7 @@ export const ScanIntake = () => {
   const [form, setForm] = useState(emptyForm);
   const [existingDocumentId, setExistingDocumentId] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
-  const [message, setMessage] = useState('');
+
   const [busy, setBusy] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [preview, setPreview] = useState<ScanIntakePreviewPage | null>(null);
@@ -312,7 +314,8 @@ export const ScanIntake = () => {
 
   useEffect(() => {
     void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(err, 'Could not load scan intake data. Please refresh and try again.'),
       ),
     );
@@ -348,7 +351,8 @@ export const ScanIntake = () => {
       })
       .catch((err) => {
         setScannerCapabilities(null);
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(
             err,
             'Could not detect devices. Check the connection, then refresh devices.',
@@ -366,7 +370,8 @@ export const ScanIntake = () => {
     void invoke<FolderItem[]>('list_public_folders', { categoryId })
       .then(setFolders)
       .catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(err, 'Could not load documents. Please refresh and try again.'),
         ),
       );
@@ -385,7 +390,7 @@ export const ScanIntake = () => {
       setPreviewPage(next.page_number);
     } catch (err) {
       setPreview(null);
-      setMessage(getUserErrorMessage(err, 'Could not preview this attachment.'));
+      addToast('error', getUserErrorMessage(err, 'Could not preview this attachment.'));
     } finally {
       setPreviewLoading(false);
     }
@@ -422,20 +427,21 @@ export const ScanIntake = () => {
   const importSelected = async () => {
     if (!sessionId || selectedPaths.length === 0 || busy) return;
     setBusy(true);
-    setMessage('');
+
     try {
       const importedIds = await invoke<number[]>('import_scan_files', {
         sessionId,
         sourcePaths: selectedPaths,
       });
       setSelectedPaths([]);
-      setMessage('Scan file(s) imported.');
+      addToast('success', 'Scan file(s) imported.');
       await loadIntake();
       if (importedIds.length) {
         setSelectedIds([Math.max(...importedIds)]);
       }
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not add the attachment. Check the file type and try again.',
@@ -465,7 +471,7 @@ export const ScanIntake = () => {
     try {
       await confirmAction.onConfirm();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+      addToast('error', getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
       clearConfirmAction();
     }
@@ -474,18 +480,19 @@ export const ScanIntake = () => {
   const captureFromScanner = async () => {
     if (!sessionId || !selectedScannerId || scanBusy) return;
     setScanBusy(true);
-    setMessage('Scanner capture started...');
+    addToast('info', 'Scanner capture started...');
     try {
       const item = await invoke<ScanIntakeItem>('scan_to_intake', {
         sessionId,
         scannerId: selectedScannerId,
         options: scanOptions,
       });
-      setMessage('Scanner capture added to pending intake.');
+      addToast('success', 'Scanner capture added to pending intake.');
       await loadIntake();
       setSelectedIds([item.scan_intake_id]);
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not detect devices. Check the connection, then refresh devices.',
@@ -509,23 +516,23 @@ export const ScanIntake = () => {
       scanIntakeId: selectedItems[0].scan_intake_id,
       notes: notesDraft || null,
     });
-    setMessage('Notes saved.');
+    addToast('success', 'Notes saved.');
     await loadIntake();
   };
 
   const removeSelected = async () => {
     if (!sessionId || selectedIds.length === 0 || busy) return;
     setBusy(true);
-    setMessage('');
+
     try {
       for (const scanIntakeId of selectedIds) {
         await invoke<void>('remove_scan_intake', { sessionId, scanIntakeId });
       }
       setSelectedIds([]);
-      setMessage('Pending scan removed from active intake.');
+      addToast('success', 'Pending scan removed from active intake.');
       await loadIntake();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not remove the selected item.'));
+      addToast('error', getUserErrorMessage(err, 'Could not remove the selected item.'));
     } finally {
       setBusy(false);
     }
@@ -535,7 +542,7 @@ export const ScanIntake = () => {
     event.preventDefault();
     if (!sessionId || selectedIds.length === 0 || busy) return;
     setBusy(true);
-    setMessage('');
+
     try {
       const documentId = await invoke<number>('file_scan_as_document', {
         sessionId,
@@ -552,7 +559,8 @@ export const ScanIntake = () => {
       setForm(emptyForm);
       navigate(`/s/documents?created=${documentId}`, { replace: false });
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not save the document. Check the required fields and try again.',
@@ -566,7 +574,7 @@ export const ScanIntake = () => {
   const attachToDocument = async () => {
     if (!sessionId || selectedIds.length === 0 || !existingDocumentId || busy) return;
     setBusy(true);
-    setMessage('');
+
     try {
       await invoke<number[]>('attach_scan_to_document', {
         sessionId,
@@ -575,10 +583,11 @@ export const ScanIntake = () => {
       });
       setSelectedIds([]);
       setExistingDocumentId('');
-      setMessage('Scan file(s) attached to document.');
+      addToast('success', 'Scan file(s) attached to document.');
       await Promise.all([loadIntake(), loadLookups()]);
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not add the attachment. Check the file type and try again.',
@@ -613,7 +622,8 @@ export const ScanIntake = () => {
           className="btn"
           onClick={() =>
             void Promise.all([loadLookups(), loadIntake(), loadScanners()]).catch((err) =>
-              setMessage(
+              addToast(
+                'error',
                 getUserErrorMessage(
                   err,
                   'Could not load scan intake data. Please refresh and try again.',
@@ -627,12 +637,6 @@ export const ScanIntake = () => {
           Refresh
         </button>
       </div>
-
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-5">
@@ -663,7 +667,8 @@ export const ScanIntake = () => {
                   className="btn"
                   onClick={() =>
                     void loadScanners().catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not detect devices. Check the connection, then refresh devices.',
@@ -683,7 +688,8 @@ export const ScanIntake = () => {
                   message="Connect and turn on the scanner, then refresh detection before scanning to intake."
                   onAction={() =>
                     void loadScanners().catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not detect devices. Check the connection, then refresh devices.',
@@ -815,7 +821,8 @@ export const ScanIntake = () => {
               className="btn w-full justify-center"
               onClick={() =>
                 void chooseFiles().catch((err) =>
-                  setMessage(
+                  addToast(
+                    'error',
                     getUserErrorMessage(
                       err,
                       'Could not add the attachment. Check the file type and try again.',
@@ -838,7 +845,8 @@ export const ScanIntake = () => {
                   message="Choose PDF or image scan files to stage them before importing into pending intake."
                   onAction={() =>
                     void chooseFiles().catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not add the attachment. Check the file type and try again.',
@@ -1106,7 +1114,8 @@ export const ScanIntake = () => {
                   className="btn"
                   onClick={() =>
                     void saveNotes().catch((err) =>
-                      setMessage(
+                      addToast(
+                        'error',
                         getUserErrorMessage(
                           err,
                           'Could not save the document. Check the required fields and try again.',

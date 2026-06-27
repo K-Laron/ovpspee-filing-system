@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type { DeviceSettings, PrinterDevice, ScannerDevice } from '../../types';
 
 const defaultSettings: DeviceSettings = {
@@ -20,17 +21,18 @@ export const DeviceSettingsPage = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
   const role = useSessionStore((state) => state.role);
   const readOnly = role !== 'Admin';
+  const { addToast } = useToast();
   const [scanners, setScanners] = useState<ScannerDevice[]>([]);
   const [printers, setPrinters] = useState<PrinterDevice[]>([]);
   const [settings, setSettings] = useState<DeviceSettings>(defaultSettings);
-  const [message, setMessage] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     if (!sessionId) return;
     setLoading(true);
-    setMessage('');
+
     try {
       const [nextSettings, nextScanners, nextPrinters] = await Promise.all([
         invoke<DeviceSettings>('get_device_settings', { sessionId }),
@@ -41,9 +43,9 @@ export const DeviceSettingsPage = () => {
       setSettings(nextSettings);
       setScanners(nextScanners);
       setPrinters(nextPrinters);
-      setMessage('Device detection refreshed.');
+      addToast('success', 'Device detection refreshed.');
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not detect devices.'));
+      addToast('error', getUserErrorMessage(err, 'Could not detect devices.'));
     } finally {
       setLoading(false);
     }
@@ -56,7 +58,7 @@ export const DeviceSettingsPage = () => {
   const saveSettings = async () => {
     if (!sessionId || readOnly) return;
     setSaving(true);
-    setMessage('');
+
     try {
       const updated = await invoke<DeviceSettings>('update_device_settings', {
         sessionId,
@@ -67,9 +69,9 @@ export const DeviceSettingsPage = () => {
         scanDefaultOutputFormat: settings.scan_default_output_format,
       });
       setSettings(updated);
-      setMessage('Device defaults saved.');
+      addToast('success', 'Device defaults saved.');
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not save device defaults.'));
+      addToast('error', getUserErrorMessage(err, 'Could not save device defaults.'));
     } finally {
       setSaving(false);
     }
@@ -106,11 +108,6 @@ export const DeviceSettingsPage = () => {
       {readOnly && (
         <div className="rounded border border-border bg-surface p-3 text-sm text-muted">
           Device defaults are read-only for Secretary accounts.
-        </div>
-      )}
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
         </div>
       )}
 

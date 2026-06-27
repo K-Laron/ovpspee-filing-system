@@ -17,10 +17,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { getUserErrorMessage } from '../../lib/errors';
 import { formatBytes } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type { BackupSettings, BackupSummary, BackupValidation, RestoreResult } from '../../types';
 
 export const BackupRestore = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [settings, setSettings] = useState<BackupSettings | null>(null);
   const [history, setHistory] = useState<BackupSummary[]>([]);
   const [destination, setDestination] = useState('');
@@ -28,7 +30,7 @@ export const BackupRestore = () => {
   const [scheduleTime, setScheduleTime] = useState('02:00');
   const [retentionCount, setRetentionCount] = useState(10);
   const [selected, setSelected] = useState('');
-  const [message, setMessage] = useState('');
+
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const clearConfirmAction = () => setConfirmAction(null);
@@ -50,7 +52,7 @@ export const BackupRestore = () => {
 
   useEffect(() => {
     void load().catch((err) =>
-      setMessage(getUserErrorMessage(err, 'Could not load backup settings.')),
+      addToast('error', getUserErrorMessage(err, 'Could not load backup settings.')),
     );
   }, [sessionId]);
 
@@ -71,10 +73,10 @@ export const BackupRestore = () => {
         retentionCount,
       });
       setSettings(updated);
-      setMessage('Backup settings saved.');
+      addToast('success', 'Backup settings saved.');
       await load();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not save backup settings.'));
+      addToast('error', getUserErrorMessage(err, 'Could not save backup settings.'));
     } finally {
       setBusy(false);
     }
@@ -85,10 +87,10 @@ export const BackupRestore = () => {
     setBusy(true);
     try {
       const backup = await invoke<BackupSummary>('create_backup', { sessionId });
-      setMessage(`Backup created: ${backup.backup_name}`);
+      addToast('success', `Backup created: ${backup.backup_name}`);
       await load();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not create backup.'));
+      addToast('error', getUserErrorMessage(err, 'Could not create backup.'));
     } finally {
       setBusy(false);
     }
@@ -108,9 +110,9 @@ export const BackupRestore = () => {
         backupName: selected,
         outputPath,
       });
-      setMessage(`Portable backup exported: ${path}`);
+      addToast('success', `Portable backup exported: ${path}`);
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not export backup.'));
+      addToast('error', getUserErrorMessage(err, 'Could not export backup.'));
     } finally {
       setBusy(false);
     }
@@ -134,10 +136,10 @@ export const BackupRestore = () => {
         archivePath: path,
       });
       setSelected(imported.backup_name);
-      setMessage(`Imported valid backup: ${validation.backup_name}`);
+      addToast('success', `Imported valid backup: ${validation.backup_name}`);
       await load();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not restore backup.'));
+      addToast('error', getUserErrorMessage(err, 'Could not restore backup.'));
     } finally {
       setBusy(false);
     }
@@ -148,10 +150,10 @@ export const BackupRestore = () => {
     setBusy(true);
     try {
       const result = await invoke<RestoreResult>('restore_from_backup', { sessionId, backupName });
-      setMessage(`${result.message} Safety backup: ${result.pre_restore_backup_name}`);
+      addToast('success', `${result.message} Safety backup: ${result.pre_restore_backup_name}`);
       await load();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not restore backup.'));
+      addToast('error', getUserErrorMessage(err, 'Could not restore backup.'));
     } finally {
       setBusy(false);
     }
@@ -177,7 +179,7 @@ export const BackupRestore = () => {
     try {
       await confirmAction.onConfirm();
     } catch (err) {
-      setMessage(getUserErrorMessage(err, 'Could not complete confirmation action.'));
+      addToast('error', getUserErrorMessage(err, 'Could not complete confirmation action.'));
     } finally {
       clearConfirmAction();
     }
@@ -205,7 +207,7 @@ export const BackupRestore = () => {
           className="btn"
           onClick={() =>
             void load().catch((err) =>
-              setMessage(getUserErrorMessage(err, 'Could not load backup settings.')),
+              addToast('error', getUserErrorMessage(err, 'Could not load backup settings.')),
             )
           }
           type="button"
@@ -220,12 +222,6 @@ export const BackupRestore = () => {
           <ShieldAlert className="shrink-0" size={18} />
           Local-only backups do not protect against device loss or drive failure. Copy backups to
           external, network, or removable storage.
-        </div>
-      )}
-
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
         </div>
       )}
 

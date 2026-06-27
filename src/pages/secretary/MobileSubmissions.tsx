@@ -24,6 +24,7 @@ import { getUserErrorMessage } from '../../lib/errors';
 import { invoke } from '@tauri-apps/api/core';
 import { sizeLabel } from '../../lib/helpers';
 import { useSessionStore } from '../../store/sessionStore';
+import { useToast } from '../../components/Toast';
 import type {
   MobileReviewStatus,
   MobileApiSetup,
@@ -56,6 +57,7 @@ const detailFromItem = (submission: MobileSubmissionItem): MobileSubmissionDetai
 
 export const MobileSubmissions = () => {
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addToast } = useToast();
   const [filter, setFilter] = useState<FilterStatus>('Pending');
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -64,7 +66,7 @@ export const MobileSubmissions = () => {
   const [submissions, setSubmissions] = useState<MobileSubmissionItem[]>([]);
   const [detail, setDetail] = useState<MobileSubmissionDetail | null>(null);
   const [setup, setSetup] = useState<MobileApiSetup | null>(null);
-  const [message, setMessage] = useState('');
+
   const [reviewNotes, setReviewNotes] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
@@ -100,7 +102,8 @@ export const MobileSubmissions = () => {
         setReviewNotes(nextDetail.submission.review_notes ?? '');
       }
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not load mobile submission attachments. Metadata is still available.',
@@ -130,7 +133,8 @@ export const MobileSubmissions = () => {
 
   useEffect(() => {
     void loadSubmissions().catch((err) =>
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not load mobile submissions. Please refresh and try again.',
@@ -143,7 +147,8 @@ export const MobileSubmissions = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       void loadSubmissions().catch((err) =>
-        setMessage(
+        addToast(
+          'error',
           getUserErrorMessage(
             err,
             'Could not load mobile submissions. Please refresh and try again.',
@@ -178,17 +183,18 @@ export const MobileSubmissions = () => {
   const approveSelected = async () => {
     if (!sessionId || !detail || busy) return;
     setBusy(true);
-    setMessage('');
+
     try {
       const documentId = await invoke<number>('approve_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
         reviewNotes: reviewNotes.trim() || null,
       });
-      setMessage(`Mobile submission approved as document #${documentId}.`);
+      addToast('success', `Mobile submission approved as document #${documentId}.`);
       await loadSubmissions();
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not approve the mobile submission. Please review metadata and try again.',
@@ -204,19 +210,20 @@ export const MobileSubmissions = () => {
     event.preventDefault();
     if (!sessionId || !detail || busy || !rejectReason.trim()) return;
     setBusy(true);
-    setMessage('');
+
     try {
       await invoke<void>('reject_mobile_submission', {
         sessionId,
         mobileSubmissionId: detail.submission.mobile_submission_id,
         rejectionReason: rejectReason.trim(),
       });
-      setMessage('Mobile submission rejected.');
+      addToast('success', 'Mobile submission rejected.');
       setRejecting(false);
       setRejectReason('');
       await loadSubmissions();
     } catch (err) {
-      setMessage(
+      addToast(
+        'error',
         getUserErrorMessage(
           err,
           'Could not reject the mobile submission. Please enter a reason and try again.',
@@ -259,7 +266,7 @@ export const MobileSubmissions = () => {
       );
     } catch (err) {
       setPreview(null);
-      setMessage(getUserErrorMessage(err, 'Could not preview this mobile attachment.'));
+      addToast('error', getUserErrorMessage(err, 'Could not preview this mobile attachment.'));
     } finally {
       setPreviewLoading(false);
     }
@@ -367,7 +374,8 @@ export const MobileSubmissions = () => {
           className="btn"
           onClick={() =>
             void loadSubmissions().catch((err) =>
-              setMessage(
+              addToast(
+                'error',
                 getUserErrorMessage(
                   err,
                   'Could not load mobile submissions. Please refresh and try again.',
@@ -483,7 +491,8 @@ export const MobileSubmissions = () => {
           className="btn btn-primary self-end"
           onClick={() =>
             void loadSubmissions().catch((err) =>
-              setMessage(
+              addToast(
+                'error',
                 getUserErrorMessage(
                   err,
                   'Could not load mobile submissions. Please refresh and try again.',
@@ -496,12 +505,6 @@ export const MobileSubmissions = () => {
           Apply
         </button>
       </div>
-
-      {message && (
-        <div className="rounded border border-border bg-surface p-3 text-sm text-secondary">
-          {message}
-        </div>
-      )}
 
       <div className="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
         <div className="overflow-hidden rounded border border-border bg-surface shadow-sm">
